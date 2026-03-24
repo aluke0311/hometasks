@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Home Tasks</title>
+<style>
+  :root {
+    --bg: #fafaf8; --bg2: #f1efe8; --bg3: #e8e6df;
+    --card: #ffffff; --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --text: #2c2c2a; --text2: #5f5e5a; --text3: #888780;
+    --red: #e24b4a; --red-bg: #fcebeb;
+    --amber: #ba7517; --amber-bg: #faeeda;
+    --green: #3b6d11; --green-bg: #eaf3de;
+    --blue: #185fa5; --blue-bg: #e6f1fb;
+    --radius: 10px; --radius-sm: 6px;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+    --nav-height: 49px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --bg2: #222220; --bg3: #2c2c2a;
+      --card: #252523; --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.18);
+      --text: #f1efe8; --text2: #b4b2a9; --text3: #888780;
+      --red-bg: #3d1a1a; --amber-bg: #2e1f08; --green-bg: #1a2e0a; --blue-bg: #0c2240;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  input, select, textarea { -webkit-appearance: none; appearance: none; border-radius: var(--radius-sm); }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  .app { max-width: 100%; min-height: 100vh; padding-bottom: calc(var(--nav-height) + var(--safe-bottom)); }
+
+  .header { padding: env(safe-area-inset-top) 24px 0; border-bottom: 0.5px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 100; }
+  .header-inner { display: flex; justify-content: space-between; align-items: center; height: 52px; }
+  .header-logo { display: flex; align-items: center; gap: 8px; }
+  .header-logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; flex-shrink: 0; }
+  .header-logo-text { font-size: 16px; font-weight: 500; color: var(--text); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .tab-row { display: none; }
+  /* Bottom navigation bar */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: var(--card); border-top: 0.5px solid var(--border); display: flex; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
+  .tab.active { color: var(--green); }
+  .tab-icon { font-size: 20px; line-height: 1; }
+  .tab-label { font-size: 10px; font-weight: 500; letter-spacing: 0.01em; }
+
+  /* Hero header (Alina view) */
+  .view-hero { padding: 20px 24px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; }
+  .view-hero-left { }
+  .view-hero-title { font-size: 28px; font-weight: 600; line-height: 1.2; }
+  .view-hero-subtitle { font-size: 14px; color: var(--text3); margin-top: 2px; }
+
+  /* Stats row */
+  .stats-row { padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+  .stats-row-top { display: flex; align-items: center; gap: 10px; }
+  .stat-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; }
+  .stats-zone { margin-left: auto; }
+  .zone-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 3px 8px; border-radius: var(--radius-sm); max-width: 180px; }
+  .stats-progress-wrap { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+
+  /* Settings page cards */
+  .settings-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin: 16px 24px 0; }
+  .settings-card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .settings-card-desc { font-size: 13px; color: var(--text3); margin-bottom: 14px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .settings-row:last-child { margin-bottom: 0; }
+  .settings-label { font-size: 13px; color: var(--text2); }
+  .settings-control { display: flex; align-items: center; gap: 8px; }
+  .stepper-btn { width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .stepper-val { font-size: 14px; font-weight: 500; min-width: 24px; text-align: center; }
+  .settings-save-btn { font-size: 12px; padding: 4px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
+  .settings-summary { font-size: 12px; color: var(--text3); margin-top: 10px; }
+  .settings-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .settings-stat-box { background: var(--bg2); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .settings-stat-num { font-size: 22px; font-weight: 600; }
+  .settings-stat-label { font-size: 12px; color: var(--text3); }
+  .zone-ref-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  .zone-ref-table th { text-align: left; color: var(--text3); font-weight: 500; padding: 4px 0; border-bottom: 0.5px solid var(--border); }
+  .zone-ref-table td { padding: 5px 0; border-bottom: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
+  .zone-ref-table td:first-child { font-weight: 500; color: var(--text); width: 70px; white-space: nowrap; padding-right: 12px; }
+
+  .section { padding: 0 24px; margin-top: 16px; }
+  .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; padding-left: 2px; display: flex; justify-content: space-between; align-items: center; }
+  .section-label-time { font-weight: 400; font-size: 11px; color: var(--text3); letter-spacing: 0; text-transform: none; }
+
+  .task-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; }
+  .task-card.done { opacity: 0.45; }
+  .task-main { display: flex; align-items: center; padding: 14px 16px; gap: 12px; cursor: pointer; }
+  .task-check { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .task-card.done .task-check { background: var(--green); border-color: var(--green); }
+  .task-check-inner { width: 8px; height: 8px; border-right: 2px solid white; border-bottom: 2px solid white; transform: rotate(45deg) translate(-1px, -2px); display: none; }
+  .task-card.done .task-check-inner { display: block; }
+  .task-body { flex: 1; min-width: 0; }
+  .task-name { font-size: 15px; font-weight: 500; color: var(--text); }
+  .task-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+  .task-room { font-size: 12px; color: var(--text3); }
+  .task-dot { font-size: 10px; color: var(--border2); }
+  .task-time { font-size: 12px; color: var(--text3); }
+  .task-freq { font-size: 11px; color: var(--text3); background: var(--bg2); padding: 1px 6px; border-radius: 8px; }
+  .task-overdue { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 500; }
+  .task-notdue  { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
+
+  .owner-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; font-weight: 500; }
+  .owner-alina { background: var(--purple-bg, #eeedfe); color: var(--purple, #534ab7); }
+  .owner-bob   { background: var(--teal-bg, #e1f5ee);   color: var(--teal, #0f6e56); }
+
+  .task-detail { padding: 0 12px 4px 48px; }
+  .task-lastdone { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+  .edit-btn { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
+  .edit-btn:hover { background: var(--bg2); }
+  .date-picker-row { display: none; align-items: center; gap: 8px; margin-top: 4px; padding-bottom: 4px; }
+  .date-picker-row.open { display: flex; }
+  .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 12px; padding: 3px 7px; border-radius: var(--radius-sm); }
+  .date-save-btn { font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
+
+  .task-actions { display: flex; gap: 8px; padding: 0 12px 12px 48px; }
+  .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; -webkit-tap-highlight-color: transparent; }
+  .task-btn:active { background: var(--bg2); }
+  .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
+
+  .more-btn { width: 100%; padding: 11px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text2); font-size: 13px; cursor: pointer; margin-bottom: 8px; transition: background 0.12s; }
+  .more-btn:hover { background: var(--bg2); }
+
+  .overflow-section { padding: 0 24px; margin-top: 8px; }
+  .overflow-toggle { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; padding: 4px 2px; margin-bottom: 8px; }
+  .overflow-toggle svg { transition: transform 0.2s; }
+  .overflow-toggle.open svg { transform: rotate(90deg); }
+
+
+  /* All Tasks (manage) tab */
+  .manage-header { padding: 16px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border); }
+  .manage-header-left { }
+  .manage-title { font-size: 18px; font-weight: 600; }
+  .manage-subtitle { font-size: 13px; color: var(--text3); margin-top: 2px; }
+  .add-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: none; background: var(--green); color: white; cursor: pointer; font-weight: 500; }
+  .manage-toolbar { padding: 10px 24px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+  .search-input { flex: 1; min-width: 120px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 8px 10px; border-radius: var(--radius-sm); }
+  .filter-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 7px 8px; border-radius: var(--radius-sm); }
+  .tasks-table { width: 100%; border-collapse: collapse; }
+  .tasks-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+  .tasks-table td { padding: 10px 24px; border-bottom: 0.5px solid var(--border); font-size: 13px; color: var(--text2); vertical-align: middle; }
+  .tasks-table td:first-child { color: var(--text); font-size: 14px; }
+  .tasks-table tr:hover td { background: var(--bg2); }
+  .status-due { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 600; }
+  .status-ok { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
+  .manage-row-actions { display: flex; gap: 4px; }
+  .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .icon-btn.danger { color: var(--red); border-color: var(--red); }
+  /* Mobile manage card list (replaces table) */
+  .manage-list { padding: 0 16px; margin-top: 8px; }
+  .manage-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .manage-card-body { flex: 1; min-width: 0; }
+  .manage-card-name { font-size: 15px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .manage-card-meta { font-size: 12px; color: var(--text3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .manage-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+  /* Modal — bottom sheet on iPhone */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: 92vh; display: flex; flex-direction: column; }
+  .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .modal-title { font-size: 17px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 20px; color: var(--text2); cursor: pointer; line-height: 1; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
+  .field-label { font-size: 13px; color: var(--text3); margin-bottom: 5px; }
+  .field-input { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-select { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
+  .field-check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text2); }
+  .modal-footer { padding: 12px 20px 16px; border-top: 0.5px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
+  .modal-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+  .modal-btn.primary { background: var(--blue); color: white; border-color: var(--blue); }
+  .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: 14px; }
+  .bottom-pad { height: 32px; }
+
+  .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Loading overlay */
+  .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: 14px; }
+
+  /* Sprint tab */
+  .sprint-block { margin: 16px 24px 0; }
+  .sprint-block-header { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 12px; }
+  .sprint-block-num { font-size: 22px; font-weight: 700; color: var(--bg3); line-height: 1.1; flex-shrink: 0; min-width: 20px; }
+  .sprint-block-meta { flex: 1; }
+  .sprint-block-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .sprint-block-label { font-size: 17px; font-weight: 600; color: var(--text); }
+  .sprint-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; display: flex; align-items: flex-start; padding: 10px 12px; gap: 10px; cursor: pointer; transition: opacity 0.15s; }
+  .sprint-card.done { opacity: 0.4; }
+  .sprint-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-top: 1px; }
+  .sprint-card.done .sprint-check { background: var(--green); border-color: var(--green); }
+  .sprint-check-inner { width: 7px; height: 7px; border-right: 2px solid white; border-bottom: 2px solid white; transform: rotate(45deg) translate(-1px, -1px); display: none; }
+  .sprint-card.done .sprint-check-inner { display: block; }
+  .sprint-card-body { flex: 1; min-width: 0; }
+  .sprint-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .sprint-card-name { font-size: 14px; color: var(--text); }
+  .sprint-card-time { font-size: 12px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
+  .sprint-progress { padding: 12px 24px; background: var(--bg2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .sprint-progress-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .sprint-progress-stats { display: flex; align-items: center; gap: 10px; flex: 1; }
+  .sprint-progress-bar-wrap { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .sprint-progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+  .sprint-progress-text { font-size: 13px; font-weight: 500; color: var(--text2); white-space: nowrap; }
+  .sprint-time-left { font-size: 12px; color: var(--text3); white-space: nowrap; }
+  .sprint-block-time { font-size: 13px; color: var(--text3); white-space: nowrap; }
+  .sprint-block-divider { height: 1px; background: var(--border); margin: 16px 24px 0; }
+
+  .sprint-block-hint { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .sprint-done-badge { font-size: 11px; font-weight: 500; color: var(--green); background: var(--green-bg); padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
+
+  /* Pin indicator */
+  .pin-badge { font-size: 11px; color: var(--amber); margin-left: 2px; }
+  .task-btn.pin-btn { color: var(--amber); border-color: var(--amber); }
+  .task-btn.pin-btn.pinned { background: var(--amber-bg); }
+  .sprint-pin { font-size: 11px; color: var(--amber); margin-left: 4px; }
+
+  /* Redeal button */
+  .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; color: var(--text2); cursor: pointer; }
+  .redeal-btn:hover { background: var(--bg2); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <div class="header-logo-icon">🏠</div>
+        <span class="header-logo-text">Home Tasks</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="alinaView">
+    <div class="view-hero">
+      <div class="view-hero-left">
+        <div class="view-hero-title">Today's Hand</div>
+        <div class="view-hero-subtitle" id="heroDate"></div>
+      </div>
+      <button class="redeal-btn" onclick="redealHand()" title="Redeal today's hand">&#8635; Redeal</button>
+    </div>
+    <div class="stats-row">
+      <div class="stats-row-top">
+        <span class="stat-badge" id="progressText">0 / 0 done</span>
+        <span class="stat-badge" id="totalTime"></span>
+        <div class="stats-zone">
+          <select class="zone-select" id="zoneSelect" onchange="saveZone()">
+            <option value="0">No zone focus</option>
+            <option value="1">Zone 1 — Dining, Mud, Porches</option>
+            <option value="2">Zone 2 — Kitchen</option>
+            <option value="3">Zone 3 — Sunroom, Office, DS Bath, Laundry</option>
+            <option value="4">Zone 4 — Bedroom, US Bath</option>
+            <option value="5">Zone 5 — Living Room, Back Room</option>
+          </select>
+        </div>
+      </div>
+      <div class="stats-progress-wrap">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
+    </div>
+    <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
+  </div>
+
+  <div id="manageView" style="display:none">
+    <div id="manageTaskList"></div>
+  </div>
+
+  <div id="sprintView" style="display:none">
+    <div id="sprintContent"></div>
+  </div>
+
+  <div id="presetsView" style="display:none">
+    <div id="presetsContent"></div>
+  </div>
+
+  <div id="settingsView" style="display:none">
+    <div id="settingsContent"></div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="tab active" data-tab="alina" onclick="switchTab('alina')">
+    <span class="tab-icon">✋</span>
+    <span class="tab-label">My Hand</span>
+  </button>
+  <button class="tab" data-tab="sprint" onclick="switchTab('sprint')">
+    <span class="tab-icon">⚡</span>
+    <span class="tab-label">Sprint</span>
+  </button>
+  <button class="tab" data-tab="manage" onclick="switchTab('manage')">
+    <span class="tab-icon">📋</span>
+    <span class="tab-label">All Tasks</span>
+  </button>
+  <button class="tab" data-tab="presets" onclick="switchTab('presets')">
+    <span class="tab-icon">🗂</span>
+    <span class="tab-label">Presets</span>
+  </button>
+  <button class="tab" data-tab="settings" onclick="switchTab('settings')">
+    <span class="tab-icon">⚙️</span>
+    <span class="tab-label">Settings</span>
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- Task edit/add modal -->
+<div class="modal-backdrop" id="taskModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Add task</span>
+      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="field-label">Task name</div>
+        <input class="field-input" id="f_name" placeholder="e.g. Clean stovetop">
+      </div>
+      <div>
+        <div class="field-label">Room</div>
+        <input class="field-input" id="f_room" placeholder="e.g. Kitchen">
+      </div>
+      <div class="field-row">
+        <div>
+          <div class="field-label">Frequency (days)</div>
+          <input class="field-input" id="f_freq" type="number" min="1" placeholder="7">
+        </div>
+        <div>
+          <div class="field-label">Time estimate (min)</div>
+          <input class="field-input" id="f_time" type="number" min="1" placeholder="10">
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Assigned to</div>
+        <select class="field-select" id="f_owner">
+          <option value="either">Either</option>
+          <option value="alina">Alina only</option>
+          <option value="bob">Bob only</option>
+        </select>
+      </div>
+      <div class="field-check-row">
+        <input type="checkbox" id="f_cat" style="width:16px;height:16px;">
+        <label for="f_cat">Cat-related task (priority tiebreaker)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn primary" onclick="saveTask()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── TASK DATABASE ─────────────────────────────────────────────────────────
+const TASKS = [
+  // ── CAT WATER (alina only) ──
+  { id:'c_water_up',       name:'Replace upstairs water',              room:'Cats',          freq:2,   time:2,  cat:true,  owner:'alina' },
+  { id:'c_water_ds',       name:'Replace downstairs water',            room:'Cats',          freq:2,   time:2,  cat:true,  owner:'alina' },
+  { id:'c_water_bowl_up',  name:'Wash upstairs water bowl',            room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
+  { id:'c_water_bowl_ds',  name:'Wash downstairs water bowl',          room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
+  { id:'c_food_mats',      name:'Disinfect cat food mats',             room:'Cats',          freq:30,  time:5,  cat:true,  owner:'alina' },
+  { id:'c_cat_beds',       name:'Wash cat beds',                       room:'Cats',          freq:90,  time:10, cat:true,  owner:'alina' },
+
+  // ── CAT LITTER / FEEDERS (bob) ──
+  { id:'c_scoop_ds',       name:'Scoop downstairs litter',             room:'Cats',          freq:1,   time:3,  cat:true,  owner:'bob' },
+  { id:'c_feeders',        name:'Clean feeders',                       room:'Cats',          freq:14,  time:10, cat:true,  owner:'bob' },
+  { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'bob' },
+  { id:'c_litter_robot_wipe', name:'Wipe inside Litter Robot',         room:'Cats',          freq:21,  time:8,  cat:true,  owner:'bob' },
+  { id:'c_litter_ds_change', name:'Change downstairs litter (full)',   room:'Cats',          freq:30,  time:10, cat:true,  owner:'bob' },
+  { id:'c_litter_scoops',  name:'Clean litter scoops',                 room:'Cats',          freq:30,  time:5,  cat:true,  owner:'bob' },
+  { id:'c_litter_full',    name:'Replace downstairs litter (quarterly)', room:'Cats',        freq:90,  time:15, cat:true,  owner:'bob' },
+  { id:'c_litter_scrub',   name:'Scrub litter box & surroundings',     room:'Cats',          freq:180, time:20, cat:true,  owner:'bob' },
+
+  // ── DAILY KITCHEN (either) ──
+  { id:'k_tidy',           name:'Kitchen tidy',                        room:'Kitchen',       freq:1,   time:5,  owner:'either' },
+  { id:'k_counters',       name:'Wipe counters',                       room:'Kitchen',       freq:1,   time:5,  owner:'either' },
+  { id:'k_dishwasher',     name:'Unload dishwasher',                   room:'Kitchen',       freq:1,   time:5,  owner:'either' },
+
+  // ── LAUNDRY PROCESS (daily, alina) ──
+  { id:'l_start',          name:'Start a load of laundry',             room:'Laundry',       freq:1,   time:10, owner:'alina' },
+  { id:'l_dryer',          name:'Move laundry to dryer',               room:'Laundry',       freq:1,   time:3,  owner:'alina' },
+  { id:'l_fold',           name:'Fold laundry',                        room:'Laundry',       freq:1,   time:10, owner:'alina' },
+  { id:'l_put_away',       name:'Put away laundry',                    room:'Laundry',       freq:1,   time:5,  owner:'alina' },
+
+  // ── BEDROOM DAILY ──
+  { id:'bed_make',         name:'Make bed',                            room:'Bedroom',       freq:1,   time:3,  owner:'either' },
+
+  // ── ROBOT VACUUMS ──
+  { id:'rob_run_ds',       name:'Run robot vacuum (downstairs)',        room:'Downstairs',    freq:1,   time:2,  owner:'either' },
+  { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:7,   time:2,  owner:'either' },
+  { id:'rob_water',        name:'Refill robot water & empty dirty tank', room:'Robot',       freq:7,   time:5,  owner:'alina' },
+  { id:'rob_mop_pads',     name:'Clean robot mop pads',                room:'Robot',         freq:7,   time:5,  owner:'alina' },
+  { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:7,   time:2,  owner:'either' },
+  { id:'rob_filters',      name:'Clean robot filters',                  room:'Robot',         freq:30,  time:5,  owner:'alina' },
+  { id:'rob_sensors',      name:'Wipe robot sensors',                   room:'Robot',         freq:30,  time:5,  owner:'alina' },
+  { id:'rob_deep',         name:'Deep clean robot',                     room:'Robot',         freq:90,  time:20, owner:'alina' },
+
+  // ── KITCHEN ──
+  { id:'k_recycling_out',  name:'Take out recycling',                  room:'Kitchen',       freq:4,   time:2,  owner:'either' },
+  { id:'k_compost',        name:'Take out compost',                    room:'Kitchen',       freq:4,   time:2,  owner:'bob' },
+  { id:'k_trash',          name:'Take out trash',                      room:'Kitchen',       freq:7,   time:2,  owner:'either' },
+  { id:'k_sink',           name:'Clean sink',                          room:'Kitchen',       freq:7,   time:5,  owner:'either' },
+  { id:'k_stove',          name:'Clean stovetop',                      room:'Kitchen',       freq:7,   time:8,  owner:'alina' },
+  { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  owner:'alina' },
+  { id:'k_backsplash',     name:'Degrease backsplash',                 room:'Kitchen',       freq:7,   time:8,  owner:'either' },
+  { id:'k_water_bottle',   name:'Wash water bottle',                   room:'Kitchen',       freq:7,   time:3,  owner:'alina' },
+  { id:'k_fridge',         name:'Clean out fridge',                    room:'Kitchen',       freq:14,  time:15, owner:'either' },
+  { id:'k_hood',           name:'Clean kitchen hood',                  room:'Kitchen',       freq:21,  time:10, owner:'either' },
+  { id:'k_toaster',        name:'Clean toaster',                       room:'Kitchen',       freq:30,  time:5,  owner:'either' },
+  { id:'k_dishfilter',     name:'Clean dishwasher filter',             room:'Kitchen',       freq:30,  time:8,  owner:'either' },
+  { id:'k_oven_ext',       name:'Clean oven (exterior)',               room:'Kitchen',       freq:30,  time:10, owner:'either' },
+  { id:'k_trash_can',      name:'Clean trash can',                     room:'Kitchen',       freq:42,  time:10, owner:'either' },
+  { id:'k_trash_sweep',    name:'Sweep under trash can',               room:'Kitchen',       freq:42,  time:5,  owner:'either' },
+  { id:'k_fridge_out',     name:'Wipe outside of fridge',             room:'Kitchen',       freq:60,  time:5,  owner:'either' },
+  { id:'k_dishwash_out',   name:'Wipe outside of dishwasher',         room:'Kitchen',       freq:60,  time:5,  owner:'either' },
+  { id:'k_microwave',      name:'Clean microwave',                     room:'Kitchen',       freq:60,  time:10, owner:'either' },
+  { id:'k_disposal',       name:'Clean garbage disposal',              room:'Kitchen',       freq:60,  time:8,  owner:'either' },
+  { id:'k_espresso',       name:'Clean espresso machine',              room:'Kitchen',       freq:70,  time:10, owner:'either' },
+  { id:'k_coffee',         name:'Clean coffee grinder',                room:'Kitchen',       freq:70,  time:8,  owner:'either' },
+  { id:'k_knives',         name:'Sharpen knives',                      room:'Kitchen',       freq:90,  time:10, owner:'bob' },
+  { id:'k_kettle',         name:'Descale kettle',                      room:'Kitchen',       freq:90,  time:10, owner:'either' },
+  { id:'k_fridge_deep',    name:'Deep clean fridge',                   room:'Kitchen',       freq:90,  time:30, owner:'either' },
+  { id:'k_freezer',        name:'Clean freezer',                       room:'Kitchen',       freq:90,  time:20, owner:'either' },
+  { id:'k_dishwash_deep',  name:'Clean dishwasher',                    room:'Kitchen',       freq:90,  time:15, owner:'either' },
+  { id:'k_butcher',        name:'Oil butcher block',                   room:'Kitchen',       freq:90,  time:8,  owner:'either' },
+  { id:'k_grocery_bags',   name:'Wash reusable grocery bags',          room:'Kitchen',       freq:90,  time:8,  owner:'either' },
+  { id:'k_soap',           name:'Refill soap (kitchen)',               room:'Kitchen',       freq:90,  time:2,  owner:'either' },
+  { id:'k_scrub_cup',      name:'Wash scrub brush cup',                room:'Kitchen',       freq:90,  time:5,  owner:'either' },
+  { id:'k_recycling',      name:'Clean recycling bin',                 room:'Kitchen',       freq:120, time:10, owner:'either' },
+  { id:'k_towel_basket',   name:'Clean towel basket',                  room:'Kitchen',       freq:180, time:5,  owner:'either' },
+  { id:'k_fridge_filter',  name:'Replace fridge water filter',         room:'Kitchen',       freq:180, time:5,  owner:'either' },
+  { id:'k_oven_int',       name:'Clean oven (interior)',               room:'Kitchen',       freq:180, time:30, owner:'either' },
+  { id:'k_win',            name:'Clean windows (kitchen)',             room:'Kitchen',       freq:180, time:15, owner:'either' },
+  { id:'k_cabinets',       name:'Wipe cabinet fronts',                 room:'Kitchen',       freq:365, time:30, owner:'either' },
+  { id:'k_top_fridge',     name:'Clean top of fridge',                 room:'Kitchen',       freq:365, time:10, owner:'either' },
+  { id:'k_utensil_can',    name:'Wash utensil canisters',              room:'Kitchen',       freq:365, time:8,  owner:'either' },
+
+  // ── LIVING ROOM ──
+  { id:'lr_tidy',          name:'Living room tidy',                    room:'Living Room',   freq:4,   time:8,  owner:'either' },
+  { id:'lr_vacuum',        name:'Vacuum rug (living room)',            room:'Living Room',   freq:14,  time:8,  owner:'either' },
+  { id:'lr_dust',          name:'Dust surfaces (living room)',         room:'Living Room',   freq:14,  time:8,  owner:'either' },
+  { id:'lr_mirror',        name:'Clean mirror (living room)',          room:'Living Room',   freq:30,  time:5,  owner:'either' },
+  { id:'lr_blinds',        name:'Dust blinds (living room)',           room:'Living Room',   freq:42,  time:10, owner:'either' },
+  { id:'lr_sofa',          name:'Vacuum upholstery (living room)',     room:'Living Room',   freq:90,  time:15, owner:'either' },
+  { id:'lr_walls',         name:'Spot clean walls (living room)',      room:'Living Room',   freq:90,  time:10, owner:'either' },
+  { id:'lr_fan',           name:'Dust ceiling fan (living room)',      room:'Living Room',   freq:180, time:10, owner:'either' },
+  { id:'lr_win',           name:'Clean windows (living room)',         room:'Living Room',   freq:180, time:15, owner:'either' },
+
+  // ── DINING ROOM ──
+  { id:'dr_table',         name:'Wipe table',                          room:'Dining Room',   freq:2,   time:3,  owner:'either' },
+  { id:'dr_tidy',          name:'Dining room tidy',                    room:'Dining Room',   freq:4,   time:5,  owner:'either' },
+  { id:'dr_dust',          name:'Dust surfaces (dining)',              room:'Dining Room',   freq:21,  time:8,  owner:'either' },
+  { id:'dr_purifier',      name:'Vacuum air purifier filter (dining)', room:'Dining Room',   freq:21,  time:5,  owner:'either' },
+  { id:'dr_chairs',        name:'Vacuum chairs (dining)',              room:'Dining Room',   freq:180, time:10, owner:'either' },
+  { id:'dr_blinds',        name:'Dust blinds (dining)',                room:'Dining Room',   freq:42,  time:8,  owner:'either' },
+  { id:'dr_barware',       name:'Wash barware glasses',                room:'Dining Room',   freq:90,  time:10, owner:'either' },
+  { id:'dr_fixtures',      name:'Clean light fixtures (dining)',       room:'Dining Room',   freq:90,  time:10, owner:'either' },
+  { id:'dr_win',           name:'Clean windows (dining)',              room:'Dining Room',   freq:180, time:15, owner:'either' },
+
+  // ── DOWNSTAIRS BATHROOM ──
+  { id:'dsb_toilet',       name:'Clean toilet (DS bath)',              room:'DS Bathroom',   freq:7,   time:5,  owner:'alina' },
+  { id:'dsb_sink',         name:'Clean sink (DS bath)',                room:'DS Bathroom',   freq:7,   time:5,  owner:'alina' },
+  { id:'dsb_tub_vac',      name:'Vacuum tub (DS bath)',                room:'DS Bathroom',   freq:7,   time:5,  owner:'bob' },
+  { id:'dsb_trash',        name:'Empty trash (DS bath)',               room:'DS Bathroom',   freq:30,  time:2,  owner:'either' },
+  { id:'dsb_towels',       name:'Replace hand towels (DS bath)',       room:'DS Bathroom',   freq:10,  time:2,  owner:'either' },
+  { id:'dsb_mirror',       name:'Clean mirror (DS bath)',              room:'DS Bathroom',   freq:14,  time:5,  owner:'bob' },
+  { id:'dsb_mop',          name:'Mop floor (DS bath)',                 room:'DS Bathroom',   freq:14,  time:8,  owner:'either' },
+  { id:'dsb_mats',         name:'Wash bath mats (DS bath)',            room:'DS Bathroom',   freq:30,  time:5,  owner:'either' },
+  { id:'dsb_exhaust',      name:'Clean exhaust fan (DS bath)',         room:'DS Bathroom',   freq:30,  time:8,  owner:'either' },
+  { id:'dsb_tub',          name:'Clean shower/bath (DS bath)',         room:'DS Bathroom',   freq:60,  time:20, owner:'bob' },
+  { id:'dsb_soap',         name:'Refill soap (DS bath)',               room:'DS Bathroom',   freq:90,  time:2,  owner:'either' },
+  { id:'dsb_handles',      name:'Disinfect handles & switches (DS bath)', room:'DS Bathroom', freq:90, time:5, owner:'either' },
+  { id:'dsb_win',          name:'Clean windows (DS bath)',             room:'DS Bathroom',   freq:180, time:10, owner:'either' },
+
+  // ── UPSTAIRS BATHROOM ──
+  { id:'usb_tidy',         name:'Tidy up (US bath)',                   room:'US Bathroom',   freq:4,   time:5,  owner:'either' },
+  { id:'usb_toilet',       name:'Clean toilet (US bath)',              room:'US Bathroom',   freq:7,   time:5,  owner:'alina' },
+  { id:'usb_sink',         name:'Clean sink (US bath)',                room:'US Bathroom',   freq:7,   time:5,  owner:'alina' },
+  { id:'usb_towels',       name:'Replace hand towels (US bath)',       room:'US Bathroom',   freq:7,   time:2,  owner:'either' },
+  { id:'usb_trash',        name:'Empty trash (US bath)',               room:'US Bathroom',   freq:7,   time:2,  owner:'either' },
+  { id:'usb_mirror',       name:'Clean mirror (US bath)',              room:'US Bathroom',   freq:7,   time:5,  owner:'bob' },
+  { id:'usb_shower',       name:'Clean shower (US bath)',              room:'US Bathroom',   freq:14,  time:15, owner:'bob' },
+  { id:'usb_mop',          name:'Mop floor (US bath)',                 room:'US Bathroom',   freq:14,  time:8,  owner:'either' },
+  { id:'usb_cups',         name:'Wash cups (US bath)',                 room:'US Bathroom',   freq:14,  time:5,  owner:'either' },
+  { id:'usb_mats',         name:'Wash bath mats (US bath)',            room:'US Bathroom',   freq:30,  time:5,  owner:'either' },
+  { id:'usb_exhaust',      name:'Clean exhaust fan (US bath)',         room:'US Bathroom',   freq:30,  time:8,  owner:'either' },
+  { id:'usb_soap',         name:'Refill soap (US bath)',               room:'US Bathroom',   freq:60,  time:2,  owner:'either' },
+  { id:'usb_grout',        name:'Steam clean grout',                   room:'US Bathroom',   freq:90,  time:30, owner:'bob' },
+  { id:'usb_brush',        name:'Clean toilet brush',                  room:'US Bathroom',   freq:90,  time:5,  owner:'either' },
+  { id:'usb_handles',      name:'Disinfect handles & switches (US bath)', room:'US Bathroom', freq:90, time:5, owner:'either' },
+  { id:'usb_makeup',       name:'Clean makeup brushes',               room:'US Bathroom',   freq:180, time:10, owner:'alina' },
+  { id:'usb_drawers',      name:'Organize drawers (US bath)',          room:'US Bathroom',   freq:180, time:20, owner:'either' },
+  { id:'usb_win',          name:'Clean windows (US bath)',             room:'US Bathroom',   freq:180, time:10, owner:'either' },
+
+  // ── BEDROOM ──
+  { id:'bed_clothes',      name:'Clean clothes off dresser',           room:'Bedroom',       freq:3,   time:5,  owner:'either' },
+  { id:'bed_vacuum',       name:'Vacuum floor (bedroom)',              room:'Bedroom',       freq:7,   time:8,  owner:'either' },
+  { id:'bed_tidy',         name:'Tidy up (bedroom)',                   room:'Bedroom',       freq:7,   time:8,  owner:'either' },
+  { id:'bed_dust',         name:'Dust surfaces (bedroom)',             room:'Bedroom',       freq:14,  time:8,  owner:'either' },
+  { id:'bed_trash',        name:'Empty trash (bedroom)',               room:'Bedroom',       freq:14,  time:2,  owner:'either' },
+  { id:'bed_sheets',       name:'Change bed sheets & wash',            room:'Bedroom',       freq:14,  time:15, owner:'bob' },
+  { id:'bed_purifier',     name:'Vacuum air purifier filter (bedroom)', room:'Bedroom',      freq:21,  time:5,  owner:'either' },
+  { id:'bed_behind',       name:'Vacuum behind bed',                   room:'Bedroom',       freq:30,  time:8,  owner:'either' },
+  { id:'bed_drawer',       name:'Organize one drawer',                 room:'Bedroom',       freq:30,  time:10, owner:'either' },
+  { id:'bed_mop_up',       name:'Mop upstairs',                        room:'Bedroom',       freq:30,  time:15, owner:'either' },
+  { id:'bed_fan_filters',  name:'Replace ceiling fan filters',         room:'Bedroom',       freq:90,  time:10, owner:'bob' },
+  { id:'bed_mattress',     name:'Rotate mattress',                     room:'Bedroom',       freq:180, time:15, owner:'either' },
+  { id:'bed_mattress_pad', name:'Wash mattress pad',                   room:'Bedroom',       freq:180, time:10, owner:'either' },
+  { id:'bed_pillows',      name:'Wash pillows',                        room:'Bedroom',       freq:180, time:10, owner:'either' },
+  { id:'bed_fan',          name:'Dust ceiling fan (bedroom)',          room:'Bedroom',       freq:180, time:10, owner:'either' },
+  { id:'bed_win',          name:'Clean windows (bedroom)',             room:'Bedroom',       freq:180, time:15, owner:'either' },
+  { id:'bed_curtains',     name:'Wash curtains',                       room:'Bedroom',       freq:365, time:15, owner:'either' },
+
+  // ── LAUNDRY ROOM ──
+  { id:'lroom_tidy',       name:'Tidy laundry room',                   room:'Laundry Room',  freq:7,   time:5,  owner:'either' },
+  { id:'lroom_myclothes',  name:'My clothes laundry',                  room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
+  { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
+  { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
+  { id:'lroom_duvet',      name:'Wash duvet cover',                    room:'Laundry Room',  freq:30,  time:8,  owner:'bob' },
+  { id:'lroom_dust',       name:'Dust surfaces (laundry room)',        room:'Laundry Room',  freq:30,  time:5,  owner:'either' },
+  { id:'lroom_trash',      name:'Empty trash (laundry room)',          room:'Laundry Room',  freq:30,  time:2,  owner:'either' },
+  { id:'lroom_washer',     name:'Clean washing machine',               room:'Laundry Room',  freq:90,  time:20, owner:'either' },
+  { id:'lroom_blankets',   name:'Wash blankets',                       room:'Laundry Room',  freq:180, time:10, owner:'either' },
+
+  // ── CAT WATER FOUNTAIN (alina, top priority) ──
+  { id:'c_fountain',       name:'Clean cat water fountain',            room:'Cats',          freq:14,  time:20, cat:true,  owner:'alina' },
+
+  // ── SUNROOM ──
+  { id:'sun_tidy',         name:'Tidy sunroom',                        room:'Sunroom',       freq:14,  time:8,  owner:'either' },
+  { id:'sun_baseboards',   name:'Clean baseboards (sunroom)',          room:'Sunroom',       freq:180, time:10, owner:'either' },
+  { id:'sun_win',          name:'Clean windows (sunroom)',             room:'Sunroom',       freq:180, time:15, owner:'either' },
+
+  // ── OFFICE ──
+  { id:'off_vacuum',       name:'Vacuum rug (office)',                 room:'Office',        freq:14,  time:5,  owner:'either' },
+  { id:'off_dust',         name:'Dust surfaces (office)',              room:'Office',        freq:30,  time:8,  owner:'either' },
+  { id:'off_tidy',         name:'Tidy office',                         room:'Office',        freq:30,  time:10, owner:'either' },
+  { id:'off_trash',        name:'Empty trash (office)',                room:'Office',        freq:60,  time:2,  owner:'either' },
+  { id:'off_couch',        name:'Vacuum couch (office)',               room:'Office',        freq:90,  time:10, owner:'either' },
+  { id:'off_mirror',       name:'Clean mirror (office)',               room:'Office',        freq:90,  time:5,  owner:'either' },
+  { id:'off_fan',          name:'Dust fixtures (office)',              room:'Office',        freq:180, time:8,  owner:'either' },
+  { id:'off_win',          name:'Clean windows (office)',              room:'Office',        freq:180, time:15, owner:'either' },
+
+  // ── BACK ROOM ──
+  { id:'br_tidy',          name:'Tidy back room',                      room:'Back Room',     freq:7,   time:5,  owner:'either' },
+  { id:'br_treadmill',     name:'Clean treadmill',                     room:'Back Room',     freq:7,   time:5,  owner:'either' },
+  { id:'br_vacuum',        name:'Vacuum rug (back room)',              room:'Back Room',     freq:14,  time:5,  owner:'either' },
+  { id:'br_dust',          name:'Dust surfaces (back room)',           room:'Back Room',     freq:21,  time:8,  owner:'either' },
+  { id:'br_mirror',        name:'Clean mirror (back room)',            room:'Back Room',     freq:60,  time:5,  owner:'either' },
+  { id:'br_upholstery',    name:'Vacuum upholstery (back room)',       room:'Back Room',     freq:90,  time:15, owner:'either' },
+  { id:'br_fan',           name:'Dust fixtures (back room)',           room:'Back Room',     freq:180, time:8,  owner:'either' },
+  { id:'br_win',           name:'Clean windows (back room)',           room:'Back Room',     freq:180, time:15, owner:'either' },
+
+  // ── HALL & STAIRS ──
+  { id:'hs_tidy',          name:'Tidy hall & stairs',                  room:'Hall & Stairs', freq:4,   time:5,  owner:'either' },
+  { id:'hs_sweep',         name:'Sweep stairs',                        room:'Hall & Stairs', freq:7,   time:8,  owner:'either' },
+  { id:'hs_mop',           name:'Mop stairs',                          room:'Hall & Stairs', freq:30,  time:15, owner:'either' },
+  { id:'hs_dust',          name:'Dust surfaces (hall)',                room:'Hall & Stairs', freq:30,  time:8,  owner:'either' },
+  { id:'hs_air_filter',    name:'Clean air filter (hall)',             room:'Hall & Stairs', freq:90,  time:5,  owner:'either' },
+  { id:'hs_mirror',        name:'Clean mirror (hall)',                 room:'Hall & Stairs', freq:90,  time:5,  owner:'either' },
+
+  // ── MUD ROOM ──
+  { id:'mud_tidy',         name:'Tidy mud room',                       room:'Mud Room',      freq:21,  time:8,  owner:'either' },
+  { id:'mud_sweep',        name:'Sweep mud room',                      room:'Mud Room',      freq:60,  time:8,  owner:'either' },
+  { id:'mud_win',          name:'Clean windows (mud room)',            room:'Mud Room',      freq:180, time:10, owner:'either' },
+
+  // ── BACK PORCH ──
+  { id:'bp_tidy',          name:'Tidy back porch',                     room:'Back Porch',    freq:7,   time:8,  owner:'either' },
+  { id:'bp_sweep',         name:'Sweep back porch',                    room:'Back Porch',    freq:30,  time:8,  owner:'either' },
+  { id:'bp_furniture',     name:'Wipe porch furniture',                room:'Back Porch',    freq:90,  time:10, owner:'either' },
+
+  // ── WHOLE HOUSE ──
+  { id:'house_doorknobs',  name:'Disinfect doorknobs & switches',      room:'Whole House',   freq:42,  time:8,  owner:'either' },
+  { id:'house_entryway',   name:'Sweep entryway',                      room:'Whole House',   freq:42,  time:5,  owner:'either' },
+  { id:'house_vents',      name:'Dust vents',                          room:'Whole House',   freq:30,  time:10, owner:'either' },
+  { id:'house_furnace',    name:'Change furnace filter',               room:'Whole House',   freq:60,  time:10, owner:'bob' },
+];
+
+// Zone → rooms mapping
+const ZONE_ROOMS = {
+  1: ['Dining Room','Mud Room','Back Porch'],
+  2: ['Kitchen'],
+  3: ['Sunroom','Office','DS Bathroom','Laundry Room','Hall & Stairs'],
+  4: ['Bedroom','US Bathroom'],
+  5: ['Living Room','Back Room']
+};
+
+// Frequency label
+function freqLabel(days) {
+  if (days === 1) return 'daily';
+  if (days <= 3) return 'every ' + days + ' days';
+  if (days === 7) return 'weekly';
+  if (days === 14) return 'every 2 weeks';
+  if (days === 21) return 'every 3 weeks';
+  if (days === 30) return 'monthly';
+  if (days <= 45) return 'every ' + days + ' days';
+  if (days === 90) return 'quarterly';
+  if (days === 180) return 'twice a year';
+  if (days === 365) return 'yearly';
+  return 'every ' + days + ' days';
+}
+
+// Frequency CSS class for left border color
+function freqClass(days) {
+  if (days <= 3)  return 'freq-daily';
+  if (days <= 14) return 'freq-week';
+  if (days <= 60) return 'freq-month';
+  return 'freq-long';
+}
+
+// ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
+const STORAGE_KEY = 'hometasks_v8';
+const STORAGE_KEY_V7 = 'hometasks_v7';
+let saveDebounceTimer = null;
+let isSaving = false;
+
+function defaultState() {
+  const now = Date.now();
+  const completions = {};
+  TASKS.forEach(t => {
+    completions[t.id] = now - (t.freq * 86400000);
+  });
+  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null };
+}
+
+async function loadState() {
+  try {
+    // Try v8 first
+    let raw = localStorage.getItem(STORAGE_KEY);
+    // Fall back to v7 migration if v8 not found
+    if (!raw) {
+      raw = localStorage.getItem(STORAGE_KEY_V7);
+    }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate: cap → budgetWeekday/budgetWeekend
+      let budgetWeekday = 45, budgetWeekend = 90;
+      if (parsed.budgetWeekday != null) budgetWeekday = parsed.budgetWeekday;
+      if (parsed.budgetWeekend != null) budgetWeekend = parsed.budgetWeekend;
+      return {
+        completions: parsed.completions || {},
+
+        budgetWeekday,
+        budgetWeekend,
+        zone: parsed.zone != null ? parsed.zone : 0,
+        hand: parsed.hand || null,
+        handDate: parsed.handDate || null,
+        customTasks: parsed.customTasks || {},
+        deletedIds: parsed.deletedIds || [],
+        pinnedIds: parsed.pinnedIds || [],
+        starvation: parsed.starvation || {},
+        guestHand: parsed.guestHand || null,
+        resetHand: parsed.resetHand || null,
+      };
+    }
+  } catch (e) {
+    console.log('No existing state found, using defaults');
+  }
+  return defaultState();
+}
+
+function setSyncStatus(status) {
+  const el = document.getElementById('syncIndicator');
+  const label = document.getElementById('syncLabel');
+  if (!el || !label) return;
+  el.className = 'sync-indicator' + (status !== 'synced' ? ' ' + status : '');
+  if (status === 'syncing') label.textContent = 'saving…';
+  else if (status === 'error') label.textContent = 'sync error';
+  else label.textContent = 'synced';
+}
+
+async function saveState() {
+  // Debounce rapid saves: wait 300ms after last call
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(async () => {
+    if (isSaving) return;
+    isSaving = true;
+    setSyncStatus('syncing');
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setSyncStatus('synced');
+    } catch (e) {
+      console.error('Storage save error:', e);
+      setSyncStatus('error');
+    } finally {
+      isSaving = false;
+    }
+  }, 300);
+}
+
+// ─── STATE (initialized async in init()) ───────────────────────────────────
+let state = defaultState(); // placeholder until async load
+let currentTab = 'alina';
+
+// ─── CORE LOGIC ────────────────────────────────────────────────────────────
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function isWeekend() {
+  const d = new Date().getDay();
+  return d === 0 || d === 6;
+}
+
+function fmtMinutes(min) {
+  if (min < 60) return min + 'm';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
+}
+
+function daysOverdue(task) {
+  const last = state.completions[task.id] || 0;
+  if (task.freq === 1) {
+    // Calendar-day based: due whenever last completion was on a previous calendar day
+    if (!last) return 0;
+    const d = new Date(last);
+    const lastDateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (lastDateStr >= todayStr()) return -0.5; // done today, not due
+    const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const lastMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    return (todayMidnight - lastMidnight) / 86400000 - 1; // 0 if done yesterday, 1 if 2 days ago, etc.
+  }
+  const nextDue = last + task.freq * 86400000;
+  return (Date.now() - nextDue) / 86400000;
+}
+
+function isDue(task) { return daysOverdue(task) >= 0; }
+
+function scoreTask(task, zone) {
+  const zoneRooms = ZONE_ROOMS[zone] || [];
+  const inZone = zoneRooms.some(r => task.room.includes(r) || r.includes(task.room));
+  const overdue = daysOverdue(task);
+  const overdueRatio = overdue / task.freq;
+
+  let score = task.freq;
+  if (task.cat) score -= 0.5;
+  if (inZone) score -= 2;
+  score -= Math.min(overdueRatio * task.freq * 0.5, task.freq * 0.8);
+  const starvation = (state.starvation || {})[task.id] || 0;
+  score -= starvation * 0.3;
+
+  return score;
+}
+
+function getDueTasks(owner) {
+  return getAllTasks()
+    .filter(t => {
+      if (!isDue(t)) return false;
+      if (owner === 'alina') return t.owner === 'alina' || t.owner === 'either';
+      if (owner === 'bob')   return t.owner === 'bob';
+      return true;
+    })
+    .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+}
+
+function getDailies() {
+  return getAllTasks().filter(t =>
+    t.freq === 1 &&
+    isDue(t) &&
+    (t.owner === 'alina' || t.owner === 'either')
+  ).sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+}
+
+function dealHand() {
+  const today = todayStr();
+  if (state.handDate === today && state.hand) return;
+
+  const pinned = (state.pinnedIds || []).filter(id => getAllTasks().find(t => t.id === id));
+  const dailyIds = getDailies().map(t => t.id);
+  const sortedNonDailies = getDueTasks('alina').filter(t => t.freq > 1);
+
+  // Remove pinned from normal pools to avoid duplicates
+  const pinnedSet = new Set(pinned);
+  const dailyFiltered = dailyIds.filter(id => !pinnedSet.has(id));
+  const nonDailyFiltered = sortedNonDailies.filter(t => !pinnedSet.has(t.id));
+
+  // Time budget selection with effort balancing
+  // Budget covers the whole hand (dailies + non-dailies)
+  const budget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
+  // Count time already spent today (completed tasks) + uncommitted dailies
+  const allTasks = getAllTasks();
+  const completedTodayTime = allTasks.filter(t => wasCompletedToday(t))
+    .reduce((s, t) => s + t.time, 0);
+  const uncommittedDailyTime = dailyFiltered.reduce((s, id) => {
+    const t = allTasks.find(t => t.id === id);
+    return s + (t && !wasCompletedToday(t) ? t.time : 0);
+  }, 0);
+  const HEAVY_THRESHOLD = 15;
+  const HEAVY_MAX = 2;
+  let timeUsed = completedTodayTime + uncommittedDailyTime;
+  let heavyCount = 0;
+  const selected = [];
+
+  for (const task of nonDailyFiltered) {
+    const isHeavy = task.time > HEAVY_THRESHOLD;
+    if (isHeavy && heavyCount >= HEAVY_MAX) continue;
+    if (timeUsed + task.time > budget && selected.length > 0) break;
+    selected.push(task);
+    timeUsed += task.time;
+    if (isHeavy) heavyCount++;
+  }
+
+  const newHandIds = new Set([...pinned, ...dailyFiltered, ...selected.map(t => t.id)]);
+  // Always keep tasks completed today in the hand, even across redeals
+  getAllTasks().forEach(t => {
+    if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
+  });
+  state.hand = [...newHandIds];
+  state.handDate = today;
+
+  // Starvation updates: boost tasks that were due but not selected
+  if (!state.starvation) state.starvation = {};
+  const handSet = new Set(state.hand);
+  getAllTasks().forEach(t => {
+    if (isDue(t) && !handSet.has(t.id)) {
+      state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
+    } else if (handSet.has(t.id)) {
+      state.starvation[t.id] = 0;
+    }
+  });
+
+  saveState();
+}
+
+function getHandTasks() {
+  dealHand();
+  const handTasks = state.hand.map(id => getAllTasks().find(t => t.id === id)).filter(Boolean);
+  // Also include any tasks completed today that aren't already in the hand
+  const handIds = new Set(state.hand);
+  const completedToday = getAllTasks().filter(t =>
+    !handIds.has(t.id) &&
+    (t.owner === 'alina' || t.owner === 'either') &&
+    wasCompletedToday(t)
+  );
+  return [...handTasks, ...completedToday];
+}
+
+function getOverflowTasks() {
+  dealHand();
+  return getDueTasks('alina').filter(t => t.freq > 1 && !state.hand.includes(t.id));
+}
+
+function getNotDueTasks() {
+  return getAllTasks()
+    .filter(t =>
+      (t.owner === 'alina' || t.owner === 'either') &&
+      !isDue(t) &&
+      !state.hand.includes(t.id)
+    )
+    .sort((a,b) => {
+      const aNext = (state.completions[a.id] || 0) + a.freq * 86400000;
+      const bNext = (state.completions[b.id] || 0) + b.freq * 86400000;
+      return aNext - bNext;
+    });
+}
+
+function wasCompletedToday(task) {
+  const last = state.completions[task.id] || 0;
+  if (!last) return false;
+  const d = new Date(last);
+  const s = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return s === todayStr();
+}
+
+function completeTask(id) {
+  const task = getAllTasks().find(t => t.id === id);
+  if (!task) return;
+  const prev = state.completions[id] || 0;
+  const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
+  state.completions[id] = Date.now();
+  // Auto-unpin on completion
+  if (state.pinnedIds && state.pinnedIds.includes(id)) {
+    state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+  }
+  saveState();
+  render();
+  showToast('Done!');
+}
+
+function uncompleteTask(id) {
+  const task = getAllTasks().find(t => t.id === id);
+  if (!task) return;
+  state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+  saveState();
+  render();
+}
+
+function swapTask(id) {
+  const overflow = getOverflowTasks();
+  if (!overflow.length) { showToast('Nothing else available'); return; }
+  const idx = state.hand.indexOf(id);
+  if (idx >= 0) state.hand[idx] = overflow[0].id;
+  saveState();
+  render();
+  showToast('Swapped!');
+}
+
+function addMore() {
+  const overflow = getOverflowTasks();
+  const toAdd = overflow.slice(0, 3).map(t => t.id);
+  if (!toAdd.length) { showToast('Nothing more due'); return; }
+  state.hand = [...state.hand, ...toAdd];
+  saveState();
+  render();
+  showToast('Added ' + toAdd.length + ' more task' + (toAdd.length>1?'s':''));
+}
+
+function pinTask(id) {
+  if (!state.pinnedIds) state.pinnedIds = [];
+  if (state.pinnedIds.includes(id)) return;
+  state.pinnedIds.push(id);
+  // If task isn't in hand, add it and bump lowest-priority non-pinned non-daily
+  if (!state.hand.includes(id)) {
+    state.hand.push(id);
+    // Check if we're over cap for non-daily tasks
+    const dailyIds = getDailies().map(t => t.id);
+    const nonDailyInHand = state.hand.filter(hid => !dailyIds.includes(hid));
+    const pinnedSet = new Set(state.pinnedIds);
+    const nonPinnedNonDaily = nonDailyInHand.filter(hid => !pinnedSet.has(hid));
+    if (nonPinnedNonDaily.length > 0) {
+      // Remove lowest priority non-pinned non-daily (last in the sorted list)
+      const bumpId = nonPinnedNonDaily[nonPinnedNonDaily.length - 1];
+      state.hand = state.hand.filter(hid => hid !== bumpId);
+    }
+  }
+  saveState();
+  render();
+  showToast('Pinned');
+}
+
+function unpinTask(id) {
+  if (!state.pinnedIds) return;
+  state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+  saveState();
+  render();
+  showToast('Unpinned');
+}
+
+function togglePin(id) {
+  if (state.pinnedIds && state.pinnedIds.includes(id)) {
+    unpinTask(id);
+  } else {
+    pinTask(id);
+  }
+}
+
+function redealHand() {
+  // Preserve pins across redeal
+  state.hand = null;
+  state.handDate = null;
+  saveState();
+  render();
+  showToast('Hand redealt');
+}
+
+function setLastDone(id, dateStr) {
+  if (!dateStr) return;
+  const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d)) return;
+  state.completions[id] = d.getTime();
+  state.hand = null;
+  saveState();
+  render();
+  showToast('Last done updated');
+}
+
+// ─── RENDER ────────────────────────────────────────────────────────────────
+
+function render() {
+  if (currentTab === 'alina') renderAlina();
+  else if (currentTab === 'sprint') renderSprint();
+  else if (currentTab === 'manage') renderManage();
+  else if (currentTab === 'presets') renderPresets();
+  else if (currentTab === 'settings') renderSettings();
+}
+
+function renderAlina() {
+  const hand = getHandTasks();
+  const doneCount = hand.filter(t => wasCompletedToday(t)).length;
+  const totalMin = hand.reduce((s,t) => s + t.time, 0);
+
+  const leftMin = hand.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+  document.getElementById('progressText').textContent = doneCount + ' / ' + hand.length + ' done';
+  document.getElementById('progressBar').style.width = hand.length ? Math.round(doneCount/hand.length*100) + '%' : '0%';
+  document.getElementById('totalTime').textContent = '⏱ ~' + fmtMinutes(leftMin) + ' left';
+
+  const dailyIds = getDailies().map(t => t.id);
+  const dailies = hand.filter(t => dailyIds.includes(t.id));
+  const capped  = hand.filter(t => !dailyIds.includes(t.id));
+  const overflow = getOverflowTasks();
+  const notDue = getNotDueTasks();
+
+  let html = '';
+
+  if (dailies.length) {
+    const dailyLeftMin = dailies.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+    const dailiesSorted = [...dailies.filter(t => !wasCompletedToday(t)), ...dailies.filter(t => wasCompletedToday(t))];
+    html += '<div class="section"><div class="section-label"><span>Daily Tasks (' + dailies.length + ')</span><span class="section-label-time">⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining</span></div>';
+    dailiesSorted.forEach(t => html += renderCard(t, false));
+    html += '</div>';
+  }
+
+  if (capped.length) {
+    const otherLeftMin = capped.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+    const cappedSorted = [...capped.filter(t => !wasCompletedToday(t)), ...capped.filter(t => wasCompletedToday(t))];
+    html += '<div class="section"><div class="section-label"><span>Other Tasks (' + capped.length + ')</span><span class="section-label-time">⏱ ~' + fmtMinutes(otherLeftMin) + ' remaining</span></div>';
+    cappedSorted.forEach(t => html += renderCard(t, true));
+    html += '</div>';
+  }
+
+  if (overflow.length || notDue.length) {
+    const totalBackup = overflow.length + notDue.length;
+    html += '<div class="overflow-section" style="margin-top:12px">';
+    if (overflow.length) {
+      html += '<button class="more-btn" onclick="addMore()">+ Give me more (' + overflow.length + ' due)</button>';
+    }
+    html += '<button class="overflow-toggle" id="overflowToggle" onclick="toggleOverflow()">' +
+        '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
+        'Backup list (' + totalBackup + ')' +
+      '</button>' +
+      '<div id="overflowList" style="display:none">';
+    if (overflow.length) {
+      html += '<div class="section" style="margin-top:8px"><div class="section-label">Due / overdue</div>';
+      overflow.forEach(t => html += renderCard(t, true));
+      html += '</div>';
+    }
+    if (notDue.length) {
+      html += '<div class="section" style="margin-top:8px"><div class="section-label">Not due yet</div>';
+      notDue.forEach(t => html += renderCard(t, false));
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+
+  if (!hand.length && !overflow.length) {
+    html = '<div class="empty">Nothing due — all clear!</div>';
+  }
+
+  html += '<div class="bottom-pad"></div>';
+  document.getElementById('alinaTaskList').innerHTML = html;
+}
+
+function renderCard(task, canSwap) {
+  const isDone = wasCompletedToday(task);
+  const overdue = daysOverdue(task);
+  const fc = freqClass(task.freq);
+
+  const last = state.completions[task.id] || 0;
+  const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never';
+  const nextDue = new Date(last + task.freq * 86400000);
+
+  let overdueHtml = '';
+  if (!isDone) {
+    if (overdue >= 1) overdueHtml = '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>';
+    else if (overdue >= 0) overdueHtml = '<span class="task-overdue">due today</span>';
+    else {
+      const daysUntil = Math.ceil(-overdue);
+      overdueHtml = '<span class="task-notdue">in ' + daysUntil + 'd</span>';
+    }
+  }
+
+  const ownerHtml = task.owner === 'either' ? '<span class="owner-badge owner-bob">Bob too</span>' : '';
+  const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
+  const pinBadge = isPinned ? '<span class="pin-badge">&#128204;</span>' : '';
+  const swapBtn = canSwap && !isDone && !isPinned ? '<button class="task-btn swap-btn" onclick="event.stopPropagation();swapTask(\'' + task.id + '\')">swap</button>' : '';
+  const undoBtn = isDone ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
+  const pinBtn = !isDone ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
+
+  const dpId = 'dp_' + task.id;
+
+  return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
+    '<div class="task-main" onclick="completeTask(\'' + task.id + '\')">' +
+      '<div class="task-check"><div class="task-check-inner"></div></div>' +
+      '<div class="task-body">' +
+        '<div class="task-name">' + task.name + pinBadge + '</div>' +
+        '<div class="task-meta">' +
+          '<span class="task-room">📍 ' + task.room + '</span>' +
+          '<span class="task-freq">' + freqLabel(task.freq) + '</span>' +
+          '<span class="task-time">⏱ ' + fmtMinutes(task.time) + '</span>' +
+          overdueHtml +
+          ownerHtml +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="task-detail">' +
+      '<div class="task-lastdone">' +
+        'Last done: ' + lastDate +
+        ' <button class="edit-btn" onclick="event.stopPropagation();toggleDatePicker(\'' + dpId + '\')">edit</button>' +
+      '</div>' +
+      '<div class="date-picker-row" id="' + dpId + '">' +
+        '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
+        '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">save</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="task-actions">' + swapBtn + pinBtn + undoBtn + '</div>' +
+  '</div>';
+}
+
+
+// ─── UI HELPERS ────────────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  currentTab = tab;
+  const views = ['alina', 'manage', 'sprint', 'presets', 'settings'];
+  views.forEach(v => {
+    const el = document.getElementById(v + 'View');
+    if (el) el.style.display = tab === v ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab[data-tab]').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+  render();
+}
+
+// ─── SPRINT TAB ────────────────────────────────────────────────────────────
+
+const BLOCK_HINTS = {
+  'Launch':           'Start passive tasks first',
+  'Kitchen':          'Work through counters to sink',
+  'Cat care':         'Water, food, litter',
+  'Laundry':          'Check washer before moving on',
+  'Bathrooms':        'Top to bottom, tidy first',
+  'Bedroom':          'Tidy before making bed',
+  'Living spaces':    'Tidy before wiping surfaces',
+  'Office':           'Clear desk before dusting',
+  'Hall & entries':   'Sweep last',
+  'Around the house': 'Pick a circuit and go',
+};
+
+const ROOM_DISPLAY_NAMES = { 'Cats': 'Cat care' };
+
+function tidyFirst(tasks) {
+  return [...tasks].sort((a, b) => {
+    const aT = /tidy/i.test(a.name);
+    const bT = /tidy/i.test(b.name);
+    if (aT && !bT) return -1;
+    if (!aT && bT) return 1;
+    return 0;
+  });
+}
+
+function kitchenOrder(tasks) {
+  // unload dishwasher → tidy → wipe counters → everything else
+  function rank(t) {
+    if (/unload.*dishwasher|dishwasher/i.test(t.name)) return 0;
+    if (/tidy/i.test(t.name)) return 1;
+    if (/wipe.*counter|counter.*wipe/i.test(t.name)) return 2;
+    return 3;
+  }
+  return [...tasks].sort((a, b) => rank(a) - rank(b));
+}
+
+function bedroomOrder(tasks) {
+  // make bed → tidy → everything else
+  function rank(t) {
+    if (/make.*bed|bed.*make/i.test(t.name)) return 0;
+    if (/tidy/i.test(t.name)) return 1;
+    return 2;
+  }
+  return [...tasks].sort((a, b) => rank(a) - rank(b));
+}
+
+function blockLabel(groupLabel, tasks) {
+  const rooms = [...new Set(tasks.map(t => t.room))];
+  const roomName = rooms.length === 1 ? (ROOM_DISPLAY_NAMES[rooms[0]] || rooms[0]) : null;
+  return roomName || groupLabel;
+}
+
+function getSprintBlocks() {
+  const hand = getHandTasks();
+  if (!hand.length) return [];
+
+  const assigned = new Set();
+  const blocks = [];
+
+  // ── LAUNCH: passive/cycle-starting tasks ──
+  const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop'];
+  const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id));
+  if (launchTasks.length) {
+    blocks.push({ label: 'Launch', tasks: tidyFirst(launchTasks) });
+    launchTasks.forEach(t => assigned.add(t.id));
+  }
+
+  // ── KITCHEN: kitchen tasks in hand ──
+  const kitchenTasks = hand.filter(t => t.room === 'Kitchen' && !assigned.has(t.id));
+  if (kitchenTasks.length) {
+    const label = blockLabel('Kitchen', kitchenTasks);
+    blocks.push({ label, tasks: kitchenOrder(kitchenTasks) });
+    kitchenTasks.forEach(t => assigned.add(t.id));
+  }
+
+  // ── CAT CARE ──
+  const catTasks = hand.filter(t => (t.cat || t.room === 'Cats') && !assigned.has(t.id));
+  if (catTasks.length) {
+    const label = blockLabel('Cat care', catTasks);
+    blocks.push({ label, tasks: tidyFirst(catTasks) });
+    catTasks.forEach(t => assigned.add(t.id));
+  }
+
+  // ── LAUNDRY ISOLATION: l_dryer, l_fold, l_put_away get their own block ──
+  const LAUNDRY_IDS = ['l_dryer', 'l_fold', 'l_put_away'];
+  const laundryTasks = hand.filter(t => LAUNDRY_IDS.includes(t.id) && !assigned.has(t.id));
+  if (laundryTasks.length) {
+    blocks.push({ label: 'Laundry', tasks: laundryTasks });
+    laundryTasks.forEach(t => assigned.add(t.id));
+  }
+
+  // ── REMAINING: group by room ──
+  const ROOM_TO_GROUP = {
+    'DS Bathroom': 'Bathrooms', 'US Bathroom': 'Bathrooms',
+    'Bedroom': 'Bedroom',
+    'Living Room': 'Living spaces', 'Dining Room': 'Living spaces',
+    'Sunroom': 'Living spaces', 'Back Room': 'Living spaces',
+    'Office': 'Office',
+    'Laundry Room': 'Laundry room', 'Laundry': 'Laundry room',
+    'Hall & Stairs': 'Hall & entries', 'Mud Room': 'Hall & entries', 'Back Porch': 'Hall & entries',
+    'Whole House': 'Around the house', 'Robot': 'Around the house',
+    'Downstairs': 'Around the house', 'Upstairs': 'Around the house',
+  };
+  const GROUP_ORDER = ['Bathrooms', 'Bedroom', 'Living spaces', 'Office', 'Laundry room', 'Hall & entries', 'Around the house'];
+
+  const remaining = hand.filter(t => !assigned.has(t.id));
+  const groups = {};
+  remaining.forEach(t => {
+    const group = ROOM_TO_GROUP[t.room] || 'Other';
+    if (!groups[group]) groups[group] = [];
+    groups[group].push(t);
+  });
+
+  const roomBlocks = [];
+  GROUP_ORDER.forEach(g => {
+    if (groups[g] && groups[g].length) {
+      const label = blockLabel(g, groups[g]);
+      const sortFn = g === 'Bedroom' ? bedroomOrder : tidyFirst;
+      roomBlocks.push({ label, tasks: sortFn(groups[g]) });
+    }
+  });
+  if (groups['Other'] && groups['Other'].length) {
+    roomBlocks.push({ label: 'Other tasks', tasks: tidyFirst(groups['Other']) });
+  }
+
+  blocks.push(...roomBlocks);
+  return blocks;
+}
+
+function renderSprint() {
+  const hand = getHandTasks();
+  const container = document.getElementById('sprintContent');
+
+  if (!hand.length) {
+    container.innerHTML = '<div class="empty">No tasks dealt yet — check the Alina tab first.</div>';
+    return;
+  }
+
+  const sprintBlocks = getSprintBlocks();
+  const doneCount = hand.filter(t => wasCompletedToday(t)).length;
+  const totalMin = hand.reduce((s,t) => s + t.time, 0);
+  const doneMin = hand.filter(t => wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+  const leftMin = totalMin - doneMin;
+
+  let html = '<div class="sprint-progress">' +
+    '<div class="sprint-progress-stats">' +
+      '<span class="sprint-progress-label">Sprint</span>' +
+      '<div class="sprint-progress-bar-wrap">' +
+        '<div class="sprint-progress-bar" style="width:' + (hand.length ? Math.round(doneCount/hand.length*100) : 0) + '%"></div>' +
+      '</div>' +
+      '<span class="sprint-progress-text">' + doneCount + ' / ' + hand.length + '</span>' +
+    '</div>' +
+    '<span class="sprint-time-left">~' + fmtMinutes(leftMin) + ' left</span>' +
+  '</div>';
+
+  sprintBlocks.forEach((block, blockIdx) => {
+    if (blockIdx > 0) html += '<div class="sprint-block-divider"></div>';
+    const allDone = block.tasks.every(t => wasCompletedToday(t));
+    const blockHint = BLOCK_HINTS[block.label] || '';
+    const blockLeftMin = block.tasks.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+    html += '<div class="sprint-block">' +
+      '<div class="sprint-block-header">' +
+        '<span class="sprint-block-num">' + (blockIdx + 1) + '</span>' +
+        '<div class="sprint-block-meta">' +
+          '<div class="sprint-block-label-row">' +
+            '<span class="sprint-block-label">' + block.label + '</span>' +
+            (allDone ? '<span class="sprint-done-badge">Done! ✓</span>' : '<span class="sprint-block-time">⏱ ~' + fmtMinutes(blockLeftMin) + '</span>') +
+          '</div>' +
+          (blockHint ? '<div class="sprint-block-hint">' + blockHint + '</div>' : '') +
+        '</div>' +
+      '</div>';
+
+    block.tasks.forEach(t => {
+      const isDone = wasCompletedToday(t);
+      const sPinned = state.pinnedIds && state.pinnedIds.includes(t.id);
+      html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')">' +
+        '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
+        '<div class="sprint-card-body">' +
+          '<div class="sprint-card-top">' +
+            '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + '</span>' +
+            '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+
+    html += '</div>';
+  });
+
+  html += '<div class="bottom-pad"></div>';
+  container.innerHTML = html;
+}
+
+// ─── PRESETS TAB ───────────────────────────────────────────────────────────
+
+// ── Preset task definitions ──
+const GUEST_DAY_IDS = [
+  'liv_tidy','din_tidy','k_tidy','k_counters','din_table_wipe',
+  'ds_toilet','ds_sink','ds_mirror','ds_floor',
+  'house_entryway','rob_run_ds','rob_mop',
+  'c_scoop_ds','c_water_ds','c_feeders','house_pura'
+];
+const GUEST_OVERNIGHT_IDS = [
+  'bed_spare','off_tidy','us_toilet','us_sink','us_mirror'
+];
+const FULL_RESET_TASKS = [
+  // Launch
+  { id:'l_start', name:'Start a load of laundry', room:'Laundry', time:10 },
+  { id:'rob_run_ds', name:'Run robot vacuum (downstairs)', room:'Downstairs', time:2 },
+  { id:'rob_run_us', name:'Run robot vacuum (upstairs)', room:'Upstairs', time:2 },
+  { id:'rob_mop', name:'Run robot mop (downstairs)', room:'Downstairs', time:2 },
+  // Kitchen
+  { id:'k_tidy', name:'Kitchen tidy', room:'Kitchen', time:5 },
+  { id:'k_counters', name:'Wipe counters', room:'Kitchen', time:5 },
+  { id:'k_stove', name:'Wipe stovetop', room:'Kitchen', time:8 },
+  { id:'k_sink', name:'Clean kitchen sink', room:'Kitchen', time:5 },
+  { id:'k_dishwasher', name:'Unload dishwasher', room:'Kitchen', time:5 },
+  // Bathrooms
+  { id:'ds_toilet', name:'Clean toilet (DS)', room:'DS Bathroom', time:5 },
+  { id:'us_toilet', name:'Clean toilet (US)', room:'US Bathroom', time:5 },
+  { id:'ds_sink', name:'Clean sink (DS)', room:'DS Bathroom', time:5 },
+  { id:'us_sink', name:'Clean sink (US)', room:'US Bathroom', time:5 },
+  { id:'ds_mirror', name:'Clean mirror (DS)', room:'DS Bathroom', time:3 },
+  { id:'us_mirror', name:'Clean mirror (US)', room:'US Bathroom', time:3 },
+  { id:'ds_floor', name:'Clean bathroom floors (DS)', room:'DS Bathroom', time:8 },
+  { id:'us_floor', name:'Clean bathroom floors (US)', room:'US Bathroom', time:8 },
+  // Cat care
+  { id:'c_water_up', name:'Replace upstairs water', room:'Cats', time:2 },
+  { id:'c_water_ds', name:'Replace downstairs water', room:'Cats', time:2 },
+  { id:'c_water_bowl_up', name:'Wash upstairs water bowl', room:'Cats', time:3 },
+  { id:'c_water_bowl_ds', name:'Wash downstairs water bowl', room:'Cats', time:3 },
+  { id:'c_fountain', name:'Clean cat water fountain', room:'Cats', time:20 },
+  { id:'c_scoop_ds', name:'Scoop downstairs litter', room:'Cats', time:3 },
+  { id:'c_feeders', name:'Tidy feeding stations', room:'Cats', time:5 },
+  // Laundry
+  { id:'l_dryer', name:'Move laundry to dryer', room:'Laundry', time:3 },
+  { id:'l_fold', name:'Fold laundry', room:'Laundry', time:10 },
+  { id:'l_put_away', name:'Put away laundry', room:'Laundry', time:5 },
+  // Whole house
+  { id:'liv_tidy', name:'Tidy living room', room:'Living Room', time:10 },
+  { id:'din_tidy', name:'Tidy dining room', room:'Dining Room', time:8 },
+  { id:'bed_make', name:'Tidy bedroom', room:'Bedroom', time:8 },
+  { id:'off_tidy', name:'Tidy office / sunroom', room:'Office', time:10 },
+  { id:'house_dust', name:'Dust surfaces', room:'Whole House', time:15 },
+];
+
+let guestMode = 'day'; // 'day' | 'overnight'
+
+function getGuestPresetTasks(mode) {
+  const allTasks = getAllTasks();
+  const ids = mode === 'overnight' ? [...GUEST_DAY_IDS, ...GUEST_OVERNIGHT_IDS] : GUEST_DAY_IDS;
+  return ids.map(id => {
+    // Try to find existing task by id first, then by name fragment
+    const found = allTasks.find(t => t.id === id);
+    if (found) return found;
+    // Synthesize a minimal task object for preset display
+    const resetMatch = FULL_RESET_TASKS.find(t => t.id === id);
+    return resetMatch || null;
+  }).filter(Boolean);
+}
+
+function generateGuestHand() {
+  state.guestHand = getGuestPresetTasks(guestMode).map(t => t.id);
+  saveState();
+  renderPresets();
+}
+
+function generateResetHand() {
+  state.resetHand = FULL_RESET_TASKS.map(t => t.id);
+  saveState();
+  renderPresets();
+}
+
+function renderPresetChecklist(taskIds, taskSource) {
+  let html = '';
+  taskIds.forEach(id => {
+    const t = taskSource.find(x => x.id === id) || getAllTasks().find(x => x.id === id);
+    if (!t) return;
+    const isDone = wasCompletedToday(t);
+    html +=
+      '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')" style="margin:0 0 6px">' +
+        '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
+        '<div class="sprint-card-body">' +
+          '<div class="sprint-card-top">' +
+            '<span class="sprint-card-name">' + t.name + '</span>' +
+            '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + t.room + '</div>' +
+        '</div>' +
+      '</div>';
+  });
+  return html;
+}
+
+function renderPresets() {
+  const guestTasks = state.guestHand ? getAllTasks().filter(t => state.guestHand.includes(t.id)) : [];
+  const resetTasks = FULL_RESET_TASKS;
+  const resetIds = state.resetHand || [];
+
+  let html = '<div style="padding:0 24px 32px">';
+
+  // Guest Prep card
+  html +=
+    '<div class="settings-card" style="margin-top:24px">' +
+      '<div class="settings-card-title">Guest Prep</div>' +
+      '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
+      '<div style="display:flex;gap:10px;margin-bottom:12px">' +
+        '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+          '<input type="radio" name="guestMode" value="day"' + (guestMode==='day'?' checked':'') + ' onchange="guestMode=\'day\';renderPresets()"> Day guests' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+          '<input type="radio" name="guestMode" value="overnight"' + (guestMode==='overnight'?' checked':'') + ' onchange="guestMode=\'overnight\';renderPresets()"> Overnight guests' +
+        '</label>' +
+      '</div>' +
+      '<button class="add-btn" style="width:100%;margin-bottom:' + (state.guestHand ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep Hand</button>';
+
+  if (state.guestHand && state.guestHand.length) {
+    const ids = guestMode === 'overnight' ? [...GUEST_DAY_IDS, ...GUEST_OVERNIGHT_IDS] : GUEST_DAY_IDS;
+    const combined = [...getAllTasks(), ...FULL_RESET_TASKS];
+    html += renderPresetChecklist(state.guestHand, combined);
+  }
+  html += '</div>';
+
+  // Full Reset card
+  html +=
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">Full Reset</div>' +
+      '<div class="settings-card-desc">A complete whole-house clean. Expect 2–3 hours.</div>' +
+      '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '14px' : '0') + '" onclick="generateResetHand()">Generate Full Reset Hand</button>';
+
+  if (state.resetHand && state.resetHand.length) {
+    html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
+  }
+  html += '</div>';
+
+  html += '</div>';
+  document.getElementById('presetsContent').innerHTML = html;
+}
+
+// ─── SETTINGS TAB ──────────────────────────────────────────────────────────
+
+function renderSettings() {
+  const all = getAllTasks();
+  const totalCount = all.length;
+  const dailyCount = all.filter(t => t.freq === 1).length;
+  const alinaCount = all.filter(t => t.owner === 'alina' || t.owner === 'either').length;
+  const bobCount = all.filter(t => t.owner === 'bob').length;
+  const dailyMin = all.filter(t => t.freq === 1 && (t.owner === 'alina' || t.owner === 'either')).reduce((s,t) => s + t.time, 0);
+
+  const ZONE_TABLE = [
+    ['Zone 1', 'Dining Room, Mud Room, Front Porch, Back Porch'],
+    ['Zone 2', 'Kitchen'],
+    ['Zone 3', 'Sunroom, Office, Downstairs Bathroom, Laundry Room, Hall & Stairs'],
+    ['Zone 4', 'Bedroom, Upstairs Bathroom'],
+    ['Zone 5', 'Living Room, Back Room'],
+  ];
+
+  let html =
+    '<div style="padding-bottom:32px">' +
+
+    // Card 1: Daily Time Budget
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">Daily Time Budget</div>' +
+      '<div class="settings-card-desc">Tasks are selected until the target time is reached. Daily tasks are always included.</div>' +
+      '<div class="settings-row">' +
+        '<span class="settings-label">Weekday budget (minutes)</span>' +
+        '<div class="settings-control">' +
+          '<button class="stepper-btn" onclick="adjustBudget(\'weekday\',-5)">−</button>' +
+          '<span class="stepper-val" id="budgetWeekdayVal">' + state.budgetWeekday + '</span>' +
+          '<button class="stepper-btn" onclick="adjustBudget(\'weekday\',5)">+</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-row">' +
+        '<span class="settings-label">Weekend budget (minutes)</span>' +
+        '<div class="settings-control">' +
+          '<button class="stepper-btn" onclick="adjustBudget(\'weekend\',-5)">−</button>' +
+          '<span class="stepper-val" id="budgetWeekendVal">' + state.budgetWeekend + '</span>' +
+          '<button class="stepper-btn" onclick="adjustBudget(\'weekend\',5)">+</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-summary">Currently: ' + fmtMinutes(dailyMin) + ' of dailies + up to ' + fmtMinutes(state.budgetWeekday) + ' of non-dailies on weekdays / ' + fmtMinutes(state.budgetWeekend) + ' on weekends</div>' +
+    '</div>' +
+
+    // Card 2: Active Zone
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">Active Zone</div>' +
+      '<div class="settings-card-desc">FlyLady-inspired rotating focus area. Tasks in the active zone get a scoring boost.</div>' +
+      '<select class="zone-select" id="settingsZoneSelect" onchange="saveZoneFromSettings()" style="width:100%;padding:10px 12px;font-size:16px;max-width:100%">' +
+        '<option value="0"' + (state.zone===0?' selected':'') + '>No zone focus</option>' +
+        '<option value="1"' + (state.zone===1?' selected':'') + '>Zone 1 — Dining, Mud, Porches</option>' +
+        '<option value="2"' + (state.zone===2?' selected':'') + '>Zone 2 — Kitchen</option>' +
+        '<option value="3"' + (state.zone===3?' selected':'') + '>Zone 3 — Sunroom, Office, DS Bath, Laundry</option>' +
+        '<option value="4"' + (state.zone===4?' selected':'') + '>Zone 4 — Bedroom, US Bath</option>' +
+        '<option value="5"' + (state.zone===5?' selected':'') + '>Zone 5 — Living Room, Back Room</option>' +
+      '</select>' +
+      '<table class="zone-ref-table" style="margin-top:12px">' +
+        '<tr><th>Zone</th><th>Rooms</th></tr>' +
+        ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
+      '</table>' +
+    '</div>' +
+
+    // Card 3: System Overview
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">System Overview</div>' +
+      '<div class="settings-stats-grid">' +
+        '<div class="settings-stat-box"><div class="settings-stat-num">' + totalCount + '</div><div class="settings-stat-label">Total tasks</div></div>' +
+        '<div class="settings-stat-box"><div class="settings-stat-num">' + dailyCount + '</div><div class="settings-stat-label">Daily tasks</div></div>' +
+        '<div class="settings-stat-box"><div class="settings-stat-num">' + alinaCount + '</div><div class="settings-stat-label">Alina\'s tasks</div></div>' +
+        '<div class="settings-stat-box"><div class="settings-stat-num">' + bobCount + '</div><div class="settings-stat-label">Bob\'s tasks</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    // Card 4: How Scoring Works
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">How Scoring Works</div>' +
+      '<div class="settings-card-desc">Lower score = higher priority.</div>' +
+      '<ul style="font-size:13px;color:var(--text2);line-height:1.8;padding-left:16px">' +
+        '<li><b>Base score</b> = frequency in days (lower freq = higher priority)</li>' +
+        '<li><b>Cat tasks</b>: −0.5 tiebreaker boost</li>' +
+        '<li><b>Zone match</b>: −2 when room is in active zone</li>' +
+        '<li><b>Overdue</b>: up to −80% of frequency based on how overdue</li>' +
+        '<li><b>Starvation boost</b>: −0.3 per day a due task was not selected</li>' +
+        '<li><b>Heavy task cap</b>: max 2 tasks over 15m per hand</li>' +
+      '</ul>' +
+    '</div>' +
+
+    '</div>';
+
+  document.getElementById('settingsContent').innerHTML = html;
+}
+
+function adjustBudget(type, delta) {
+  if (type === 'weekday') {
+    state.budgetWeekday = Math.max(5, state.budgetWeekday + delta);
+    const el = document.getElementById('budgetWeekdayVal');
+    if (el) el.textContent = state.budgetWeekday;
+  } else {
+    state.budgetWeekend = Math.max(5, state.budgetWeekend + delta);
+    const el = document.getElementById('budgetWeekendVal');
+    if (el) el.textContent = state.budgetWeekend;
+  }
+  state.hand = null;
+  saveState();
+}
+
+function saveZoneFromSettings() {
+  const el = document.getElementById('settingsZoneSelect');
+  if (!el) return;
+  state.zone = parseInt(el.value);
+  const mainEl = document.getElementById('zoneSelect');
+  if (mainEl) mainEl.value = state.zone;
+  state.hand = null;
+  saveState();
+}
+
+// ─── MANAGE TAB ────────────────────────────────────────────────────────────
+
+let manageOwnerFilter = 'all';
+let manageRoomFilter = 'all';
+let manageSearch = '';
+let editingId = null;
+
+function renderManage() {
+  const allTasks = getAllTasks();
+  const rooms = [...new Set(allTasks.map(t => t.room))].sort();
+
+  const roomOpts = rooms.map(r =>
+    '<option value="' + r + '"' + (manageRoomFilter === r ? ' selected' : '') + '>' + r + '</option>'
+  ).join('');
+
+  let html =
+    '<div class="manage-header">' +
+      '<div class="manage-header-left">' +
+        '<div class="manage-title">All Tasks</div>' +
+        '<div class="manage-subtitle">' + allTasks.length + ' tasks in the system</div>' +
+      '</div>' +
+      '<button class="add-btn" onclick="openModal(null)">+ Add</button>' +
+    '</div>' +
+    '<div class="manage-toolbar">' +
+      '<input class="search-input" placeholder="🔍 Search..." value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
+      '<select class="filter-select" onchange="manageOwnerFilter=this.value;renderManage()">' +
+        '<option value="all"' + (manageOwnerFilter==='all'?' selected':'') + '>All</option>' +
+        '<option value="alina"' + (manageOwnerFilter==='alina'?' selected':'') + '>Alina</option>' +
+        '<option value="bob"' + (manageOwnerFilter==='bob'?' selected':'') + '>Bob</option>' +
+        '<option value="either"' + (manageOwnerFilter==='either'?' selected':'') + '>Either</option>' +
+      '</select>' +
+      '<select class="filter-select" onchange="manageRoomFilter=this.value;renderManage()">' +
+        '<option value="all"' + (manageRoomFilter==='all'?' selected':'') + '>All rooms</option>' +
+        roomOpts +
+      '</select>' +
+    '</div>' +
+    '<div class="manage-list">';
+
+  const search = manageSearch.toLowerCase();
+  const filtered = allTasks.filter(t => {
+    if (manageOwnerFilter !== 'all' && t.owner !== manageOwnerFilter) return false;
+    if (manageRoomFilter !== 'all' && t.room !== manageRoomFilter) return false;
+    if (search && !t.name.toLowerCase().includes(search)) return false;
+    return true;
+  }).sort((a,b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+
+  filtered.forEach(t => {
+    const isCustom = !!(state.customTasks && state.customTasks[t.id]);
+    const ownerLabel = t.owner === 'alina' ? 'Alina' : t.owner === 'bob' ? 'Bob' : 'Either';
+    const overdue = daysOverdue(t);
+    const statusHtml = overdue >= 0
+      ? '<span class="status-due">Due</span>'
+      : '<span class="status-ok">in ' + Math.ceil(-overdue) + 'd</span>';
+    html +=
+      '<div class="manage-card">' +
+        '<div class="manage-card-body">' +
+          '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
+          '<div class="manage-card-meta">' +
+            '<span>' + t.room + '</span>' +
+            '<span>·</span>' +
+            '<span>' + freqLabel(t.freq) + '</span>' +
+            '<span>·</span>' +
+            '<span>' + ownerLabel + '</span>' +
+            '<span>·</span>' +
+            statusHtml +
+          '</div>' +
+        '</div>' +
+        '<div class="manage-card-actions">' +
+          '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
+          '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
+        '</div>' +
+      '</div>';
+  });
+
+  html += '</div><div class="bottom-pad"></div>';
+  document.getElementById('manageTaskList').innerHTML = html;
+}
+
+function getAllTasks() {
+  const deleted = state.deletedIds || [];
+  const custom = Object.values(state.customTasks || {});
+  return [...TASKS.filter(t => !deleted.includes(t.id)), ...custom];
+}
+
+function openModal(id) {
+  editingId = id;
+  const modal = document.getElementById('taskModal');
+  document.getElementById('modalTitle').textContent = id ? 'Edit task' : 'Add task';
+
+  if (id) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    document.getElementById('f_name').value = task.name;
+    document.getElementById('f_room').value = task.room;
+    document.getElementById('f_freq').value = task.freq;
+    document.getElementById('f_time').value = task.time;
+    document.getElementById('f_owner').value = task.owner;
+    document.getElementById('f_cat').checked = !!task.cat;
+  } else {
+    document.getElementById('f_name').value = '';
+    document.getElementById('f_room').value = '';
+    document.getElementById('f_freq').value = '';
+    document.getElementById('f_time').value = '';
+    document.getElementById('f_owner').value = 'either';
+    document.getElementById('f_cat').checked = false;
+  }
+  modal.classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('taskModal').classList.remove('open');
+  editingId = null;
+}
+
+function saveTask() {
+  const name = document.getElementById('f_name').value.trim();
+  const room = document.getElementById('f_room').value.trim();
+  const freq = parseInt(document.getElementById('f_freq').value);
+  const time = parseInt(document.getElementById('f_time').value);
+  const owner = document.getElementById('f_owner').value;
+  const cat = document.getElementById('f_cat').checked;
+
+  if (!name || !room || !freq || !time) { showToast('Fill in all fields'); return; }
+
+  if (!state.customTasks) state.customTasks = {};
+  if (!state.deletedIds) state.deletedIds = [];
+
+  if (editingId) {
+    const isBase = TASKS.find(t => t.id === editingId);
+    if (isBase) state.deletedIds = [...new Set([...state.deletedIds, editingId])];
+    state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat };
+  } else {
+    const newId = 'custom_' + Date.now();
+    state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat };
+    state.completions[newId] = Date.now() - freq * 86400000;
+  }
+
+  state.hand = null;
+  saveState();
+  closeModal();
+  renderManage();
+  showToast(editingId ? 'Task updated' : 'Task added');
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  if (!state.deletedIds) state.deletedIds = [];
+  if (!state.customTasks) state.customTasks = {};
+  if (state.customTasks[id]) {
+    delete state.customTasks[id];
+  } else {
+    state.deletedIds = [...new Set([...state.deletedIds, id])];
+  }
+  state.hand = null;
+  saveState();
+  renderManage();
+  showToast('Task deleted');
+}
+
+
+
+function saveZone() {
+  state.zone = parseInt(document.getElementById('zoneSelect').value);
+  state.hand = null;
+  saveState();
+  render();
+}
+
+function toggleOverflow() {
+  const list = document.getElementById('overflowList');
+  const btn = document.getElementById('overflowToggle');
+  if (!list || !btn) return;
+  const open = list.style.display !== 'none';
+  list.style.display = open ? 'none' : 'block';
+  btn.classList.toggle('open', !open);
+}
+
+function toggleDatePicker(dpId) {
+  const row = document.getElementById(dpId);
+  if (!row) return;
+  const isOpen = row.classList.contains('open');
+  document.querySelectorAll('.date-picker-row.open').forEach(r => r.classList.remove('open'));
+  if (!isOpen) row.classList.add('open');
+}
+
+function saveDate(taskId) {
+  const input = document.getElementById('input_' + taskId);
+  if (!input) return;
+  setLastDone(taskId, input.value);
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ─── ASYNC INIT ────────────────────────────────────────────────────────────
+async function init() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  const heroDateEl = document.getElementById('heroDate');
+  if (heroDateEl) heroDateEl.textContent = dateStr;
+
+  // Load state from persistent storage
+  state = await loadState();
+
+  // Apply loaded settings to UI
+  const zoneEl = document.getElementById('zoneSelect');
+  if (zoneEl) zoneEl.value = state.zone;
+
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
