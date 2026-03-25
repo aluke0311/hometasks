@@ -41,9 +41,8 @@
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
   .tab-row { display: none; }
-  /* Bottom navigation bar */
   .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: var(--card); border-top: 0.5px solid var(--border); display: flex; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; }
   .tab.active { color: var(--green); }
   .tab-icon { font-size: 20px; line-height: 1; }
   .tab-label { font-size: 10px; font-weight: 500; letter-spacing: 0.01em; }
@@ -91,7 +90,7 @@
   .task-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; }
   .task-card.done { opacity: 0.45; }
   .task-main { display: flex; align-items: center; padding: 14px 16px; gap: 12px; cursor: pointer; }
-  .task-check { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .task-check { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
   .task-card.done .task-check { background: var(--green); border-color: var(--green); }
   .task-check-inner { width: 8px; height: 8px; border-right: 2px solid white; border-bottom: 2px solid white; transform: rotate(45deg) translate(-1px, -2px); display: none; }
   .task-card.done .task-check-inner { display: block; }
@@ -119,7 +118,7 @@
   .date-save-btn { font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
 
   .task-actions { display: flex; gap: 8px; padding: 0 12px 12px 48px; }
-  .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; -webkit-tap-highlight-color: transparent; }
+  .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; }
   .task-btn:active { background: var(--bg2); }
   .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
 
@@ -139,7 +138,7 @@
   .manage-subtitle { font-size: 13px; color: var(--text3); margin-top: 2px; }
   .add-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: none; background: var(--green); color: white; cursor: pointer; font-weight: 500; }
   .manage-toolbar { padding: 10px 24px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
-  .search-input { flex: 1; min-width: 120px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 8px 10px; border-radius: var(--radius-sm); }
+  .search-input { flex: 1; min-width: 100px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 8px 10px; border-radius: var(--radius-sm); }
   .filter-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 7px 8px; border-radius: var(--radius-sm); }
   .tasks-table { width: 100%; border-collapse: collapse; }
   .tasks-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
@@ -151,21 +150,32 @@
   .manage-row-actions { display: flex; gap: 4px; }
   .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
   .icon-btn.danger { color: var(--red); border-color: var(--red); }
-  /* Mobile manage card list (replaces table) */
+  /* Mobile manage cards */
   .manage-list { padding: 0 16px; margin-top: 8px; }
-  .manage-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .manage-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; transition: opacity 0.15s; }
+  .manage-card.mc-done { opacity: 0.5; }
+  .manage-card-main { display: flex; align-items: flex-start; padding: 12px 12px 4px 12px; gap: 10px; }
+  .mc-check { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent; cursor: pointer; margin-top: 1px; }
+  .manage-card.mc-done .mc-check { background: var(--green); border-color: var(--green); }
+  .mc-check-inner { width: 8px; height: 8px; border-right: 2px solid white; border-bottom: 2px solid white; transform: rotate(45deg) translate(-1px,-2px); display: none; }
+  .manage-card.mc-done .mc-check-inner { display: block; }
   .manage-card-body { flex: 1; min-width: 0; }
-  .manage-card-name { font-size: 15px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .manage-card-name { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.3; }
   .manage-card-meta { font-size: 12px; color: var(--text3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-  .manage-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
-  /* Modal — bottom sheet on iPhone */
+  .manage-card-icons { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
+  .manage-card-foot { display: flex; align-items: center; gap: 8px; padding: 6px 12px 10px 50px; }
+  .manage-card-last { font-size: 12px; color: var(--text3); flex: 1; }
+  .manage-hand-btn { font-size: 12px; padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
+  .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+  .manage-dp-row { display: none; align-items: center; gap: 8px; padding: 0 12px 10px 50px; }
+  .manage-dp-row.open { display: flex; }
+  /* Modal — bottom sheet */
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
   .modal-backdrop.open { display: flex; }
   .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: 92vh; display: flex; flex-direction: column; }
   .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
   .modal-title { font-size: 17px; font-weight: 600; }
-  .modal-close { background: none; border: none; font-size: 20px; color: var(--text2); cursor: pointer; line-height: 1; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .modal-close { background: none; border: none; font-size: 20px; color: var(--text2); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
   .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
   .field-label { font-size: 13px; color: var(--text3); margin-bottom: 5px; }
   .field-input { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
@@ -1596,7 +1606,7 @@ function renderManage() {
     '<div class="manage-header">' +
       '<div class="manage-header-left">' +
         '<div class="manage-title">All Tasks</div>' +
-        '<div class="manage-subtitle">' + allTasks.length + ' tasks in the system</div>' +
+        '<div class="manage-subtitle">' + allTasks.length + ' tasks · sorted by frequency</div>' +
       '</div>' +
       '<button class="add-btn" onclick="openModal(null)">+ Add</button>' +
     '</div>' +
@@ -1621,7 +1631,7 @@ function renderManage() {
     if (manageRoomFilter !== 'all' && t.room !== manageRoomFilter) return false;
     if (search && !t.name.toLowerCase().includes(search)) return false;
     return true;
-  }).sort((a,b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+  }).sort((a,b) => a.freq - b.freq || a.name.localeCompare(b.name));
 
   filtered.forEach(t => {
     const isCustom = !!(state.customTasks && state.customTasks[t.id]);
@@ -1630,23 +1640,33 @@ function renderManage() {
     const statusHtml = overdue >= 0
       ? '<span class="status-due">Due</span>'
       : '<span class="status-ok">in ' + Math.ceil(-overdue) + 'd</span>';
+    const isDoneToday = wasCompletedToday(t);
+    const last = state.completions[t.id] || 0;
+    const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'never';
+    const mdpId = 'mdp_' + t.id;
+    const inHand = !!(state.hand && state.hand.includes(t.id));
     html +=
-      '<div class="manage-card">' +
-        '<div class="manage-card-body">' +
-          '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
-          '<div class="manage-card-meta">' +
-            '<span>' + t.room + '</span>' +
-            '<span>·</span>' +
-            '<span>' + freqLabel(t.freq) + '</span>' +
-            '<span>·</span>' +
-            '<span>' + ownerLabel + '</span>' +
-            '<span>·</span>' +
-            statusHtml +
+      '<div class="manage-card' + (isDoneToday ? ' mc-done' : '') + '">' +
+        '<div class="manage-card-main">' +
+          '<button class="mc-check" onclick="' + (isDoneToday ? 'uncompleteTask' : 'completeTask') + '(\'' + t.id + '\')">' +
+            '<div class="mc-check-inner"></div>' +
+          '</button>' +
+          '<div class="manage-card-body">' +
+            '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
+            '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
+          '</div>' +
+          '<div class="manage-card-icons">' +
+            '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
+            '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
           '</div>' +
         '</div>' +
-        '<div class="manage-card-actions">' +
-          '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
-          '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
+        '<div class="manage-card-foot">' +
+          '<span class="manage-card-last">Last: ' + lastDate + ' <button class="edit-btn" onclick="toggleManageDp(\'' + mdpId + '\')">edit</button></span>' +
+          '<button class="manage-hand-btn' + (inHand ? ' in-hand' : '') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(\'' + t.id + '\')">' + (inHand ? '✓ In hand' : '+ Today') + '</button>' +
+        '</div>' +
+        '<div class="manage-dp-row" id="' + mdpId + '">' +
+          '<input type="date" class="date-input" id="minput_' + t.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
+          '<button class="date-save-btn" onclick="saveManageDate(\'' + t.id + '\')">save</button>' +
         '</div>' +
       '</div>';
   });
@@ -1737,6 +1757,39 @@ function deleteTask(id) {
 }
 
 
+
+function addToHand(id) {
+  if (!state.hand) dealHand();
+  if (!state.hand.includes(id)) {
+    state.hand.push(id);
+    saveState();
+    renderManage();
+    showToast('Added to today\'s hand');
+  }
+}
+
+function removeFromHand(id) {
+  if (!state.hand) return;
+  state.hand = state.hand.filter(h => h !== id);
+  if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+  saveState();
+  renderManage();
+  showToast('Removed from hand');
+}
+
+function toggleManageDp(dpId) {
+  const row = document.getElementById(dpId);
+  if (!row) return;
+  const isOpen = row.classList.contains('open');
+  document.querySelectorAll('.manage-dp-row.open').forEach(r => r.classList.remove('open'));
+  if (!isOpen) row.classList.add('open');
+}
+
+function saveManageDate(taskId) {
+  const input = document.getElementById('minput_' + taskId);
+  if (!input) return;
+  setLastDone(taskId, input.value);
+}
 
 function saveZone() {
   state.zone = parseInt(document.getElementById('zoneSelect').value);
