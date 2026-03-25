@@ -1558,9 +1558,72 @@ function renderSettings() {
       '</ul>' +
     '</div>' +
 
+    // Card 5: Export / Import
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">Export / Import</div>' +
+      '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
+      '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Export</div>' +
+      '<button class="add-btn" style="width:100%;margin-bottom:10px" onclick="exportData()">Copy data to clipboard</button>' +
+      '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:13px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
+      '<div style="height:16px;border-top:0.5px solid var(--border);margin:16px -24px 0;padding-top:16px;margin-bottom:0"></div>' +
+      '<div style="font-size:13px;font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
+      '<div style="font-size:12px;color:var(--red);margin-bottom:8px">⚠️ Overwrites all current data.</div>' +
+      '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:13px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
+      '<button class="add-btn" style="width:100%;background:var(--red)" onclick="importData()">Import &amp; restore</button>' +
+    '</div>' +
+
     '</div>';
 
   document.getElementById('settingsContent').innerHTML = html;
+}
+
+function exportData() {
+  const json = JSON.stringify(state);
+  const ta = document.getElementById('exportTextarea');
+  if (ta) {
+    ta.value = json;
+    ta.style.display = 'block';
+    ta.focus();
+    ta.setSelectionRange(0, json.length);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(json)
+      .then(() => showToast('Copied to clipboard!'))
+      .catch(() => showToast('Tap the text box, then select all & copy'));
+  } else {
+    showToast('Tap the text box, then select all & copy');
+  }
+}
+
+function importData() {
+  const ta = document.getElementById('importTextarea');
+  if (!ta || !ta.value.trim()) { showToast('Paste your exported data first'); return; }
+  let parsed;
+  try {
+    parsed = JSON.parse(ta.value.trim());
+    if (!parsed.completions) throw new Error('missing completions');
+  } catch(e) {
+    showToast('Invalid data — check and try again'); return;
+  }
+  if (!confirm('Replace all current data with the imported data?')) return;
+  state = {
+    completions:   parsed.completions   || {},
+    budgetWeekday: parsed.budgetWeekday != null ? parsed.budgetWeekday : 45,
+    budgetWeekend: parsed.budgetWeekend != null ? parsed.budgetWeekend : 90,
+    zone:          parsed.zone          != null ? parsed.zone          : 0,
+    hand:          parsed.hand          || null,
+    handDate:      parsed.handDate      || null,
+    customTasks:   parsed.customTasks   || {},
+    deletedIds:    parsed.deletedIds    || [],
+    pinnedIds:     parsed.pinnedIds     || [],
+    starvation:    parsed.starvation    || {},
+    guestHand:     parsed.guestHand     || null,
+    resetHand:     parsed.resetHand     || null,
+  };
+  ta.value = '';
+  saveState();
+  render();
+  showToast('Data restored!');
 }
 
 function adjustBudget(type, delta) {
