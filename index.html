@@ -634,7 +634,7 @@ function defaultState() {
   TASKS.forEach(t => {
     completions[t.id] = now - (t.freq * 86400000);
   });
-  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null };
+  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null };
 }
 
 async function loadState() {
@@ -665,6 +665,7 @@ async function loadState() {
         starvation: parsed.starvation || {},
         guestHand: parsed.guestHand || null,
         resetHand: parsed.resetHand || null,
+        goingOutHand: parsed.goingOutHand || null,
       };
     }
   } catch (e) {
@@ -805,11 +806,27 @@ function dealHand() {
   }, 0);
   const HEAVY_THRESHOLD = 15;
   const HEAVY_MAX = 2;
-  let timeUsed = completedTodayTime + uncommittedDailyTime;
+
+  // Always-assign: these tasks are included whenever due, bypassing the time budget
+  const ALWAYS_ASSIGN_IDS = ['c_fountain'];
+  const alwaysAssigned = [];
+  ALWAYS_ASSIGN_IDS.forEach(id => {
+    if (pinnedSet.has(id) || dailyFiltered.includes(id)) return;
+    const task = allTasks.find(t => t.id === id);
+    if (task && isDue(task)) alwaysAssigned.push(id);
+  });
+  const alwaysAssignedSet = new Set(alwaysAssigned);
+  const alwaysAssignedTime = alwaysAssigned.reduce((s, id) => {
+    const t = allTasks.find(t => t.id === id);
+    return s + (t ? t.time : 0);
+  }, 0);
+
+  let timeUsed = completedTodayTime + uncommittedDailyTime + alwaysAssignedTime;
   let heavyCount = 0;
   const selected = [];
 
   for (const task of nonDailyFiltered) {
+    if (alwaysAssignedSet.has(task.id)) continue;
     const isHeavy = task.time > HEAVY_THRESHOLD;
     if (isHeavy && heavyCount >= HEAVY_MAX) continue;
     if (timeUsed + task.time > budget && selected.length > 0) break;
@@ -818,7 +835,7 @@ function dealHand() {
     if (isHeavy) heavyCount++;
   }
 
-  const newHandIds = new Set([...pinned, ...dailyFiltered, ...selected.map(t => t.id)]);
+  const newHandIds = new Set([...pinned, ...dailyFiltered, ...alwaysAssigned, ...selected.map(t => t.id)]);
   // Always keep tasks completed today in the hand, even across redeals
   getAllTasks().forEach(t => {
     if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
@@ -1378,6 +1395,65 @@ const FULL_RESET_TASKS = [
   { id:'house_dust', name:'Dust surfaces', room:'Whole House', time:15 },
 ];
 
+const GOING_OUT_TASKS = [
+  // Launch (4)
+  { id:'l_start',            name:'Start a load of laundry',       room:'Laundry',          time:5  },
+  { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)', room:'Launch',            time:5  },
+  { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',   room:'Launch',            time:5  },
+  { id:'rob_mop',            name:'Run robot mop (downstairs)',    room:'Launch',            time:5  },
+  // Kitchen (8)
+  { id:'k_dishwasher',       name:'Unload dishwasher',            room:'Kitchen',           time:5  },
+  { id:'k_tidy',             name:'Kitchen tidy',                 room:'Kitchen',           time:10 },
+  { id:'k_counters',         name:'Wipe counters',                room:'Kitchen',           time:5  },
+  { id:'k_sink',             name:'Clean sink',                   room:'Kitchen',           time:5  },
+  { id:'k_trash',            name:'Take out trash',               room:'Kitchen',           time:5  },
+  { id:'k_recycling_out',    name:'Take out recycling',           room:'Kitchen',           time:5  },
+  { id:'k_compost',          name:'Take out compost',             room:'Kitchen',           time:5  },
+  { id:'k_fridge',           name:'Clean out fridge',             room:'Kitchen',           time:15 },
+  // Cat care (8)
+  { id:'c_water_up',         name:'Replace upstairs water',       room:'Cats',              time:2  },
+  { id:'c_water_ds',         name:'Replace downstairs water',     room:'Cats',              time:2  },
+  { id:'c_water_bowl_up',    name:'Wash upstairs water bowl',     room:'Cats',              time:5  },
+  { id:'c_water_bowl_ds',    name:'Wash downstairs water bowl',   room:'Cats',              time:5  },
+  { id:'c_fountain',         name:'Clean cat water fountain',     room:'Cats',              time:20 },
+  { id:'c_feeders',          name:'Clean feeders',                room:'Cats',              time:10 },
+  { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',       room:'Cats',              time:5  },
+  { id:'c_scoop_ds',         name:'Scoop downstairs litter',      room:'Cats',              time:5  },
+  // Laundry (3)
+  { id:'l_dryer',            name:'Move laundry to dryer',        room:'Laundry',           time:5  },
+  { id:'l_fold',             name:'Fold laundry',                 room:'Laundry',           time:20 },
+  { id:'l_put_away',         name:'Put away laundry',             room:'Laundry',           time:10 },
+  // Tidy all rooms (12)
+  { id:'lr_tidy',            name:'Living room tidy',             room:'Living Room',       time:10 },
+  { id:'dr_tidy',            name:'Dining room tidy',             room:'Dining Room',       time:10 },
+  { id:'bed_tidy',           name:'Tidy up (bedroom)',            room:'Bedroom',           time:10 },
+  { id:'bed_make',           name:'Make bed',                     room:'Bedroom',           time:5  },
+  { id:'br_tidy',            name:'Tidy back room',               room:'Back Room',         time:10 },
+  { id:'sun_tidy',           name:'Tidy sunroom',                 room:'Sunroom',           time:10 },
+  { id:'off_tidy',           name:'Tidy office',                  room:'Office',            time:10 },
+  { id:'lroom_tidy',         name:'Tidy laundry room',            room:'Laundry Room',      time:10 },
+  { id:'hs_tidy',            name:'Tidy hall & stairs',           room:'Hall & Stairs',     time:10 },
+  { id:'mud_tidy',           name:'Tidy mud room',                room:'Mud Room',          time:10 },
+  { id:'bp_tidy',            name:'Tidy back porch',              room:'Back Porch',        time:10 },
+  { id:'usb_tidy',           name:'Tidy up (US bath)',            room:'Upstairs Bath',     time:5  },
+  // Bathrooms (6)
+  { id:'dsb_toilet',         name:'Clean toilet (DS bath)',       room:'Downstairs Bath',   time:10 },
+  { id:'dsb_sink',           name:'Clean sink (DS bath)',         room:'Downstairs Bath',   time:10 },
+  { id:'dsb_mirror',         name:'Clean mirror (DS bath)',       room:'Downstairs Bath',   time:5  },
+  { id:'usb_toilet',         name:'Clean toilet (US bath)',       room:'Upstairs Bath',     time:10 },
+  { id:'usb_sink',           name:'Clean sink (US bath)',         room:'Upstairs Bath',     time:10 },
+  { id:'usb_mirror',         name:'Clean mirror (US bath)',       room:'Upstairs Bath',     time:5  },
+];
+
+const GOING_OUT_SECTIONS = [
+  { label:'Launch',        ids:['l_start','rob_run_ds','rob_run_us','rob_mop'] },
+  { label:'Kitchen',       ids:['k_dishwasher','k_tidy','k_counters','k_sink','k_trash','k_recycling_out','k_compost','k_fridge'] },
+  { label:'Cat care',      ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_feeders','c_litter_robot_bin','c_scoop_ds'] },
+  { label:'Laundry',       ids:['l_dryer','l_fold','l_put_away'] },
+  { label:'Tidy all rooms',ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','br_tidy','sun_tidy','off_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
+  { label:'Bathrooms',     ids:['dsb_toilet','dsb_sink','dsb_mirror','usb_toilet','usb_sink','usb_mirror'] },
+];
+
 let guestMode = 'day'; // 'day' | 'overnight'
 
 function getGuestPresetTasks(mode) {
@@ -1403,6 +1479,26 @@ function generateResetHand() {
   state.resetHand = FULL_RESET_TASKS.map(t => t.id);
   saveState();
   renderPresets();
+}
+
+function generateGoingOutHand() {
+  state.goingOutHand = GOING_OUT_TASKS.map(t => t.id);
+  saveState();
+  renderPresets();
+}
+
+function loadPresetIntoHand(preset) {
+  const ids = preset === 'guest' ? state.guestHand :
+              preset === 'reset' ? state.resetHand :
+              state.goingOutHand;
+  if (!ids || !ids.length) return;
+  state.hand = [...ids];
+  state.handDate = todayStr();
+  state.guestHand = null;
+  state.resetHand = null;
+  state.goingOutHand = null;
+  saveState();
+  setView('sprint');
 }
 
 function renderPresetChecklist(taskIds, taskSource) {
@@ -1449,8 +1545,9 @@ function renderPresets() {
       '<button class="add-btn" style="width:100%;margin-bottom:' + (state.guestHand ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep Hand</button>';
 
   if (state.guestHand && state.guestHand.length) {
-    const ids = guestMode === 'overnight' ? [...GUEST_DAY_IDS, ...GUEST_OVERNIGHT_IDS] : GUEST_DAY_IDS;
     const combined = [...getAllTasks(), ...FULL_RESET_TASKS];
+    html +=
+      '<button onclick="loadPresetIntoHand(\'guest\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
     html += renderPresetChecklist(state.guestHand, combined);
   }
   html += '</div>';
@@ -1460,10 +1557,37 @@ function renderPresets() {
     '<div class="settings-card">' +
       '<div class="settings-card-title">Full Reset</div>' +
       '<div class="settings-card-desc">A complete whole-house clean. Expect 2–3 hours.</div>' +
-      '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '14px' : '0') + '" onclick="generateResetHand()">Generate Full Reset Hand</button>';
+      '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset Hand</button>';
 
   if (state.resetHand && state.resetHand.length) {
+    html +=
+      '<button onclick="loadPresetIntoHand(\'reset\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
     html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
+  }
+  html += '</div>';
+
+  // Going Out of Town card
+  const goingOutActive = state.goingOutHand && state.goingOutHand.length;
+  html +=
+    '<div class="settings-card">' +
+      '<div class="settings-card-title">Going Out of Town</div>' +
+      '<div class="settings-card-desc">Leave the house in great shape before you go. 41 tasks across all rooms.</div>' +
+      '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town Hand</button>';
+
+  if (goingOutActive) {
+    html +=
+      '<button onclick="loadPresetIntoHand(\'goingout\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
+    GOING_OUT_SECTIONS.forEach(section => {
+      const doneSectionCount = section.ids.filter(id => {
+        const t = getAllTasks().find(x => x.id === id) || GOING_OUT_TASKS.find(x => x.id === id);
+        return t && wasCompletedToday(t);
+      }).length;
+      html +=
+        '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          section.label + ' <span style="font-weight:400">(' + doneSectionCount + '/' + section.ids.length + ')</span>' +
+        '</div>';
+      html += renderPresetChecklist(section.ids, GOING_OUT_TASKS);
+    });
   }
   html += '</div>';
 
