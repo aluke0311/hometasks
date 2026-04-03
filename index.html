@@ -116,6 +116,10 @@
   .date-picker-row.open { display: flex; }
   .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 12px; padding: 3px 7px; border-radius: var(--radius-sm); }
   .date-save-btn { font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
+  .snooze-picker-row { display: none; align-items: center; gap: 6px; margin-top: 4px; padding-bottom: 4px; }
+  .snooze-picker-row.open { display: flex; }
+  .snooze-day-btn { font-size: 12px; padding: 3px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--amber); background: transparent; color: var(--amber); cursor: pointer; }
+  .task-snoozed { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
 
   .task-actions { display: flex; gap: 8px; padding: 0 12px 12px 48px; }
   .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; }
@@ -635,7 +639,7 @@ function defaultState() {
   TASKS.forEach(t => {
     completions[t.id] = now - (t.freq * 86400000);
   });
-  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null };
+  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {} };
 }
 
 async function loadState() {
@@ -664,9 +668,11 @@ async function loadState() {
         deletedIds: parsed.deletedIds || [],
         pinnedIds: parsed.pinnedIds || [],
         starvation: parsed.starvation || {},
+        starvationDate: parsed.starvationDate || null,
         guestHand: parsed.guestHand || null,
         resetHand: parsed.resetHand || null,
         goingOutHand: parsed.goingOutHand || null,
+        snoozed: parsed.snoozed || {},
       };
     }
   } catch (e) {
@@ -707,6 +713,7 @@ async function saveState() {
 // ─── STATE (initialized async in init()) ───────────────────────────────────
 let state = defaultState(); // placeholder until async load
 let currentTab = 'alina';
+let overflowOpen = false;
 
 // ─── CORE LOGIC ────────────────────────────────────────────────────────────
 
@@ -728,6 +735,10 @@ function fmtMinutes(min) {
 }
 
 function daysOverdue(task) {
+  const snoozeUntil = state.snoozed && state.snoozed[task.id];
+  if (snoozeUntil && Date.now() < snoozeUntil) {
+    return -(snoozeUntil - Date.now()) / 86400000; // negative = not due yet
+  }
   const last = state.completions[task.id] || 0;
   if (task.freq === 1) {
     // Calendar-day based: due whenever last completion was on a previous calendar day
@@ -844,16 +855,19 @@ function dealHand() {
   state.hand = [...newHandIds];
   state.handDate = today;
 
-  // Starvation updates: boost tasks that were due but not selected
+  // Starvation updates: boost tasks that were due but not selected — tick once per calendar day only
   if (!state.starvation) state.starvation = {};
-  const handSet = new Set(state.hand);
-  getAllTasks().forEach(t => {
-    if (isDue(t) && !handSet.has(t.id)) {
-      state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
-    } else if (handSet.has(t.id)) {
-      state.starvation[t.id] = 0;
-    }
-  });
+  if (state.starvationDate !== today) {
+    state.starvationDate = today;
+    const handSet = new Set(state.hand);
+    getAllTasks().forEach(t => {
+      if (isDue(t) && !handSet.has(t.id)) {
+        state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
+      } else if (handSet.has(t.id)) {
+        state.starvation[t.id] = 0;
+      }
+    });
+  }
 
   saveState();
 }
@@ -904,6 +918,8 @@ function completeTask(id) {
   const prev = state.completions[id] || 0;
   const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
   state.completions[id] = Date.now();
+  // Clear snooze if task was snoozed
+  if (state.snoozed) delete state.snoozed[id];
   // Auto-unpin on completion
   if (state.pinnedIds && state.pinnedIds.includes(id)) {
     state.pinnedIds = state.pinnedIds.filter(p => p !== id);
@@ -955,7 +971,7 @@ function loadPresetDueOnly(preset) {
   state.resetHand = null;
   state.goingOutHand = null;
   saveState();
-  setView('sprint');
+  switchTab('sprint');
 }
 
 function addMore() {
@@ -1077,11 +1093,11 @@ function renderAlina() {
     if (overflow.length) {
       html += '<button class="more-btn" onclick="addMore()">+ Give me more (' + overflow.length + ' due)</button>';
     }
-    html += '<button class="overflow-toggle" id="overflowToggle" onclick="toggleOverflow()">' +
+    html += '<button class="overflow-toggle' + (overflowOpen ? ' open' : '') + '" id="overflowToggle" onclick="toggleOverflow()">' +
         '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
         'Backup list (' + totalBackup + ')' +
       '</button>' +
-      '<div id="overflowList" style="display:none">';
+      '<div id="overflowList" style="display:' + (overflowOpen ? 'block' : 'none') + '">';
     if (overflow.length) {
       html += '<div class="section" style="margin-top:8px"><div class="section-label">Due / overdue</div>';
       overflow.forEach(t => html += renderCard(t, true));
@@ -1122,6 +1138,13 @@ function renderCard(task, canSwap) {
     }
   }
 
+  const snoozeUntil = state.snoozed && state.snoozed[task.id];
+  const isSnoozed = snoozeUntil && Date.now() < snoozeUntil;
+  if (!isDone && isSnoozed) {
+    const snoozeDate = new Date(snoozeUntil).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    overdueHtml = '<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>';
+  }
+
   const ownerHtml = task.owner === 'either' ? '<span class="owner-badge owner-bob">Bob too</span>' : '';
   const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
   const pinBadge = isPinned ? '<span class="pin-badge">&#128204;</span>' : '';
@@ -1129,8 +1152,10 @@ function renderCard(task, canSwap) {
   const undoBtn = isDone ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
   const pinBtn = !isDone ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
   const removeBtn = !isDone && !isPinned ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
+  const snoozeBtn = !isDone && !isPinned ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
 
   const dpId = 'dp_' + task.id;
+  const spId = 'sp_' + task.id;
 
   return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
     '<div class="task-main" onclick="completeTask(\'' + task.id + '\')">' +
@@ -1155,8 +1180,14 @@ function renderCard(task, canSwap) {
         '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
         '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">save</button>' +
       '</div>' +
+      '<div class="snooze-picker-row" id="' + spId + '">' +
+        '<span style="font-size:12px;color:var(--text3)">Snooze:</span>' +
+        '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',1)">1d</button>' +
+        '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',2)">2d</button>' +
+        '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',3)">3d</button>' +
+      '</div>' +
     '</div>' +
-    '<div class="task-actions">' + swapBtn + pinBtn + removeBtn + undoBtn + '</div>' +
+    '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + removeBtn + undoBtn + '</div>' +
   '</div>';
 }
 
@@ -1379,13 +1410,13 @@ function renderSprint() {
 
 // ── Preset task definitions ──
 const GUEST_DAY_IDS = [
-  'liv_tidy','din_tidy','k_tidy','k_counters','din_table_wipe',
-  'ds_toilet','ds_sink','ds_mirror','ds_floor',
+  'lr_tidy','dr_tidy','k_tidy','k_counters','dr_table',
+  'dsb_toilet','dsb_sink','dsb_mirror','dsb_mop',
   'house_entryway','rob_run_ds','rob_mop',
-  'c_scoop_ds','c_water_ds','c_feeders','house_pura'
+  'c_scoop_ds','c_water_ds','c_feeders'
 ];
 const GUEST_OVERNIGHT_IDS = [
-  'bed_spare','off_tidy','us_toilet','us_sink','us_mirror'
+  'off_tidy','usb_tidy','usb_toilet','usb_sink','usb_mirror'
 ];
 const FULL_RESET_TASKS = [
   // Launch
@@ -1531,7 +1562,7 @@ function loadPresetIntoHand(preset) {
   state.resetHand = null;
   state.goingOutHand = null;
   saveState();
-  setView('sprint');
+  switchTab('sprint');
 }
 
 function renderPresetChecklist(taskIds, taskSource) {
@@ -1681,19 +1712,11 @@ function renderSettings() {
       '<div class="settings-summary">Currently: ' + fmtMinutes(dailyMin) + ' of dailies + up to ' + fmtMinutes(state.budgetWeekday) + ' of non-dailies on weekdays / ' + fmtMinutes(state.budgetWeekend) + ' on weekends</div>' +
     '</div>' +
 
-    // Card 2: Active Zone
+    // Card 2: Active Zone reference (selector lives in My Hand stats bar)
     '<div class="settings-card">' +
       '<div class="settings-card-title">Active Zone</div>' +
-      '<div class="settings-card-desc">FlyLady-inspired rotating focus area. Tasks in the active zone get a scoring boost.</div>' +
-      '<select class="zone-select" id="settingsZoneSelect" onchange="saveZoneFromSettings()" style="width:100%;padding:10px 12px;font-size:16px;max-width:100%">' +
-        '<option value="0"' + (state.zone===0?' selected':'') + '>No zone focus</option>' +
-        '<option value="1"' + (state.zone===1?' selected':'') + '>Zone 1 — Dining, Mud, Porches</option>' +
-        '<option value="2"' + (state.zone===2?' selected':'') + '>Zone 2 — Kitchen</option>' +
-        '<option value="3"' + (state.zone===3?' selected':'') + '>Zone 3 — Sunroom, Office, DS Bath, Laundry</option>' +
-        '<option value="4"' + (state.zone===4?' selected':'') + '>Zone 4 — Bedroom, US Bath</option>' +
-        '<option value="5"' + (state.zone===5?' selected':'') + '>Zone 5 — Living Room, Back Room</option>' +
-      '</select>' +
-      '<table class="zone-ref-table" style="margin-top:12px">' +
+      '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. Switch zones from the My Hand tab.</div>' +
+      '<table class="zone-ref-table" style="margin-top:4px">' +
         '<tr><th>Zone</th><th>Rooms</th></tr>' +
         ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
       '</table>' +
@@ -1783,8 +1806,11 @@ function importData() {
     deletedIds:    parsed.deletedIds    || [],
     pinnedIds:     parsed.pinnedIds     || [],
     starvation:    parsed.starvation    || {},
+    starvationDate: parsed.starvationDate || null,
     guestHand:     parsed.guestHand     || null,
     resetHand:     parsed.resetHand     || null,
+    goingOutHand:  parsed.goingOutHand  || null,
+    snoozed:       parsed.snoozed       || {},
   };
   ta.value = '';
   saveState();
@@ -1802,16 +1828,6 @@ function adjustBudget(type, delta) {
     const el = document.getElementById('budgetWeekendVal');
     if (el) el.textContent = state.budgetWeekend;
   }
-  state.hand = null;
-  saveState();
-}
-
-function saveZoneFromSettings() {
-  const el = document.getElementById('settingsZoneSelect');
-  if (!el) return;
-  state.zone = parseInt(el.value);
-  const mainEl = document.getElementById('zoneSelect');
-  if (mainEl) mainEl.value = state.zone;
   state.hand = null;
   saveState();
 }
@@ -1997,14 +2013,7 @@ function addToHand(id) {
   }
 }
 
-function removeFromHand(id) {
-  if (!state.hand) return;
-  state.hand = state.hand.filter(h => h !== id);
-  if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
-  saveState();
-  renderManage();
-  showToast('Removed from hand');
-}
+// removeFromHand is defined earlier near swapTask — this duplicate is removed
 
 function toggleManageDp(dpId) {
   const row = document.getElementById(dpId);
@@ -2028,20 +2037,38 @@ function saveZone() {
 }
 
 function toggleOverflow() {
+  overflowOpen = !overflowOpen;
   const list = document.getElementById('overflowList');
   const btn = document.getElementById('overflowToggle');
   if (!list || !btn) return;
-  const open = list.style.display !== 'none';
-  list.style.display = open ? 'none' : 'block';
-  btn.classList.toggle('open', !open);
+  list.style.display = overflowOpen ? 'block' : 'none';
+  btn.classList.toggle('open', overflowOpen);
 }
 
 function toggleDatePicker(dpId) {
   const row = document.getElementById(dpId);
   if (!row) return;
   const isOpen = row.classList.contains('open');
-  document.querySelectorAll('.date-picker-row.open').forEach(r => r.classList.remove('open'));
+  document.querySelectorAll('.date-picker-row.open, .snooze-picker-row.open').forEach(r => r.classList.remove('open'));
   if (!isOpen) row.classList.add('open');
+}
+
+function toggleSnoozePicker(spId) {
+  const row = document.getElementById(spId);
+  if (!row) return;
+  const isOpen = row.classList.contains('open');
+  document.querySelectorAll('.snooze-picker-row.open, .date-picker-row.open').forEach(r => r.classList.remove('open'));
+  if (!isOpen) row.classList.add('open');
+}
+
+function snoozeTask(id, days) {
+  state.snoozed = state.snoozed || {};
+  state.snoozed[id] = Date.now() + days * 86400000;
+  state.hand = (state.hand || []).filter(h => h !== id);
+  if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+  saveState();
+  render();
+  showToast('Snoozed ' + days + 'd');
 }
 
 function saveDate(taskId) {
