@@ -228,6 +228,7 @@
   .pin-badge { font-size: 11px; color: var(--amber); margin-left: 2px; }
   .task-btn.pin-btn { color: var(--amber); border-color: var(--amber); }
   .task-btn.pin-btn.pinned { background: var(--amber-bg); }
+  .task-btn.remove-btn { color: var(--red); border-color: var(--red); }
   .sprint-pin { font-size: 11px; color: var(--amber); margin-left: 4px; }
 
   /* Redeal button */
@@ -930,6 +931,33 @@ function swapTask(id) {
   showToast('Swapped!');
 }
 
+function removeFromHand(id) {
+  state.hand = (state.hand || []).filter(h => h !== id);
+  if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+  saveState();
+  render();
+}
+
+function loadPresetDueOnly(preset) {
+  const allIds = preset === 'guest' ? state.guestHand :
+                 preset === 'reset' ? state.resetHand :
+                 state.goingOutHand;
+  if (!allIds || !allIds.length) return;
+  const combined = [...getAllTasks(), ...FULL_RESET_TASKS, ...GOING_OUT_TASKS];
+  const dueIds = allIds.filter(id => {
+    const task = combined.find(t => t.id === id);
+    return task && isDue(task);
+  });
+  if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
+  state.hand = [...dueIds];
+  state.handDate = todayStr();
+  state.guestHand = null;
+  state.resetHand = null;
+  state.goingOutHand = null;
+  saveState();
+  setView('sprint');
+}
+
 function addMore() {
   const overflow = getOverflowTasks();
   const toAdd = overflow.slice(0, 3).map(t => t.id);
@@ -1100,6 +1128,7 @@ function renderCard(task, canSwap) {
   const swapBtn = canSwap && !isDone && !isPinned ? '<button class="task-btn swap-btn" onclick="event.stopPropagation();swapTask(\'' + task.id + '\')">swap</button>' : '';
   const undoBtn = isDone ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
   const pinBtn = !isDone ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
+  const removeBtn = !isDone && !isPinned ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
 
   const dpId = 'dp_' + task.id;
 
@@ -1127,7 +1156,7 @@ function renderCard(task, canSwap) {
         '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">save</button>' +
       '</div>' +
     '</div>' +
-    '<div class="task-actions">' + swapBtn + pinBtn + undoBtn + '</div>' +
+    '<div class="task-actions">' + swapBtn + pinBtn + removeBtn + undoBtn + '</div>' +
   '</div>';
 }
 
@@ -1324,6 +1353,9 @@ function renderSprint() {
     block.tasks.forEach(t => {
       const isDone = wasCompletedToday(t);
       const sPinned = state.pinnedIds && state.pinnedIds.includes(t.id);
+      const sRemoveBtn = !isDone && !sPinned
+        ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
+        : '';
       html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')">' +
         '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
         '<div class="sprint-card-body">' +
@@ -1332,6 +1364,7 @@ function renderSprint() {
             '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
           '</div>' +
         '</div>' +
+        sRemoveBtn +
       '</div>';
     });
 
@@ -1547,7 +1580,10 @@ function renderPresets() {
   if (state.guestHand && state.guestHand.length) {
     const combined = [...getAllTasks(), ...FULL_RESET_TASKS];
     html +=
-      '<button onclick="loadPresetIntoHand(\'guest\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
+      '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+        '<button onclick="loadPresetIntoHand(\'guest\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
+        '<button onclick="loadPresetDueOnly(\'guest\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
+      '</div>';
     html += renderPresetChecklist(state.guestHand, combined);
   }
   html += '</div>';
@@ -1561,7 +1597,10 @@ function renderPresets() {
 
   if (state.resetHand && state.resetHand.length) {
     html +=
-      '<button onclick="loadPresetIntoHand(\'reset\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
+      '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+        '<button onclick="loadPresetIntoHand(\'reset\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
+        '<button onclick="loadPresetDueOnly(\'reset\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
+      '</div>';
     html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
   }
   html += '</div>';
@@ -1576,7 +1615,10 @@ function renderPresets() {
 
   if (goingOutActive) {
     html +=
-      '<button onclick="loadPresetIntoHand(\'goingout\')" style="width:100%;margin-bottom:14px;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load into Hand →</button>';
+      '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+        '<button onclick="loadPresetIntoHand(\'goingout\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
+        '<button onclick="loadPresetDueOnly(\'goingout\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
+      '</div>';
     GOING_OUT_SECTIONS.forEach(section => {
       const doneSectionCount = section.ids.filter(id => {
         const t = getAllTasks().find(x => x.id === id) || GOING_OUT_TASKS.find(x => x.id === id);
