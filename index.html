@@ -121,8 +121,8 @@
   .snooze-day-btn { font-size: 12px; padding: 3px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--amber); background: transparent; color: var(--amber); cursor: pointer; }
   .task-snoozed { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
 
-  .task-actions { display: flex; gap: 8px; padding: 0 12px 12px 48px; }
-  .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; }
+  .task-actions { display: flex; gap: 6px; padding: 0 12px 12px 48px; flex-wrap: wrap; }
+  .task-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 28px; }
   .task-btn:active { background: var(--bg2); }
   .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
 
@@ -1166,7 +1166,7 @@ function renderCard(task, canSwap) {
       '<div class="task-body">' +
         '<div class="task-name">' + task.name + pinBadge + '</div>' +
         '<div class="task-meta">' +
-          '<span class="task-room">📍 ' + task.room + '</span>' +
+          '<span class="task-room">' + task.room + '</span>' +
           '<span class="task-freq">' + freqLabel(task.freq) + '</span>' +
           '<span class="task-time">⏱ ' + fmtMinutes(task.time) + '</span>' +
           overdueHtml +
