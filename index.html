@@ -676,6 +676,16 @@ async function loadState() {
 }
 
 
+function saveNow() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setSyncStatus('synced');
+  } catch (e) {
+    console.error('Storage save error:', e);
+    setSyncStatus('error');
+  }
+}
+
 async function saveState() {
   // Debounce rapid saves: wait 300ms after last call
   if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
@@ -890,6 +900,38 @@ function getNotDueTasks() {
     });
 }
 
+function avgRealFreq(taskId) {
+  const h = (state.completionHistory || {})[taskId];
+  if (!h || h.length < 2) return null;
+  const sorted = [...h].sort((a, b) => a - b);
+  let total = 0;
+  for (let i = 1; i < sorted.length; i++) total += sorted[i] - sorted[i-1];
+  return Math.round((total / (sorted.length - 1)) / 86400000);
+}
+
+function buildActivityLog() {
+  const allTasks = getAllTasks();
+  const history = state.completionHistory || {};
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const label = i === 0 ? 'Today' : d.toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+    days.push({ ds, label, tasks: [] });
+  }
+  const buckets = {};
+  days.forEach(day => { buckets[day.ds] = day; });
+  allTasks.forEach(t => {
+    (history[t.id] || []).forEach(ts => {
+      const d = new Date(ts);
+      const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (buckets[ds]) buckets[ds].tasks.push(t.name);
+    });
+  });
+  return days;
+}
+
 function wasCompletedToday(task) {
   const last = state.completions[task.id] || 0;
   if (!last) return false;
@@ -915,7 +957,7 @@ function completeTask(id) {
   if (state.pinnedIds && state.pinnedIds.includes(id)) {
     state.pinnedIds = state.pinnedIds.filter(p => p !== id);
   }
-  saveState();
+  saveNow();
   render();
   showToast('Done!');
 }
@@ -1750,7 +1792,27 @@ function renderSettings() {
       '</ul>' +
     '</div>' +
 
-    // Card 5: Export / Import
+    // Card 5: Activity Log
+    (function() {
+      const log = buildActivityLog();
+      const hasAny = log.some(d => d.tasks.length > 0);
+      let logHtml = '<div class="settings-card"><div class="settings-card-title">Recent Activity</div>';
+      if (!hasAny) {
+        logHtml += '<div class="settings-card-desc">No history yet — completions will appear here as you check tasks off.</div>';
+      } else {
+        log.forEach(day => {
+          if (day.tasks.length === 0) return;
+          logHtml += '<div style="margin-bottom:10px">' +
+            '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px">' + day.label + ' <span style="font-weight:400;color:var(--text3)">· ' + day.tasks.length + ' done</span></div>' +
+            '<div style="font-size:13px;color:var(--text2);line-height:1.7">' + day.tasks.join(' · ') + '</div>' +
+          '</div>';
+        });
+      }
+      logHtml += '</div>';
+      return logHtml;
+    })() +
+
+    // Card 6: Export / Import
     '<div class="settings-card">' +
       '<div class="settings-card-title">Export / Import</div>' +
       '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
@@ -1896,6 +1958,10 @@ function renderManage() {
     const mdpId = 'mdp_' + t.id;
     const inHand = !!(state.hand && state.hand.includes(t.id));
     const isFlagged = (state.flaggedIds || []).includes(t.id);
+    const avg = avgRealFreq(t.id);
+    const avgHint = avg !== null && avg > t.freq * 1.4
+      ? ' · <span style="color:var(--amber)">avg ' + avg + 'd</span>'
+      : '';
     html +=
       '<div class="manage-card' + (isDoneToday ? ' mc-done' : '') + '">' +
         '<div class="manage-card-main">' +
@@ -1904,7 +1970,7 @@ function renderManage() {
           '</button>' +
           '<div class="manage-card-body">' +
             '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
-            '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
+            '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
           '</div>' +
           '<div class="manage-card-icons">' +
             '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
