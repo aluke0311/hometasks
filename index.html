@@ -121,8 +121,8 @@
   .snooze-day-btn { font-size: 12px; padding: 3px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--amber); background: transparent; color: var(--amber); cursor: pointer; }
   .task-snoozed { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
 
-  .task-actions { display: flex; gap: 8px; padding: 0 12px 12px 48px; }
-  .task-btn { font-size: 13px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 36px; }
+  .task-actions { display: flex; gap: 6px; padding: 0 12px 12px 48px; flex-wrap: wrap; }
+  .task-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 28px; }
   .task-btn:active { background: var(--bg2); }
   .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
 
@@ -619,14 +619,6 @@ function freqLabel(days) {
   return 'every ' + days + ' days';
 }
 
-// Frequency CSS class for left border color
-function freqClass(days) {
-  if (days <= 3)  return 'freq-daily';
-  if (days <= 14) return 'freq-week';
-  if (days <= 60) return 'freq-month';
-  return 'freq-long';
-}
-
 // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
 const STORAGE_KEY = 'hometasks_v8';
 const STORAGE_KEY_V7 = 'hometasks_v7';
@@ -639,7 +631,7 @@ function defaultState() {
   TASKS.forEach(t => {
     completions[t.id] = now - (t.freq * 86400000);
   });
-  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {} };
+  return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {} };
 }
 
 async function loadState() {
@@ -673,6 +665,8 @@ async function loadState() {
         resetHand: parsed.resetHand || null,
         goingOutHand: parsed.goingOutHand || null,
         snoozed: parsed.snoozed || {},
+        flaggedIds: parsed.flaggedIds || [],
+        completionHistory: parsed.completionHistory || {},
       };
     }
   } catch (e) {
@@ -681,15 +675,6 @@ async function loadState() {
   return defaultState();
 }
 
-function setSyncStatus(status) {
-  const el = document.getElementById('syncIndicator');
-  const label = document.getElementById('syncLabel');
-  if (!el || !label) return;
-  el.className = 'sync-indicator' + (status !== 'synced' ? ' ' + status : '');
-  if (status === 'syncing') label.textContent = 'saving…';
-  else if (status === 'error') label.textContent = 'sync error';
-  else label.textContent = 'synced';
-}
 
 async function saveState() {
   // Debounce rapid saves: wait 300ms after last call
@@ -769,6 +754,7 @@ function scoreTask(task, zone) {
   score -= Math.min(overdueRatio * task.freq * 0.5, task.freq * 0.8);
   const starvation = (state.starvation || {})[task.id] || 0;
   score -= starvation * 0.3;
+  if ((state.flaggedIds || []).includes(task.id)) score -= 50;
 
   return score;
 }
@@ -918,6 +904,11 @@ function completeTask(id) {
   const prev = state.completions[id] || 0;
   const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
   state.completions[id] = Date.now();
+  if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+  if (!state.completionHistory) state.completionHistory = {};
+  if (!state.completionHistory[id]) state.completionHistory[id] = [];
+  state.completionHistory[id].push(Date.now());
+  if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
   // Clear snooze if task was snoozed
   if (state.snoozed) delete state.snoozed[id];
   // Auto-unpin on completion
@@ -927,6 +918,17 @@ function completeTask(id) {
   saveState();
   render();
   showToast('Done!');
+}
+
+function flagTask(id) {
+  if (!state.flaggedIds) state.flaggedIds = [];
+  if (!state.flaggedIds.includes(id)) state.flaggedIds.push(id);
+  saveState(); render();
+}
+function unflagTask(id) {
+  if (!state.flaggedIds) return;
+  state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+  saveState(); render();
 }
 
 function uncompleteTask(id) {
@@ -1122,7 +1124,6 @@ function renderAlina() {
 function renderCard(task, canSwap) {
   const isDone = wasCompletedToday(task);
   const overdue = daysOverdue(task);
-  const fc = freqClass(task.freq);
 
   const last = state.completions[task.id] || 0;
   const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never';
@@ -1153,6 +1154,8 @@ function renderCard(task, canSwap) {
   const pinBtn = !isDone ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
   const removeBtn = !isDone && !isPinned ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
   const snoozeBtn = !isDone && !isPinned ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
+  const isFlagged = (state.flaggedIds || []).includes(task.id);
+  const flagBtn = !isDone ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
   const dpId = 'dp_' + task.id;
   const spId = 'sp_' + task.id;
@@ -1163,7 +1166,7 @@ function renderCard(task, canSwap) {
       '<div class="task-body">' +
         '<div class="task-name">' + task.name + pinBadge + '</div>' +
         '<div class="task-meta">' +
-          '<span class="task-room">📍 ' + task.room + '</span>' +
+          '<span class="task-room">' + task.room + '</span>' +
           '<span class="task-freq">' + freqLabel(task.freq) + '</span>' +
           '<span class="task-time">⏱ ' + fmtMinutes(task.time) + '</span>' +
           overdueHtml +
@@ -1187,7 +1190,7 @@ function renderCard(task, canSwap) {
         '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',3)">3d</button>' +
       '</div>' +
     '</div>' +
-    '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + removeBtn + undoBtn + '</div>' +
+    '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + removeBtn + flagBtn + undoBtn + '</div>' +
   '</div>';
 }
 
@@ -1811,6 +1814,8 @@ function importData() {
     resetHand:     parsed.resetHand     || null,
     goingOutHand:  parsed.goingOutHand  || null,
     snoozed:       parsed.snoozed       || {},
+    flaggedIds:    parsed.flaggedIds    || [],
+    completionHistory: parsed.completionHistory || {},
   };
   ta.value = '';
   saveState();
@@ -1890,6 +1895,7 @@ function renderManage() {
     const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'never';
     const mdpId = 'mdp_' + t.id;
     const inHand = !!(state.hand && state.hand.includes(t.id));
+    const isFlagged = (state.flaggedIds || []).includes(t.id);
     html +=
       '<div class="manage-card' + (isDoneToday ? ' mc-done' : '') + '">' +
         '<div class="manage-card-main">' +
@@ -1902,6 +1908,7 @@ function renderManage() {
           '</div>' +
           '<div class="manage-card-icons">' +
             '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
+            '<button class="icon-btn" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' +
             '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
           '</div>' +
         '</div>' +
@@ -1918,6 +1925,10 @@ function renderManage() {
 
   html += '</div><div class="bottom-pad"></div>';
   document.getElementById('manageTaskList').innerHTML = html;
+  if (manageSearch) {
+    const inp = document.getElementById('manageTaskList').querySelector('.search-input');
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }
 }
 
 function getAllTasks() {
