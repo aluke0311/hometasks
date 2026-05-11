@@ -1122,7 +1122,7 @@ function renderAlina() {
         '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
         'Daily Tasks (' + dailies.length + ')' +
       '</button>' +
-      '<span class="section-label-time">' + (dailiesOpen ? '⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining' : '') + '</span>' +
+      '<span class="section-label-time">⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining</span>' +
     '</div>' +
     '<div id="dailiesList" style="display:' + (dailiesOpen ? 'block' : 'none') + '">';
     dailiesSorted.forEach(t => html += renderCard(t, false));
