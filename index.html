@@ -86,6 +86,9 @@
   .section { padding: 0 24px; margin-top: 16px; }
   .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; padding-left: 2px; display: flex; justify-content: space-between; align-items: center; }
   .section-label-time { font-weight: 400; font-size: 11px; color: var(--text3); letter-spacing: 0; text-transform: none; }
+  .section-label-btn { background: none; border: none; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; }
+  .section-label-btn svg { transition: transform 0.2s; flex-shrink: 0; }
+  .section-label-btn.open svg { transform: rotate(90deg); }
 
   .task-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; }
   .task-card.done { opacity: 0.45; }
@@ -704,6 +707,7 @@ async function saveState() {
 let state = defaultState(); // placeholder until async load
 let currentTab = 'alina';
 let overflowOpen = false;
+let dailiesOpen = true;
 
 // ─── CORE LOGIC ────────────────────────────────────────────────────────────
 
@@ -1113,9 +1117,16 @@ function renderAlina() {
   if (dailies.length) {
     const dailyLeftMin = dailies.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
     const dailiesSorted = [...dailies.filter(t => !wasCompletedToday(t)), ...dailies.filter(t => wasCompletedToday(t))];
-    html += '<div class="section"><div class="section-label"><span>Daily Tasks (' + dailies.length + ')</span><span class="section-label-time">⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining</span></div>';
+    html += '<div class="section"><div class="section-label">' +
+      '<button class="section-label-btn' + (dailiesOpen ? ' open' : '') + '" onclick="toggleDailies()">' +
+        '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
+        'Daily Tasks (' + dailies.length + ')' +
+      '</button>' +
+      '<span class="section-label-time">' + (dailiesOpen ? '⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining' : '') + '</span>' +
+    '</div>' +
+    '<div id="dailiesList" style="display:' + (dailiesOpen ? 'block' : 'none') + '">';
     dailiesSorted.forEach(t => html += renderCard(t, false));
-    html += '</div>';
+    html += '</div></div>';
   }
 
   if (capped.length) {
@@ -2115,6 +2126,11 @@ function toggleOverflow() {
   if (!list || !btn) return;
   list.style.display = overflowOpen ? 'block' : 'none';
   btn.classList.toggle('open', overflowOpen);
+}
+
+function toggleDailies() {
+  dailiesOpen = !dailiesOpen;
+  renderAlina();
 }
 
 function toggleDatePicker(dpId) {
