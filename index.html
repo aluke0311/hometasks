@@ -762,7 +762,7 @@ function scoreTask(task, zone) {
   if (inZone) score -= 2;
   score -= Math.min(overdueRatio * task.freq * 0.5, task.freq * 0.8);
   const starvation = (state.starvation || {})[task.id] || 0;
-  score -= starvation * 0.3;
+  score -= Math.min(starvation * 0.3, task.freq * 0.15);
   if ((state.flaggedIds || []).includes(task.id)) score -= 50;
 
   return score;
@@ -805,12 +805,8 @@ function dealHand() {
   const budget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
   // Count time already spent today (completed tasks) + uncommitted dailies
   const allTasks = getAllTasks();
-  const completedTodayTime = allTasks.filter(t => wasCompletedToday(t))
+  const completedNonDailyTime = allTasks.filter(t => t.freq > 1 && wasCompletedToday(t))
     .reduce((s, t) => s + t.time, 0);
-  const uncommittedDailyTime = dailyFiltered.reduce((s, id) => {
-    const t = allTasks.find(t => t.id === id);
-    return s + (t && !wasCompletedToday(t) ? t.time : 0);
-  }, 0);
   const HEAVY_THRESHOLD = 15;
   const HEAVY_MAX = 2;
 
@@ -828,7 +824,7 @@ function dealHand() {
     return s + (t ? t.time : 0);
   }, 0);
 
-  let timeUsed = completedTodayTime + uncommittedDailyTime + alwaysAssignedTime;
+  let timeUsed = completedNonDailyTime + alwaysAssignedTime;
   let heavyCount = 0;
   const selected = [];
 
