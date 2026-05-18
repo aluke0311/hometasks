@@ -287,7 +287,6 @@
           <button class="mode-btn" id="modeBtn-maintenance" onclick="setMode('maintenance')">🏠 Keep up</button>
           <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">🔄 Catch up</button>
           <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">📋 By freq</button>
-          <button class="mode-btn" id="modeBtn-survival" onclick="setMode('survival')">🛋️ Easy day</button>
         </div>
       </div>
       <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
@@ -679,7 +678,7 @@
           snoozed: parsed.snoozed || {},
           flaggedIds: parsed.flaggedIds || [],
           completionHistory: parsed.completionHistory || {},
-          mode: parsed.mode || 'maintenance',
+          mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
           tierCLastDate: parsed.tierCLastDate || null,
         };
       }
@@ -782,7 +781,8 @@
     const starvation = (state.starvation || {})[task.id] || 0;
     score -= Math.min(starvation * 0.3, task.freq * 0.15);
     if ((state.flaggedIds || []).includes(task.id)) score -= 50;
-  
+    if (task.freq > 60) score += (Math.random() - 0.5) * 2;
+
     return score;
   }
   
@@ -832,15 +832,10 @@
     });
     const alwaysAssignedSet = new Set(alwaysAssigned);
 
-    // Scored pool of all due non-daily tasks (survival: max 10 min)
-    let nonDailyPool = getDueTasks('alina').filter(t =>
+    // Scored pool of all due non-daily tasks
+    const nonDailyPool = getDueTasks('alina').filter(t =>
       t.freq > 1 && !pinnedSet.has(t.id) && !alwaysAssignedSet.has(t.id)
     );
-    if (mode === 'survival') nonDailyPool = nonDailyPool.filter(t => t.time <= 10);
-
-    const tierA = nonDailyPool.filter(t => getTaskTier(t) === 'A');
-    const tierB = nonDailyPool.filter(t => getTaskTier(t) === 'B');
-    const tierC = nonDailyPool.filter(t => getTaskTier(t) === 'C');
 
     const HEAVY_THRESHOLD = 15;
     const HEAVY_MAX = 2;
@@ -857,8 +852,12 @@
     const selected = [];
 
     if (mode === 'byfreq') {
-      // No tier quotas — pure score order across all tiers, fill budget
-      for (const task of nonDailyPool) {
+      // Sort by raw frequency; shuffle within same-freq for variety
+      const freqPool = [...nonDailyPool].sort((a, b) => {
+        if (a.freq !== b.freq) return a.freq - b.freq;
+        return Math.random() - 0.5;
+      });
+      for (const task of freqPool) {
         const isHeavy = task.time > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
         if (timeUsed + task.time > budget && selected.length > 0) break;
@@ -867,19 +866,9 @@
         if (isHeavy) heavyCount++;
       }
     } else {
-      // Tier A: top 3 by score, bypass budget; remainder spills into Tier B pool
-      const tierASelected = tierA.slice(0, 3);
-      const tierAOverflow = tierA.slice(3);
-      for (const task of tierASelected) {
-        selected.push(task);
-        timeUsed += task.time;
-        if (task.time > HEAVY_THRESHOLD) heavyCount++;
-      }
-
-      // Tier B pool = scored Tier B tasks + Tier A overflow (already scored, interleave by score)
-      const tierBPool = [...tierB, ...tierAOverflow]
-        .sort((a, b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
-      for (const task of tierBPool) {
+      // Keep Up / Catch Up: score-sorted pool fills budget (algorithm decides)
+      // Score already encodes the mode difference via overdueWeight (0.5 vs 0.8)
+      for (const task of nonDailyPool) {
         const isHeavy = task.time > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
         if (timeUsed + task.time > budget && selected.length > 0) break;
@@ -887,19 +876,6 @@
         timeUsed += task.time;
         if (isHeavy) heavyCount++;
       }
-
-      // Tier C: mode-dependent
-      let tierCSelected = null;
-      if (mode !== 'survival' && tierC.length > 0) {
-        const shouldIncludeC = mode === 'catchup' ||
-          !state.tierCLastDate ||
-          daysBetween(state.tierCLastDate, today) >= 3;
-        if (shouldIncludeC) {
-          tierCSelected = tierC[0];
-          state.tierCLastDate = today;
-        }
-      }
-      if (tierCSelected) selected.push(tierCSelected);
     }
 
     const newHandIds = new Set([...pinned, ...dailyIds, ...alwaysAssigned, ...selected.map(t => t.id)]);
@@ -1140,7 +1116,7 @@
     state.handDate = null;
     saveState();
     render();
-    const labels = { maintenance: 'Keep up', catchup: 'Catch up', byfreq: 'By freq', survival: 'Easy day' };
+    const labels = { maintenance: 'Keep up', catchup: 'Catch up', byfreq: 'By freq' };
     showToast(labels[mode] || mode);
   }
   
@@ -1167,7 +1143,7 @@
   
   function renderAlina() {
     // Sync active mode button
-    ['maintenance', 'catchup', 'byfreq', 'survival'].forEach(m => {
+    ['maintenance', 'catchup', 'byfreq'].forEach(m => {
       const btn = document.getElementById('modeBtn-' + m);
       if (btn) btn.classList.toggle('active', (state.mode || 'maintenance') === m);
     });
