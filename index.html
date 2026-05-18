@@ -244,6 +244,15 @@
     /* Redeal button */
     .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; color: var(--text2); cursor: pointer; }
     .redeal-btn:hover { background: var(--bg2); }
+    .redeal-group { display: flex; align-items: center; gap: 6px; }
+    .redeal-tiers { display: flex; gap: 3px; }
+    .tier-pill-sm { padding: 4px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .tier-pill-sm:hover { background: var(--bg2); }
+    .more-btn-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .more-btn-row .more-btn { flex: 1; margin-bottom: 0; }
+    .tier-pills { display: flex; gap: 4px; }
+    .tier-pill { padding: 6px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; }
+    .tier-pill:hover { background: var(--bg2); }
   </style>
   </head>
   <body>
@@ -263,7 +272,14 @@
           <div class="view-hero-title">Today's Hand</div>
           <div class="view-hero-subtitle" id="heroDate"></div>
         </div>
-        <button class="redeal-btn" onclick="redealHand()" title="Redeal today's hand">&#8635; Redeal</button>
+        <div class="redeal-group">
+          <button class="redeal-btn" onclick="redealHand()" title="Redeal today's hand">&#8635; Redeal</button>
+          <div class="redeal-tiers">
+            <button class="tier-pill-sm" onclick="redealHand('A')" title="Redeal favoring tier A">A</button>
+            <button class="tier-pill-sm" onclick="redealHand('B')" title="Redeal favoring tier B">B</button>
+            <button class="tier-pill-sm" onclick="redealHand('C')" title="Redeal favoring tier C">C</button>
+          </div>
+        </div>
       </div>
       <div class="stats-row">
         <div class="stats-row-top">
@@ -815,6 +831,9 @@
     const today = todayStr();
     if (state.handDate === today && state.hand) return;
 
+    const preferTier = state._dealPreferTier || null;
+    if (preferTier) delete state._dealPreferTier;
+
     const mode = state.mode || 'maintenance';
     const allTasks = getAllTasks();
     const pinned = (state.pinnedIds || []).filter(id => allTasks.find(t => t.id === id));
@@ -837,6 +856,11 @@
       t.freq > 1 && !pinnedSet.has(t.id) && !alwaysAssignedSet.has(t.id)
     );
 
+    // If a tier preference was requested, float that tier to the top while keeping score order within each group
+    const pool = preferTier
+      ? [...nonDailyPool.filter(t => getTaskTier(t) === preferTier), ...nonDailyPool.filter(t => getTaskTier(t) !== preferTier)]
+      : nonDailyPool;
+
     const HEAVY_THRESHOLD = 15;
     const HEAVY_MAX = 2;
     const budget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
@@ -852,8 +876,13 @@
     const selected = [];
 
     if (mode === 'byfreq') {
-      // Sort by raw frequency; shuffle within same-freq for variety
-      const freqPool = [...nonDailyPool].sort((a, b) => {
+      // Sort by raw frequency; shuffle within same-freq for variety; honour tier preference if set
+      const freqPool = [...pool].sort((a, b) => {
+        if (preferTier) {
+          const aMatch = getTaskTier(a) === preferTier ? 0 : 1;
+          const bMatch = getTaskTier(b) === preferTier ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+        }
         if (a.freq !== b.freq) return a.freq - b.freq;
         return Math.random() - 0.5;
       });
@@ -868,7 +897,7 @@
     } else {
       // Keep Up / Catch Up: score-sorted pool fills budget (algorithm decides)
       // Score already encodes the mode difference via overdueWeight (0.5 vs 0.8)
-      for (const task of nonDailyPool) {
+      for (const task of pool) {
         const isHeavy = task.time > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
         if (timeUsed + task.time > budget && selected.length > 0) break;
@@ -1052,10 +1081,11 @@
     switchTab('sprint');
   }
   
-  function addMore() {
+  function addMore(tier = 'all') {
     const overflow = getOverflowTasks();
-    const toAdd = overflow.slice(0, 3).map(t => t.id);
-    if (!toAdd.length) { showToast('Nothing more due'); return; }
+    const filtered = tier === 'all' ? overflow : overflow.filter(t => getTaskTier(t) === tier);
+    const toAdd = filtered.slice(0, 3).map(t => t.id);
+    if (!toAdd.length) { showToast(tier === 'all' ? 'Nothing more due' : 'Nothing more due in tier ' + tier); return; }
     state.hand = [...state.hand, ...toAdd];
     saveState();
     render();
@@ -1101,13 +1131,14 @@
     }
   }
   
-  function redealHand() {
+  function redealHand(tier = null) {
     // Preserve pins across redeal
     state.hand = null;
     state.handDate = null;
+    if (tier) state._dealPreferTier = tier;
     saveState();
     render();
-    showToast('Hand redealt');
+    showToast(tier ? 'Redealt (tier ' + tier + ' priority)' : 'Hand redealt');
   }
 
   function setMode(mode) {
@@ -1192,7 +1223,14 @@
       const totalBackup = overflow.length + notDue.length;
       html += '<div class="overflow-section" style="margin-top:12px">';
       if (overflow.length) {
-        html += '<button class="more-btn" onclick="addMore()">+ Give me more (' + overflow.length + ' due)</button>';
+        html += '<div class="more-btn-row">' +
+          '<button class="more-btn" onclick="addMore()">+ Give me more (' + overflow.length + ' due)</button>' +
+          '<div class="tier-pills">' +
+            '<button class="tier-pill" onclick="addMore(\'A\')" title="Operational (≤7d)">A</button>' +
+            '<button class="tier-pill" onclick="addMore(\'B\')" title="Maintenance (8–60d)">B</button>' +
+            '<button class="tier-pill" onclick="addMore(\'C\')" title="Deep clean (>60d)">C</button>' +
+          '</div>' +
+        '</div>';
       }
       html += '<button class="overflow-toggle' + (overflowOpen ? ' open' : '') + '" id="overflowToggle" onclick="toggleOverflow()">' +
           '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
