@@ -903,6 +903,7 @@
       for (const task of freqPool) {
         const isHeavy = task.time > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
+        if (timeUsed >= budget) break;
         if (timeUsed + task.time > budget && selected.length > 0) break;
         selected.push(task);
         timeUsed += task.time;
@@ -914,6 +915,7 @@
       for (const task of pool) {
         const isHeavy = task.time > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
+        if (timeUsed >= budget) break;
         if (timeUsed + task.time > budget && selected.length > 0) break;
         selected.push(task);
         timeUsed += task.time;
