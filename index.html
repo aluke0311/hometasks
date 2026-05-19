@@ -844,15 +844,17 @@
     const LAUNDRY_LOAD_IDS = new Set(['lroom_myclothes','lroom_towels','lroom_microfiber','k_towels']);
     const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
     const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
+    const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
+    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday;
     const dueLaundryLoads = allTasks
       .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && isDue(t) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
       .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
-    // If a laundry load is already pinned, don't add a second one via alwaysAssigned
-    const laundryLoadId = (!pinnedLaundryLoad && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
+    // Don't assign another laundry load if one was already completed today or is pinned
+    const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
 
     const dailyIds = getDailies().map(t => t.id)
       .filter(id => !pinnedSet.has(id))
-      .filter(id => laundryLoadId !== null || pinnedLaundryLoad || !LAUNDRY_PROCESS_IDS.has(id));
+      .filter(id => laundryLoadId !== null || hasLaundryToday || !LAUNDRY_PROCESS_IDS.has(id));
 
     // Always-assign: c_fountain bypasses all tiers when due; laundry load slot
     const ALWAYS_ASSIGN_IDS = ['c_fountain'];
