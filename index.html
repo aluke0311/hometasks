@@ -852,7 +852,7 @@
 
     const dailyIds = getDailies().map(t => t.id)
       .filter(id => !pinnedSet.has(id))
-      .filter(id => laundryLoadId !== null || !LAUNDRY_PROCESS_IDS.has(id));
+      .filter(id => laundryLoadId !== null || pinnedLaundryLoad || !LAUNDRY_PROCESS_IDS.has(id));
 
     // Always-assign: c_fountain bypasses all tiers when due; laundry load slot
     const ALWAYS_ASSIGN_IDS = ['c_fountain'];
