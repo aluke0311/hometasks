@@ -839,9 +839,20 @@
     const pinned = (state.pinnedIds || []).filter(id => allTasks.find(t => t.id === id));
     const pinnedSet = new Set(pinned);
 
-    const dailyIds = getDailies().map(t => t.id).filter(id => !pinnedSet.has(id));
+    // Laundry: pick exactly one "what to wash" task per day (most overdue by score);
+    // suppress the daily process steps if nothing is due to wash.
+    const LAUNDRY_LOAD_IDS = new Set(['lroom_myclothes','lroom_towels','lroom_microfiber','k_towels']);
+    const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
+    const dueLaundryLoads = allTasks
+      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && isDue(t) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
+      .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+    const laundryLoadId = dueLaundryLoads.length > 0 ? dueLaundryLoads[0].id : null;
 
-    // Always-assign: c_fountain bypasses all tiers when due
+    const dailyIds = getDailies().map(t => t.id)
+      .filter(id => !pinnedSet.has(id))
+      .filter(id => laundryLoadId !== null || !LAUNDRY_PROCESS_IDS.has(id));
+
+    // Always-assign: c_fountain bypasses all tiers when due; laundry load slot
     const ALWAYS_ASSIGN_IDS = ['c_fountain'];
     const alwaysAssigned = [];
     ALWAYS_ASSIGN_IDS.forEach(id => {
@@ -849,11 +860,12 @@
       const task = allTasks.find(t => t.id === id);
       if (task && isDue(task)) alwaysAssigned.push(id);
     });
+    if (laundryLoadId && !pinnedSet.has(laundryLoadId)) alwaysAssigned.push(laundryLoadId);
     const alwaysAssignedSet = new Set(alwaysAssigned);
 
-    // Scored pool of all due non-daily tasks
+    // Scored pool of all due non-daily tasks (laundry load tasks handled separately above)
     const nonDailyPool = getDueTasks('alina').filter(t =>
-      t.freq > 1 && !pinnedSet.has(t.id) && !alwaysAssignedSet.has(t.id)
+      t.freq > 1 && !pinnedSet.has(t.id) && !alwaysAssignedSet.has(t.id) && !LAUNDRY_LOAD_IDS.has(t.id)
     );
 
     // If a tier preference was requested, float that tier to the top while keeping score order within each group
