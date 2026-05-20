@@ -658,7 +658,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {} };
   }
   
   async function loadState() {
@@ -1576,6 +1576,12 @@
   const GUEST_OVERNIGHT_IDS = [
     'off_tidy','usb_tidy','usb_toilet','usb_sink','usb_mirror'
   ];
+  const GUEST_EMERGENCY_IDS = [
+    'lr_tidy','dr_tidy','dr_table',
+    'k_counters','k_tidy',
+    'dsb_toilet','dsb_sink',
+    'house_entryway',
+  ];
   const FULL_RESET_TASKS = [
     // Launch
     { id:'l_start', name:'Start a load of laundry', room:'Laundry', time:10 },
@@ -1675,17 +1681,176 @@
     { label:'Tidy all rooms',ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','br_tidy','sun_tidy','off_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
     { label:'Bathrooms',     ids:['dsb_toilet','dsb_sink','dsb_mirror','usb_toilet','usb_sink','usb_mirror'] },
   ];
+
+  // ── NEW PRESET SECTION DEFINITIONS ─────────────────────────────────────────
+  const EXPRESS_RESET_SECTIONS = [
+    { label:'Launch',        ids:['l_start','rob_run_ds','rob_mop'] },
+    { label:'Kitchen',       ids:['k_dishwasher','k_tidy','k_counters','k_sink'] },
+    { label:'Bathrooms',     ids:['dsb_toilet','dsb_sink','dsb_towels','usb_toilet','usb_sink'] },
+    { label:'Bedroom',       ids:['bed_make'] },
+    { label:'Living spaces', ids:['lr_tidy','dr_table'] },
+    { label:'Cat care',      ids:['c_scoop_ds','c_water_ds','c_water_up'] },
+  ];
+  const RETURN_HOME_SECTIONS = [
+    { label:'Launch',        ids:['l_start','rob_run_ds'] },
+    { label:'Kitchen',       ids:['k_fridge','k_counters','k_dishwasher'] },
+    { label:'Cat care',      ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_feeders','c_litter_robot_bin','c_scoop_ds'] },
+    { label:'Bedroom',       ids:['bed_make'] },
+    { label:'Laundry',       ids:['l_dryer','l_fold','l_put_away'] },
+  ];
+  const BEFORE_CLEANERS_SECTIONS = [
+    { label:'Cat care (cleaners won\'t touch)', ids:['c_litter_robot_bin','c_litter_robot_wipe','c_litter_ds_change','c_feeders','c_scoop_ds'] },
+    { label:'Declutter so cleaners can reach surfaces', ids:['k_tidy','k_dishwasher','lr_tidy','dr_tidy','bed_tidy','off_tidy','sun_tidy','usb_tidy'] },
+    { label:'Finishing touches', ids:['bed_make'] },
+  ];
+  const RECOVERY_SECTIONS = [
+    { label:'Phase 1 — Stabilize', ids:['c_scoop_ds','c_water_ds','c_water_up','k_tidy','k_counters','dsb_toilet','k_trash'], phase:1 },
+    { label:'Phase 2 — Normalize', ids:['lr_tidy','dr_tidy','bed_make','l_start','dsb_sink','usb_toilet'], phase:2 },
+    { label:'Phase 3 — Restore',   ids:['rob_run_ds','usb_sink','bed_tidy','k_sink','lroom_tidy'], phase:3 },
+  ];
+
+  function getNewPresetSections(type) {
+    return { expressReset: EXPRESS_RESET_SECTIONS, returnHome: RETURN_HOME_SECTIONS,
+             beforeCleaners: BEFORE_CLEANERS_SECTIONS, recovery: RECOVERY_SECTIONS,
+             postIllness: POST_ILLNESS_SECTIONS }[type] || [];
+  }
+  function getNewPresetAllIds(type) {
+    return getNewPresetSections(type).flatMap(s => s.ids);
+  }
+
+  // ── EVENING SHUTDOWN ───────────────────────────────────────────────────────
+  const EVENING_SHUTDOWN_FIXED = ['k_dishwasher','k_counters','k_tidy','c_water_ds','c_water_up','c_scoop_ds'];
+  const EVENING_TIDY_POOL = ['lr_tidy','dr_tidy','hs_tidy','usb_tidy','bed_tidy','br_tidy','bp_tidy','lroom_tidy','sun_tidy','mud_tidy','off_tidy'];
+
+  function getBestTidyTask() {
+    const allTasks = getAllTasks();
+    const now = Date.now();
+    return EVENING_TIDY_POOL
+      .map(id => allTasks.find(t => t.id === id))
+      .filter(Boolean)
+      .map(t => {
+        const lastDone = state.completions[t.id] || (now - t.freq * 86400000);
+        return { task: t, ratio: (now - lastDone) / 86400000 / t.freq };
+      })
+      .sort((a, b) => b.ratio - a.ratio)[0]?.task || null;
+  }
+
+  function generateEveningShutdown() {
+    const bestTidy = getBestTidyTask();
+    const ids = bestTidy ? [...EVENING_SHUTDOWN_FIXED, bestTidy.id] : [...EVENING_SHUTDOWN_FIXED];
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands.eveningShutdown = ids;
+    saveState();
+    renderPresets();
+  }
+
+  // ── POST-ILLNESS ──────────────────────────────────────────────────────────
+  const POST_ILLNESS_SECTIONS = [
+    { label:'Phase 1 — Sanitize', phase:1,
+      ids:['house_doorknobs','dsb_toilet','dsb_sink','usb_toilet','usb_sink','k_counters','bed_sheets','bed_trash','dsb_trash'] },
+    { label:'Phase 2 — Restore', phase:2,
+      ids:['l_start','k_dishwasher','k_tidy','lr_tidy','c_scoop_ds','c_water_ds','c_water_up','rob_run_ds'] },
+  ];
+
+  function loadPostIllnessPhase(maxPhase) {
+    const ids = POST_ILLNESS_SECTIONS.filter(s => s.phase <= maxPhase).flatMap(s => s.ids);
+    state.hand = [...ids];
+    state.handDate = todayStr();
+    if (state.presetHands) state.presetHands.postIllness = null;
+    saveState();
+    switchTab('sprint');
+  }
+
+  // ── ROOM PRESETS ──────────────────────────────────────────────────────────
+  const ROOM_PRESETS = [
+    { id:'kitchen',   label:'Kitchen',
+      quick:['k_dishwasher','k_tidy','k_counters','k_sink'],
+      deep: ['k_dishwasher','k_tidy','k_counters','k_sink','k_stove','k_backsplash','k_microwave','k_hood','k_fridge'] },
+    { id:'dsBath',    label:'DS Bathroom',
+      quick:['dsb_toilet','dsb_sink','dsb_towels'],
+      deep: ['dsb_toilet','dsb_sink','dsb_towels','dsb_mirror','dsb_mop','dsb_tub_vac','dsb_exhaust'] },
+    { id:'usBath',    label:'US Bathroom',
+      quick:['usb_tidy','usb_toilet','usb_sink','usb_towels'],
+      deep: ['usb_tidy','usb_toilet','usb_sink','usb_towels','usb_mirror','usb_shower','usb_mop','usb_cups'] },
+    { id:'bedroom',   label:'Bedroom',
+      quick:['bed_make','bed_clothes','bed_tidy'],
+      deep: ['bed_make','bed_clothes','bed_tidy','bed_vacuum','bed_dust','bed_trash','bed_sheets'] },
+    { id:'livingRoom',label:'Living Room',
+      quick:['lr_tidy'],
+      deep: ['lr_tidy','lr_vacuum','lr_dust'] },
+    { id:'diningRoom',label:'Dining Room',
+      quick:['dr_table','dr_tidy'],
+      deep: ['dr_table','dr_tidy','dr_dust'] },
+    { id:'sunroom',   label:'Sunroom',
+      quick:['sun_tidy'],
+      deep: ['sun_tidy','sun_baseboards','sun_win'] },
+    { id:'office',    label:'Office',
+      quick:['off_vacuum','off_tidy'],
+      deep: ['off_vacuum','off_tidy','off_dust','off_couch','off_mirror'] },
+    { id:'backRoom',  label:'Back Room',
+      quick:['br_tidy','br_treadmill'],
+      deep: ['br_tidy','br_treadmill','br_vacuum','br_dust','br_mirror'] },
+    { id:'laundry',   label:'Laundry Room',
+      quick:['lroom_tidy'],
+      deep: ['lroom_tidy','lroom_dust','lroom_trash','lroom_washer'] },
+    { id:'hall',      label:'Hall & Stairs',
+      quick:['hs_tidy','hs_sweep'],
+      deep: ['hs_tidy','hs_sweep','hs_mop','hs_dust','hs_mirror'] },
+    { id:'mudRoom',   label:'Mud Room',
+      quick:['mud_tidy'],
+      deep: ['mud_tidy','mud_sweep'] },
+    { id:'backPorch', label:'Back Porch',
+      quick:['bp_tidy'],
+      deep: ['bp_tidy','bp_sweep','bp_furniture'] },
+    { id:'cats',      label:'Cats',
+      quick:['c_scoop_ds','c_water_ds','c_water_up'],
+      deep: ['c_scoop_ds','c_water_ds','c_water_up','c_water_bowl_up','c_water_bowl_ds','c_feeders','c_litter_robot_bin','c_litter_robot_wipe'] },
+  ];
+
+  function generateRoomPreset(roomId, depth) {
+    const preset = ROOM_PRESETS.find(r => r.id === roomId);
+    if (!preset) return;
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands['room_' + roomId + '_' + depth] = [...preset[depth === 'deep' ? 'deep' : 'quick']];
+    saveState();
+    renderPresets();
+  }
+
+  function loadRoomPreset(roomId, depth) {
+    const key = 'room_' + roomId + '_' + depth;
+    const ids = state.presetHands && state.presetHands[key];
+    if (!ids || !ids.length) return;
+    state.hand = [...ids];
+    state.handDate = todayStr();
+    state.presetHands[key] = null;
+    saveState();
+    switchTab('sprint');
+  }
+
+  function loadRoomPresetDueOnly(roomId, depth) {
+    const key = 'room_' + roomId + '_' + depth;
+    const allIds = state.presetHands && state.presetHands[key];
+    if (!allIds || !allIds.length) return;
+    const allTasks = getAllTasks();
+    const dueIds = allIds.filter(id => { const t = allTasks.find(t => t.id === id); return t && isDue(t); });
+    if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
+    state.hand = [...dueIds];
+    state.handDate = todayStr();
+    state.presetHands[key] = null;
+    saveState();
+    switchTab('sprint');
+  }
   
   let guestMode = 'day'; // 'day' | 'overnight'
   
   function getGuestPresetTasks(mode) {
     const allTasks = getAllTasks();
-    const ids = mode === 'overnight' ? [...GUEST_DAY_IDS, ...GUEST_OVERNIGHT_IDS] : GUEST_DAY_IDS;
+    const ids = mode === 'overnight' ? [...GUEST_DAY_IDS, ...GUEST_OVERNIGHT_IDS]
+              : mode === 'emergency' ? GUEST_EMERGENCY_IDS
+              : GUEST_DAY_IDS;
     return ids.map(id => {
-      // Try to find existing task by id first, then by name fragment
       const found = allTasks.find(t => t.id === id);
       if (found) return found;
-      // Synthesize a minimal task object for preset display
       const resetMatch = FULL_RESET_TASKS.find(t => t.id === id);
       return resetMatch || null;
     }).filter(Boolean);
@@ -1722,6 +1887,82 @@
     saveState();
     switchTab('sprint');
   }
+
+  // ── NEW PRESET FUNCTIONS ────────────────────────────────────────────────────
+
+  function generateNewPreset(type) {
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands[type] = getNewPresetAllIds(type);
+    saveState();
+    renderPresets();
+  }
+
+  function clearNewPreset(type) {
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands[type] = null;
+    saveState();
+    renderPresets();
+  }
+
+  function loadNewPreset(type) {
+    const ids = state.presetHands && state.presetHands[type];
+    if (!ids || !ids.length) return;
+    state.hand = [...ids];
+    state.handDate = todayStr();
+    state.presetHands[type] = null;
+    saveState();
+    switchTab('sprint');
+  }
+
+  function loadNewPresetDueOnly(type) {
+    const allIds = state.presetHands && state.presetHands[type];
+    if (!allIds || !allIds.length) return;
+    const allTasks = getAllTasks();
+    const dueIds = allIds.filter(id => {
+      const t = allTasks.find(t => t.id === id);
+      return t && isDue(t);
+    });
+    if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
+    state.hand = [...dueIds];
+    state.handDate = todayStr();
+    state.presetHands[type] = null;
+    saveState();
+    switchTab('sprint');
+  }
+
+  function loadRecoveryPhase(maxPhase) {
+    const ids = RECOVERY_SECTIONS.filter(s => s.phase <= maxPhase).flatMap(s => s.ids);
+    state.hand = [...ids];
+    state.handDate = todayStr();
+    if (state.presetHands) state.presetHands.recovery = null;
+    saveState();
+    switchTab('sprint');
+  }
+
+  function renderNewPresetChecklist(sections) {
+    const allTasks = getAllTasks();
+    let html = '';
+    sections.forEach(section => {
+      const doneCount = section.ids.filter(id => {
+        const t = allTasks.find(t => t.id === id);
+        return t && wasCompletedToday(t);
+      }).length;
+      html +=
+        '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          section.label + ' <span style="font-weight:400">(' + doneCount + '/' + section.ids.length + ')</span>' +
+        '</div>';
+      html += renderPresetChecklist(section.ids, allTasks);
+    });
+    return html;
+  }
+
+  function presetTotalTime(sections) {
+    const allTasks = getAllTasks();
+    return sections.flatMap(s => s.ids).reduce((sum, id) => {
+      const t = allTasks.find(t => t.id === id);
+      return sum + (t ? t.time : 0);
+    }, 0);
+  }
   
   function renderPresetChecklist(taskIds, taskSource) {
     let html = '';
@@ -1745,83 +1986,232 @@
   }
   
   function renderPresets() {
-    const guestTasks = state.guestHand ? getAllTasks().filter(t => state.guestHand.includes(t.id)) : [];
-    const resetTasks = FULL_RESET_TASKS;
-    const resetIds = state.resetHand || [];
-  
+    const allTasks = getAllTasks();
+    const ph = state.presetHands || {};
+
+    function categoryHeader(label) {
+      return '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:24px 0 4px">' + label + '</div>';
+    }
+
+    function loadBtns(loadAll, loadDue) {
+      return '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+        '<button onclick="' + loadAll + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Load all →</button>' +
+        '<button onclick="' + loadDue + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Load due only →</button>' +
+      '</div>';
+    }
+
     let html = '<div style="padding:0 24px 32px">';
-  
-    // Guest Prep card
+
+    // ── ROUTINES ──────────────────────────────────────────────────────────────
+    html += categoryHeader('Routines');
+
+    // Express Reset
+    const exActive = ph.expressReset && ph.expressReset.length;
+    const exTime = presetTotalTime(EXPRESS_RESET_SECTIONS);
     html +=
-      '<div class="settings-card" style="margin-top:24px">' +
+      '<div class="settings-card" style="margin-top:4px">' +
+        '<div class="settings-card-title">Express Reset</div>' +
+        '<div class="settings-card-desc">Quick whole-house pass. ~' + fmtMinutes(exTime) + '. Kitchen, bathrooms, bedroom, living spaces, cat care.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (exActive ? '14px' : '0') + '" onclick="generateNewPreset(\'expressReset\')">Generate Express Reset</button>';
+    if (exActive) {
+      html += loadBtns("loadNewPreset('expressReset')", "loadNewPresetDueOnly('expressReset')");
+      html += renderNewPresetChecklist(EXPRESS_RESET_SECTIONS);
+    }
+    html += '</div>';
+
+    // Full Reset
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Full Reset</div>' +
+        '<div class="settings-card-desc">Complete whole-house clean. Expect 2–3 hours.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
+    if (state.resetHand && state.resetHand.length) {
+      html += loadBtns("loadPresetIntoHand('reset')", "loadPresetDueOnly('reset')");
+      html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
+    }
+    html += '</div>';
+
+    // ── GUESTS ────────────────────────────────────────────────────────────────
+    html += categoryHeader('Guests');
+
+    const guestActive = state.guestHand && state.guestHand.length;
+    const guestTimeMap = {
+      emergency: presetTotalTime([{ ids: GUEST_EMERGENCY_IDS }]),
+      day: 0, overnight: 0,
+    };
+    html +=
+      '<div class="settings-card" style="margin-top:4px">' +
         '<div class="settings-card-title">Guest Prep</div>' +
         '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
-        '<div style="display:flex;gap:10px;margin-bottom:12px">' +
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+            '<input type="radio" name="guestMode" value="emergency"' + (guestMode==='emergency'?' checked':'') + ' onchange="guestMode=\'emergency\';renderPresets()"> Emergency (~15 min)' +
+          '</label>' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
             '<input type="radio" name="guestMode" value="day"' + (guestMode==='day'?' checked':'') + ' onchange="guestMode=\'day\';renderPresets()"> Day guests' +
           '</label>' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
-            '<input type="radio" name="guestMode" value="overnight"' + (guestMode==='overnight'?' checked':'') + ' onchange="guestMode=\'overnight\';renderPresets()"> Overnight guests' +
+            '<input type="radio" name="guestMode" value="overnight"' + (guestMode==='overnight'?' checked':'') + ' onchange="guestMode=\'overnight\';renderPresets()"> Overnight' +
           '</label>' +
         '</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (state.guestHand ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep Hand</button>';
-  
-    if (state.guestHand && state.guestHand.length) {
-      const combined = [...getAllTasks(), ...FULL_RESET_TASKS];
-      html +=
-        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadPresetIntoHand(\'guest\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
-          '<button onclick="loadPresetDueOnly(\'guest\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
-        '</div>';
+        (guestMode === 'emergency' ? '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Visible-impact tasks only — counters, living room, dining room, DS bathroom, entryway.</div>' : '') +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (guestActive ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep</button>';
+    if (guestActive) {
+      const combined = [...allTasks, ...FULL_RESET_TASKS];
+      html += loadBtns("loadPresetIntoHand('guest')", "loadPresetDueOnly('guest')");
       html += renderPresetChecklist(state.guestHand, combined);
     }
     html += '</div>';
-  
-    // Full Reset card
-    html +=
-      '<div class="settings-card">' +
-        '<div class="settings-card-title">Full Reset</div>' +
-        '<div class="settings-card-desc">A complete whole-house clean. Expect 2–3 hours.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset Hand</button>';
-  
-    if (state.resetHand && state.resetHand.length) {
-      html +=
-        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadPresetIntoHand(\'reset\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
-          '<button onclick="loadPresetDueOnly(\'reset\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
-        '</div>';
-      html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
-    }
-    html += '</div>';
-  
-    // Going Out of Town card
+
+    // ── TRAVEL ────────────────────────────────────────────────────────────────
+    html += categoryHeader('Travel');
+
+    // Going Out of Town
     const goingOutActive = state.goingOutHand && state.goingOutHand.length;
     html +=
-      '<div class="settings-card">' +
+      '<div class="settings-card" style="margin-top:4px">' +
         '<div class="settings-card-title">Going Out of Town</div>' +
-        '<div class="settings-card-desc">Leave the house in great shape before you go. 41 tasks across all rooms.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town Hand</button>';
-  
+        '<div class="settings-card-desc">Leave the house in great shape before you go.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
     if (goingOutActive) {
-      html +=
-        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadPresetIntoHand(\'goingout\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load all →</button>' +
-          '<button onclick="loadPresetDueOnly(\'goingout\')" style="flex:1;padding:10px;background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer">Load due only →</button>' +
-        '</div>';
+      html += loadBtns("loadPresetIntoHand('goingout')", "loadPresetDueOnly('goingout')");
       GOING_OUT_SECTIONS.forEach(section => {
-        const doneSectionCount = section.ids.filter(id => {
-          const t = getAllTasks().find(x => x.id === id) || GOING_OUT_TASKS.find(x => x.id === id);
+        const done = section.ids.filter(id => {
+          const t = allTasks.find(x => x.id === id) || GOING_OUT_TASKS.find(x => x.id === id);
           return t && wasCompletedToday(t);
         }).length;
         html +=
           '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
-            section.label + ' <span style="font-weight:400">(' + doneSectionCount + '/' + section.ids.length + ')</span>' +
+            section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, GOING_OUT_TASKS);
       });
     }
     html += '</div>';
-  
+
+    // Return Home
+    const rhActive = ph.returnHome && ph.returnHome.length;
+    const rhTime = presetTotalTime(RETURN_HOME_SECTIONS);
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Return Home</div>' +
+        '<div class="settings-card-desc">Get the house back to baseline after travel. ~' + fmtMinutes(rhTime) + '. Fridge, cat care, laundry, bedroom.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (rhActive ? '14px' : '0') + '" onclick="generateNewPreset(\'returnHome\')">Generate Return Home</button>';
+    if (rhActive) {
+      html += loadBtns("loadNewPreset('returnHome')", "loadNewPresetDueOnly('returnHome')");
+      html += renderNewPresetChecklist(RETURN_HOME_SECTIONS);
+    }
+    html += '</div>';
+
+    // ── SPECIAL ───────────────────────────────────────────────────────────────
+    html += categoryHeader('Special');
+
+    // Before Cleaners
+    const bcActive = ph.beforeCleaners && ph.beforeCleaners.length;
+    const bcTime = presetTotalTime(BEFORE_CLEANERS_SECTIONS);
+    html +=
+      '<div class="settings-card" style="margin-top:4px">' +
+        '<div class="settings-card-title">Before Cleaners</div>' +
+        '<div class="settings-card-desc">Prep so the professionals can do their best work. ~' + fmtMinutes(bcTime) + '. Declutter + cat care (cleaners won\'t touch it).</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (bcActive ? '14px' : '0') + '" onclick="generateNewPreset(\'beforeCleaners\')">Generate Before Cleaners</button>';
+    if (bcActive) {
+      html += loadBtns("loadNewPreset('beforeCleaners')", "loadNewPresetDueOnly('beforeCleaners')");
+      html += renderNewPresetChecklist(BEFORE_CLEANERS_SECTIONS);
+    }
+    html += '</div>';
+
+    // Recovery
+    const recActive = ph.recovery && ph.recovery.length;
+    const p1Time = presetTotalTime([RECOVERY_SECTIONS[0]]);
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Recovery Mode</div>' +
+        '<div class="settings-card-desc">When things feel overwhelming. Start with Phase 1 — that\'s enough. Phase 1 is only ~' + fmtMinutes(p1Time) + ' min.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (recActive ? '14px' : '0') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
+    if (recActive) {
+      html +=
+        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+          '<button onclick="loadRecoveryPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Phase 1 only →</button>' +
+          '<button onclick="loadRecoveryPhase(3)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">All phases →</button>' +
+        '</div>';
+      html += renderNewPresetChecklist(RECOVERY_SECTIONS);
+    }
+    html += '</div>';
+
+    // Post-Illness
+    const piActive = ph.postIllness && ph.postIllness.length;
+    const piP1Time = presetTotalTime([POST_ILLNESS_SECTIONS[0]]);
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Post-Illness</div>' +
+        '<div class="settings-card-desc">Sanitize high-touch surfaces first (~' + fmtMinutes(piP1Time) + ' min), then restore normal routines when you\'re ready.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (piActive ? '14px' : '0') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
+    if (piActive) {
+      html +=
+        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+          '<button onclick="loadPostIllnessPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Sanitize only →</button>' +
+          '<button onclick="loadPostIllnessPhase(2)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Full plan →</button>' +
+        '</div>';
+      html += renderNewPresetChecklist(POST_ILLNESS_SECTIONS);
+    }
+    html += '</div>';
+
+    // ── DAILY RITUALS ─────────────────────────────────────────────────────────
+    html += categoryHeader('Daily Rituals');
+
+    // Evening Shutdown
+    const esActive = ph.eveningShutdown && ph.eveningShutdown.length;
+    const selectedTidyId = esActive ? ph.eveningShutdown.find(id => EVENING_TIDY_POOL.includes(id)) : null;
+    const selectedTidyTask = selectedTidyId ? allTasks.find(t => t.id === selectedTidyId) : null;
+    html +=
+      '<div class="settings-card" style="margin-top:4px">' +
+        '<div class="settings-card-title">Evening Shutdown</div>' +
+        '<div class="settings-card-desc">Dishes, counters, cat water + tonight\'s tidy room (picks whichever is most overdue). ~15–20 min.</div>' +
+        (selectedTidyTask ? '<div style="font-size:12px;color:var(--amber);margin-bottom:10px">Tonight\'s tidy: ' + selectedTidyTask.room + '</div>' : '') +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (esActive ? '14px' : '0') + '" onclick="generateEveningShutdown()">Generate Evening Shutdown</button>';
+    if (esActive) {
+      html += loadBtns("loadNewPreset('eveningShutdown')", "loadNewPresetDueOnly('eveningShutdown')");
+      html += renderPresetChecklist(ph.eveningShutdown, allTasks);
+    }
+    html += '</div>';
+
+    // ── ROOMS ─────────────────────────────────────────────────────────────────
+    html += categoryHeader('Rooms');
+
+    ROOM_PRESETS.forEach(room => {
+      const qKey = 'room_' + room.id + '_quick';
+      const dKey = 'room_' + room.id + '_deep';
+      const qActive = ph[qKey] && ph[qKey].length;
+      const dActive = ph[dKey] && ph[dKey].length;
+      const anyActive = qActive || dActive;
+      const qTime = room.quick.reduce((s, id) => s + (allTasks.find(t => t.id === id)?.time || 0), 0);
+      const dTime = room.deep.reduce((s, id) => s + (allTasks.find(t => t.id === id)?.time || 0), 0);
+
+      html +=
+        '<div class="settings-card" style="margin-top:8px">' +
+          '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">' +
+            '<div class="settings-card-title" style="margin:0">' + room.label + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;margin-bottom:' + (anyActive ? '14px' : '0') + '">' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)">Quick</button>' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'deep\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)">Deep</button>' +
+          '</div>';
+
+      if (qActive) {
+        html += '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Quick</div>';
+        html += loadBtns("loadRoomPreset('" + room.id + "','quick')", "loadRoomPresetDueOnly('" + room.id + "','quick')");
+        html += renderPresetChecklist(ph[qKey], allTasks);
+      }
+      if (dActive) {
+        html += '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:' + (qActive ? '14px' : '0') + ' 0 6px">Deep</div>';
+        html += loadBtns("loadRoomPreset('" + room.id + "','deep')", "loadRoomPresetDueOnly('" + room.id + "','deep')");
+        html += renderPresetChecklist(ph[dKey], allTasks);
+      }
+
+      html += '</div>';
+    });
+
     html += '</div>';
     document.getElementById('presetsContent').innerHTML = html;
   }
@@ -1991,6 +2381,7 @@
       snoozed:       parsed.snoozed       || {},
       flaggedIds:    parsed.flaggedIds    || [],
       completionHistory: parsed.completionHistory || {},
+      presetHands:   parsed.presetHands   || {},
     };
     ta.value = '';
     saveState();
