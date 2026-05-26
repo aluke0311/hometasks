@@ -1335,8 +1335,7 @@
           ' <button class="edit-btn" onclick="event.stopPropagation();toggleDatePicker(\'' + dpId + '\')">edit</button>' +
         '</div>' +
         '<div class="date-picker-row" id="' + dpId + '">' +
-          '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
-          '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">save</button>' +
+          '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onchange="event.stopPropagation();saveDate(\'' + task.id + '\')">' +
         '</div>' +
         '<div class="snooze-picker-row" id="' + spId + '">' +
           '<span style="font-size:12px;color:var(--text3)">Snooze:</span>' +
