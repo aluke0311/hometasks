@@ -2486,8 +2486,7 @@
             '<button class="manage-hand-btn' + (inHand ? ' in-hand' : '') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(\'' + t.id + '\')">' + (inHand ? '✓ In hand' : '+ Today') + '</button>' +
           '</div>' +
           '<div class="manage-dp-row" id="' + mdpId + '">' +
-            '<input type="date" class="date-input" id="minput_' + t.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
-            '<button class="date-save-btn" onclick="saveManageDate(\'' + t.id + '\')">save</button>' +
+            '<input type="date" class="date-input" id="minput_' + t.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onchange="saveManageDate(\'' + t.id + '\')">' +
           '</div>' +
         '</div>';
     });
