@@ -240,6 +240,11 @@
     .task-btn.pin-btn.pinned { background: var(--amber-bg); }
     .task-btn.remove-btn { color: var(--red); border-color: var(--red); }
     .sprint-pin { font-size: 11px; color: var(--amber); margin-left: 4px; }
+
+    /* One-off badge */
+    .oneoff-badge { font-size: 11px; font-weight: 500; color: var(--blue); background: var(--blue-bg); padding: 1px 6px; border-radius: 10px; margin-left: 5px; }
+    .oneoff-add-btn { background: none; border: 0.5px dashed var(--border2); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; color: var(--text3); cursor: pointer; width: 100%; margin-top: 4px; text-align: center; }
+    .oneoff-add-btn:hover { background: var(--bg2); color: var(--text2); border-color: var(--blue); }
   
     /* Redeal button */
     .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; color: var(--text2); cursor: pointer; }
@@ -304,6 +309,7 @@
           <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">🔄 Catch up</button>
           <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">📋 By freq</button>
         </div>
+        <button class="oneoff-add-btn" onclick="openOneOffModal()">+ one-off task</button>
       </div>
       <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
     </div>
@@ -350,6 +356,31 @@
   
   <div class="toast" id="toast"></div>
   
+  <!-- One-off task modal -->
+  <div class="modal-backdrop" id="oneoffModal">
+    <div class="modal">
+      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div class="modal-header">
+        <span class="modal-title">Add one-off task</span>
+        <button class="modal-close" onclick="closeOneOffModal()">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <div class="field-label">What needs doing?</div>
+          <input class="field-input" id="oneoffName" placeholder="e.g. Unpack suitcase">
+        </div>
+        <div>
+          <div class="field-label">Time estimate (min)</div>
+          <input class="field-input" id="oneoffTime" type="number" min="1" placeholder="15">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn" onclick="closeOneOffModal()">Cancel</button>
+        <button class="modal-btn primary" onclick="saveOneOff()">Add to today</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Task edit/add modal -->
   <div class="modal-backdrop" id="taskModal">
     <div class="modal">
@@ -781,7 +812,10 @@
     return (Date.now() - nextDue) / 86400000;
   }
   
-  function isDue(task) { return daysOverdue(task) >= 0; }
+  function isDue(task) {
+    if (task.oneOff) return true;
+    return daysOverdue(task) >= 0;
+  }
   
   function scoreTask(task, zone) {
     const zoneRooms = ZONE_ROOMS[zone] || [];
@@ -816,6 +850,7 @@
   function getDailies() {
     return getAllTasks().filter(t =>
       t.freq === 1 &&
+      !t.oneOff &&
       isDue(t) &&
       (t.owner === 'alina' || t.owner === 'either')
     ).sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
@@ -1037,6 +1072,11 @@
     // Auto-unpin on completion
     if (state.pinnedIds && state.pinnedIds.includes(id)) {
       state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+    }
+    // Remove one-off tasks entirely after completion
+    if (task.oneOff && state.customTasks && state.customTasks[id]) {
+      delete state.customTasks[id];
+      state.hand = (state.hand || []).filter(h => h !== id);
     }
     saveNow();
     render();
@@ -1278,14 +1318,14 @@
   
   function renderCard(task, canSwap) {
     const isDone = wasCompletedToday(task);
-    const overdue = daysOverdue(task);
-  
+    const overdue = task.oneOff ? 0 : daysOverdue(task);
+
     const last = state.completions[task.id] || 0;
     const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never';
     const nextDue = new Date(last + task.freq * 86400000);
-  
+
     let overdueHtml = '';
-    if (!isDone) {
+    if (!isDone && !task.oneOff) {
       if (overdue >= 1) overdueHtml = '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>';
       else if (overdue >= 0) overdueHtml = '<span class="task-overdue">due today</span>';
       else {
@@ -1303,26 +1343,27 @@
   
     const ownerHtml = task.owner === 'either' ? '<span class="owner-badge owner-bob">Bob too</span>' : '';
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
-    const pinBadge = isPinned ? '<span class="pin-badge">&#128204;</span>' : '';
-    const swapBtn = canSwap && !isDone && !isPinned ? '<button class="task-btn swap-btn" onclick="event.stopPropagation();swapTask(\'' + task.id + '\')">swap</button>' : '';
-    const undoBtn = isDone ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
-    const pinBtn = !isDone ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
-    const removeBtn = !isDone && !isPinned ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
-    const snoozeBtn = !isDone && !isPinned ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
+    const pinBadge = isPinned && !task.oneOff ? '<span class="pin-badge">&#128204;</span>' : '';
+    const oneOffBadge = task.oneOff ? '<span class="oneoff-badge">once</span>' : '';
+    const swapBtn = canSwap && !isDone && !isPinned && !task.oneOff ? '<button class="task-btn swap-btn" onclick="event.stopPropagation();swapTask(\'' + task.id + '\')">swap</button>' : '';
+    const undoBtn = isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
+    const pinBtn = !isDone && !task.oneOff ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
+    const removeBtn = !isDone ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
+    const snoozeBtn = !isDone && !isPinned && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
-    const flagBtn = !isDone ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
-  
+    const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
+
     const dpId = 'dp_' + task.id;
     const spId = 'sp_' + task.id;
-  
+
     return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
       '<div class="task-main" onclick="completeTask(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
         '<div class="task-body">' +
-          '<div class="task-name">' + task.name + pinBadge + '</div>' +
+          '<div class="task-name">' + task.name + pinBadge + oneOffBadge + '</div>' +
           '<div class="task-meta">' +
-            '<span class="task-room">' + task.room + '</span>' +
-            '<span class="task-freq">' + freqLabel(task.freq) + '</span>' +
+            (task.room ? '<span class="task-room">' + task.room + '</span>' : '') +
+            (!task.oneOff ? '<span class="task-freq">' + freqLabel(task.freq) + '</span>' : '') +
             '<span class="task-time">⏱ ' + fmtMinutes(task.time) + '</span>' +
             overdueHtml +
             ownerHtml +
@@ -1330,13 +1371,13 @@
         '</div>' +
       '</div>' +
       '<div class="task-detail">' +
-        '<div class="task-lastdone">' +
+        (!task.oneOff ? '<div class="task-lastdone">' +
           'Last done: ' + lastDate +
           ' <button class="edit-btn" onclick="event.stopPropagation();toggleDatePicker(\'' + dpId + '\')">edit</button>' +
         '</div>' +
         '<div class="date-picker-row" id="' + dpId + '">' +
           '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onchange="event.stopPropagation();saveDate(\'' + task.id + '\')">' +
-        '</div>' +
+        '</div>' : '') +
         '<div class="snooze-picker-row" id="' + spId + '">' +
           '<span style="font-size:12px;color:var(--text3)">Snooze:</span>' +
           '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',1)">1d</button>' +
@@ -2442,6 +2483,7 @@
   
     const search = manageSearch.toLowerCase();
     const filtered = allTasks.filter(t => {
+      if (t.oneOff) return false;
       if (manageOwnerFilter !== 'all' && t.owner !== manageOwnerFilter) return false;
       if (manageRoomFilter !== 'all' && t.room !== manageRoomFilter) return false;
       if (search && !t.name.toLowerCase().includes(search)) return false;
@@ -2533,6 +2575,36 @@
   function closeModal() {
     document.getElementById('taskModal').classList.remove('open');
     editingId = null;
+  }
+
+  function openOneOffModal() {
+    document.getElementById('oneoffName').value = '';
+    document.getElementById('oneoffTime').value = '';
+    document.getElementById('oneoffModal').classList.add('open');
+    setTimeout(() => document.getElementById('oneoffName').focus(), 50);
+  }
+
+  function closeOneOffModal() {
+    document.getElementById('oneoffModal').classList.remove('open');
+  }
+
+  function saveOneOff() {
+    const name = document.getElementById('oneoffName').value.trim();
+    const time = parseInt(document.getElementById('oneoffTime').value);
+    if (!name || !time) { showToast('Enter a name and time'); return; }
+
+    const id = 'oneoff_' + Date.now();
+    if (!state.customTasks) state.customTasks = {};
+    state.customTasks[id] = { id, name, room: '', freq: 1, time, owner: 'either', cat: false, oneOff: true };
+    state.completions[id] = 0;
+    if (!state.pinnedIds) state.pinnedIds = [];
+    state.pinnedIds.push(id);
+    dealHand();
+    if (!state.hand.includes(id)) state.hand.push(id);
+    saveNow();
+    closeOneOffModal();
+    render();
+    showToast('Added to today\'s hand');
   }
   
   function saveTask() {
