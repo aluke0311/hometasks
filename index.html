@@ -1377,6 +1377,7 @@
         '</div>' +
         '<div class="date-picker-row" id="' + dpId + '">' +
           '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onclick="event.stopPropagation()">' +
+          '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">Save</button>' +
         '</div>' : '') +
         '<div class="snooze-picker-row" id="' + spId + '">' +
           '<span style="font-size:12px;color:var(--text3)">Snooze:</span>' +
@@ -2534,6 +2535,7 @@
           '</div>' +
           '<div class="manage-dp-row" id="' + mdpId + '">' +
             '<input type="date" class="date-input" id="minput_' + t.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
+            '<button class="date-save-btn" onclick="saveManageDate(\'' + t.id + '\')">Save</button>' +
           '</div>' +
         '</div>';
     });
