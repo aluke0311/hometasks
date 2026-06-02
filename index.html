@@ -1065,8 +1065,14 @@
     if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
     if (!state.completionHistory) state.completionHistory = {};
     if (!state.completionHistory[id]) state.completionHistory[id] = [];
-    state.completionHistory[id].push(Date.now());
-    if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
+    const _alreadyToday = state.completionHistory[id].some(ts => {
+      const d = new Date(ts);
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') === todayStr();
+    });
+    if (!_alreadyToday) {
+      state.completionHistory[id].push(Date.now());
+      if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
+    }
     // Clear snooze if task was snoozed
     if (state.snoozed) delete state.snoozed[id];
     // Auto-unpin on completion
@@ -1098,8 +1104,22 @@
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
     state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+    if (state.completionHistory && state.completionHistory[id]) {
+      const today = todayStr();
+      state.completionHistory[id] = state.completionHistory[id].filter(ts => {
+        const d = new Date(ts);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
+      });
+    }
     saveState();
     render();
+  }
+
+  function toggleComplete(id) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    if (wasCompletedToday(task)) uncompleteTask(id);
+    else completeTask(id);
   }
   
   function swapTask(id) {
@@ -1357,7 +1377,7 @@
     const spId = 'sp_' + task.id;
 
     return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
-      '<div class="task-main" onclick="completeTask(\'' + task.id + '\')">' +
+      '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
         '<div class="task-body">' +
           '<div class="task-name">' + task.name + pinBadge + oneOffBadge + '</div>' +
