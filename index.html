@@ -633,6 +633,7 @@
     { id:'hs_sweep',         name:'Sweep stairs',                        room:'Hall & Stairs', freq:7,   time:8,  owner:'either' },
     { id:'hs_mop',           name:'Mop stairs',                          room:'Hall & Stairs', freq:30,  time:15, owner:'either' },
     { id:'hs_dust',          name:'Dust surfaces (hall)',                room:'Hall & Stairs', freq:30,  time:8,  owner:'either' },
+    { id:'hs_trash',         name:'Empty trash (upstairs hall)',         room:'Hall & Stairs', freq:14,  time:2,  owner:'either' },
     { id:'hs_air_filter',    name:'Clean air filter (hall)',             room:'Hall & Stairs', freq:90,  time:5,  owner:'either' },
     { id:'hs_mirror',        name:'Clean mirror (hall)',                 room:'Hall & Stairs', freq:90,  time:5,  owner:'either' },
   
@@ -1648,43 +1649,74 @@
   ];
   const FULL_RESET_TASKS = [
     // Launch
-    { id:'l_start', name:'Start a load of laundry', room:'Laundry', time:10 },
-    { id:'rob_run_ds', name:'Run robot vacuum (downstairs)', room:'Downstairs', time:2 },
-    { id:'rob_run_us', name:'Run robot vacuum (upstairs)', room:'Upstairs', time:2 },
-    { id:'rob_mop', name:'Run robot mop (downstairs)', room:'Downstairs', time:2 },
+    { id:'l_start',            name:'Start a load of laundry',             room:'Laundry',       time:10 },
+    { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)',        room:'Downstairs',    time:2  },
+    { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',          room:'Upstairs',      time:2  },
+    { id:'rob_mop',            name:'Run robot mop (downstairs)',           room:'Downstairs',    time:2  },
     // Kitchen
-    { id:'k_tidy', name:'Kitchen tidy', room:'Kitchen', time:5 },
-    { id:'k_counters', name:'Wipe counters', room:'Kitchen', time:5 },
-    { id:'k_stove', name:'Wipe stovetop', room:'Kitchen', time:8 },
-    { id:'k_sink', name:'Clean kitchen sink', room:'Kitchen', time:5 },
-    { id:'k_dishwasher', name:'Unload dishwasher', room:'Kitchen', time:5 },
+    { id:'k_dishwasher',       name:'Unload dishwasher',                   room:'Kitchen',       time:5  },
+    { id:'k_tidy',             name:'Kitchen tidy',                        room:'Kitchen',       time:5  },
+    { id:'k_counters',         name:'Wipe counters',                       room:'Kitchen',       time:5  },
+    { id:'k_stove',            name:'Wipe stovetop',                       room:'Kitchen',       time:8  },
+    { id:'k_sink',             name:'Clean kitchen sink',                  room:'Kitchen',       time:5  },
+    { id:'k_trash',            name:'Take out trash',                      room:'Kitchen',       time:2  },
+    { id:'k_recycling_out',    name:'Take out recycling',                  room:'Kitchen',       time:2  },
+    { id:'k_compost',          name:'Take out compost',                    room:'Kitchen',       time:2  },
+    // Trash run
+    { id:'dsb_trash',          name:'Empty trash (DS bath)',               room:'DS Bathroom',   time:2  },
+    { id:'usb_trash',          name:'Empty trash (US bath)',               room:'US Bathroom',   time:2  },
+    { id:'bed_trash',          name:'Empty trash (bedroom)',               room:'Bedroom',       time:2  },
+    { id:'lroom_trash',        name:'Empty trash (laundry room)',          room:'Laundry Room',  time:2  },
+    { id:'off_trash',          name:'Empty trash (office)',                room:'Office',        time:2  },
+    { id:'hs_trash',           name:'Empty trash (upstairs hall)',         room:'Hall & Stairs', time:2  },
     // Bathrooms
-    { id:'ds_toilet', name:'Clean toilet (DS)', room:'DS Bathroom', time:5 },
-    { id:'us_toilet', name:'Clean toilet (US)', room:'US Bathroom', time:5 },
-    { id:'ds_sink', name:'Clean sink (DS)', room:'DS Bathroom', time:5 },
-    { id:'us_sink', name:'Clean sink (US)', room:'US Bathroom', time:5 },
-    { id:'ds_mirror', name:'Clean mirror (DS)', room:'DS Bathroom', time:3 },
-    { id:'us_mirror', name:'Clean mirror (US)', room:'US Bathroom', time:3 },
-    { id:'ds_floor', name:'Clean bathroom floors (DS)', room:'DS Bathroom', time:8 },
-    { id:'us_floor', name:'Clean bathroom floors (US)', room:'US Bathroom', time:8 },
+    { id:'dsb_toilet',         name:'Clean toilet (DS bath)',              room:'DS Bathroom',   time:5  },
+    { id:'usb_toilet',         name:'Clean toilet (US bath)',              room:'US Bathroom',   time:5  },
+    { id:'dsb_sink',           name:'Clean sink (DS bath)',                room:'DS Bathroom',   time:5  },
+    { id:'usb_sink',           name:'Clean sink (US bath)',                room:'US Bathroom',   time:5  },
+    { id:'dsb_mirror',         name:'Clean mirror (DS bath)',              room:'DS Bathroom',   time:3  },
+    { id:'usb_mirror',         name:'Clean mirror (US bath)',              room:'US Bathroom',   time:3  },
+    { id:'dsb_mop',            name:'Mop floor (DS bath)',                 room:'DS Bathroom',   time:8  },
+    { id:'usb_mop',            name:'Mop floor (US bath)',                 room:'US Bathroom',   time:8  },
     // Cat care
-    { id:'c_water_up', name:'Replace upstairs water', room:'Cats', time:2 },
-    { id:'c_water_ds', name:'Replace downstairs water', room:'Cats', time:2 },
-    { id:'c_water_bowl_up', name:'Wash upstairs water bowl', room:'Cats', time:3 },
-    { id:'c_water_bowl_ds', name:'Wash downstairs water bowl', room:'Cats', time:3 },
-    { id:'c_fountain', name:'Clean cat water fountain', room:'Cats', time:20 },
-    { id:'c_scoop_ds', name:'Scoop downstairs litter', room:'Cats', time:3 },
-    { id:'c_feeders', name:'Tidy feeding stations', room:'Cats', time:5 },
+    { id:'c_water_up',         name:'Replace upstairs water',             room:'Cats',          time:2  },
+    { id:'c_water_ds',         name:'Replace downstairs water',           room:'Cats',          time:2  },
+    { id:'c_water_bowl_up',    name:'Wash upstairs water bowl',           room:'Cats',          time:3  },
+    { id:'c_water_bowl_ds',    name:'Wash downstairs water bowl',         room:'Cats',          time:3  },
+    { id:'c_fountain',         name:'Clean cat water fountain',           room:'Cats',          time:20 },
+    { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',             room:'Cats',          time:5  },
+    { id:'c_scoop_ds',         name:'Scoop downstairs litter',            room:'Cats',          time:3  },
+    { id:'c_feeders',          name:'Tidy feeding stations',              room:'Cats',          time:5  },
     // Laundry
-    { id:'l_dryer', name:'Move laundry to dryer', room:'Laundry', time:3 },
-    { id:'l_fold', name:'Fold laundry', room:'Laundry', time:10 },
-    { id:'l_put_away', name:'Put away laundry', room:'Laundry', time:5 },
+    { id:'l_dryer',            name:'Move laundry to dryer',              room:'Laundry',       time:3  },
+    { id:'l_fold',             name:'Fold laundry',                       room:'Laundry',       time:10 },
+    { id:'l_put_away',         name:'Put away laundry',                   room:'Laundry',       time:5  },
+    // Tidy all rooms
+    { id:'lr_tidy',            name:'Living room tidy',                   room:'Living Room',   time:8  },
+    { id:'dr_tidy',            name:'Dining room tidy',                   room:'Dining Room',   time:5  },
+    { id:'bed_tidy',           name:'Tidy up (bedroom)',                  room:'Bedroom',       time:8  },
+    { id:'bed_make',           name:'Make bed',                           room:'Bedroom',       time:3  },
+    { id:'sun_tidy',           name:'Tidy sunroom',                       room:'Sunroom',       time:8  },
+    { id:'off_tidy',           name:'Tidy office',                        room:'Office',        time:10 },
+    { id:'br_tidy',            name:'Tidy back room',                     room:'Back Room',     time:5  },
+    { id:'lroom_tidy',         name:'Tidy laundry room',                  room:'Laundry Room',  time:5  },
+    { id:'hs_tidy',            name:'Tidy hall & stairs',                 room:'Hall & Stairs', time:5  },
+    { id:'mud_tidy',           name:'Tidy mud room',                      room:'Mud Room',      time:8  },
+    { id:'bp_tidy',            name:'Tidy back porch',                    room:'Back Porch',    time:8  },
+    { id:'usb_tidy',           name:'Tidy up (US bath)',                  room:'US Bathroom',   time:5  },
     // Whole house
-    { id:'liv_tidy', name:'Tidy living room', room:'Living Room', time:10 },
-    { id:'din_tidy', name:'Tidy dining room', room:'Dining Room', time:8 },
-    { id:'bed_make', name:'Tidy bedroom', room:'Bedroom', time:8 },
-    { id:'off_tidy', name:'Tidy office / sunroom', room:'Office', time:10 },
-    { id:'house_dust', name:'Dust surfaces', room:'Whole House', time:15 },
+    { id:'house_dust',         name:'Dust surfaces',                      room:'Whole House',   time:15 },
+  ];
+
+  const FULL_RESET_SECTIONS = [
+    { label:'Launch',         ids:['l_start','rob_run_ds','rob_run_us','rob_mop'] },
+    { label:'Kitchen',        ids:['k_dishwasher','k_tidy','k_counters','k_stove','k_sink','k_trash','k_recycling_out','k_compost'] },
+    { label:'Trash run',      ids:['dsb_trash','usb_trash','bed_trash','lroom_trash','off_trash','hs_trash'] },
+    { label:'Bathrooms',      ids:['dsb_toilet','dsb_sink','dsb_mirror','dsb_mop','usb_toilet','usb_sink','usb_mirror','usb_mop'] },
+    { label:'Cat care',       ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_litter_robot_bin','c_scoop_ds','c_feeders'] },
+    { label:'Laundry',        ids:['l_dryer','l_fold','l_put_away'] },
+    { label:'Tidy all rooms', ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','sun_tidy','off_tidy','br_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
+    { label:'Whole house',    ids:['house_dust'] },
   ];
   
   const GOING_OUT_TASKS = [
@@ -2155,7 +2187,17 @@
         '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
     if (state.resetHand && state.resetHand.length) {
       html += loadBtns("loadPresetIntoHand('reset')", "loadPresetDueOnly('reset')");
-      html += renderPresetChecklist(state.resetHand, FULL_RESET_TASKS);
+      FULL_RESET_SECTIONS.forEach(section => {
+        const done = section.ids.filter(id => {
+          const t = FULL_RESET_TASKS.find(x => x.id === id) || allTasks.find(x => x.id === id);
+          return t && wasCompletedToday(t);
+        }).length;
+        html +=
+          '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+            section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
+          '</div>';
+        html += renderPresetChecklist(section.ids, FULL_RESET_TASKS);
+      });
     }
     html += '</div>';
 
