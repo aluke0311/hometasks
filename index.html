@@ -2102,7 +2102,7 @@
       '<div style="display:flex;gap:6px;margin-bottom:12px">';
     ['all','A','B','C'].forEach(tier => {
       const active = randomTier === tier;
-      html += '<button onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()" style="flex:1;padding:6px 4px;font-size:12px;font-weight:' + (active?'700':'400') + ';border-radius:8px;border:1px solid ' + (active?'var(--accent)':'var(--border)') + ';background:' + (active?'var(--accent)':'var(--bg2)') + ';color:' + (active?'#fff':'var(--text)') + ';cursor:pointer">' + tierLabels[tier] + '</button>';
+      html += '<button onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()" style="flex:1;padding:6px 4px;font-size:12px;font-weight:' + (active?'700':'400') + ';border-radius:8px;border:1px solid ' + (active?'var(--green)':'var(--border)') + ';background:' + (active?'var(--green)':'var(--bg2)') + ';color:' + (active?'#fff':'var(--text)') + ';cursor:pointer">' + tierLabels[tier] + '</button>';
     });
     html += '</div>';
     if (randomTier !== 'all') {
@@ -2123,7 +2123,7 @@
           '<button onclick="pickRandomTask()" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Pick another</button>' +
           (alreadyInHand
             ? '<button style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;color:var(--text3);cursor:default">Already in today</button>'
-            : '<button onclick="addRandomPickToHand()" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:10px;font-size:14px;cursor:pointer;color:#fff;font-weight:600">Add to today →</button>') +
+            : '<button onclick="addRandomPickToHand()" style="flex:1;padding:10px;background:var(--green);border:none;border-radius:10px;font-size:14px;cursor:pointer;color:#fff;font-weight:600">Add to today →</button>') +
         '</div>';
     } else {
       html += '<button class="add-btn" style="width:100%" onclick="pickRandomTask()">Pick random task</button>';
