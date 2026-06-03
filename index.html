@@ -455,10 +455,10 @@
     { id:'k_dishwasher',     name:'Unload dishwasher',                   room:'Kitchen',       freq:1,   time:5,  owner:'either' },
   
     // ── LAUNDRY PROCESS (daily, alina) ──
-    { id:'l_start',          name:'Start a load of laundry',             room:'Laundry',       freq:1,   time:10, owner:'alina' },
-    { id:'l_dryer',          name:'Move laundry to dryer',               room:'Laundry',       freq:1,   time:3,  owner:'alina' },
-    { id:'l_fold',           name:'Fold laundry',                        room:'Laundry',       freq:1,   time:10, owner:'alina' },
-    { id:'l_put_away',       name:'Put away laundry',                    room:'Laundry',       freq:1,   time:5,  owner:'alina' },
+    { id:'l_start',          name:'Start a load of laundry',             room:'Laundry Room',  freq:1,   time:10, owner:'alina' },
+    { id:'l_dryer',          name:'Move laundry to dryer',               room:'Laundry Room',  freq:1,   time:3,  owner:'alina' },
+    { id:'l_fold',           name:'Fold laundry',                        room:'Laundry Room',  freq:1,   time:10, owner:'alina' },
+    { id:'l_put_away',       name:'Put away laundry',                    room:'Laundry Room',  freq:1,   time:5,  owner:'alina' },
   
     // ── BEDROOM DAILY ──
     { id:'bed_make',         name:'Make bed',                            room:'Bedroom',       freq:1,   time:3,  owner:'either' },
@@ -883,7 +883,7 @@
     const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
     const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday;
     const dueLaundryLoads = allTasks
-      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && isDue(t) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
+      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
       .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
     // Don't assign another laundry load if one was already completed today or is pinned
     const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
@@ -1527,7 +1527,7 @@
       'Living Room': 'Living spaces', 'Dining Room': 'Living spaces',
       'Sunroom': 'Living spaces', 'Back Room': 'Living spaces',
       'Office': 'Office',
-      'Laundry Room': 'Laundry room', 'Laundry': 'Laundry room',
+      'Laundry Room': 'Laundry room',
       'Hall & Stairs': 'Hall & entries', 'Mud Room': 'Hall & entries', 'Back Porch': 'Hall & entries',
       'Whole House': 'Around the house', 'Robot': 'Around the house',
       'Downstairs': 'Around the house', 'Upstairs': 'Around the house',
@@ -1649,7 +1649,7 @@
   ];
   const FULL_RESET_TASKS = [
     // Launch
-    { id:'l_start',            name:'Start a load of laundry',             room:'Laundry',       time:10 },
+    { id:'l_start',            name:'Start a load of laundry',             room:'Laundry Room',       time:10 },
     { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)',        room:'Downstairs',    time:2  },
     { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',          room:'Upstairs',      time:2  },
     { id:'rob_mop',            name:'Run robot mop (downstairs)',           room:'Downstairs',    time:2  },
@@ -1688,9 +1688,9 @@
     { id:'c_scoop_ds',         name:'Scoop downstairs litter',            room:'Cats',          time:3  },
     { id:'c_feeders',          name:'Tidy feeding stations',              room:'Cats',          time:5  },
     // Laundry
-    { id:'l_dryer',            name:'Move laundry to dryer',              room:'Laundry',       time:3  },
-    { id:'l_fold',             name:'Fold laundry',                       room:'Laundry',       time:10 },
-    { id:'l_put_away',         name:'Put away laundry',                   room:'Laundry',       time:5  },
+    { id:'l_dryer',            name:'Move laundry to dryer',              room:'Laundry Room',       time:3  },
+    { id:'l_fold',             name:'Fold laundry',                       room:'Laundry Room',       time:10 },
+    { id:'l_put_away',         name:'Put away laundry',                   room:'Laundry Room',       time:5  },
     // Tidy all rooms
     { id:'lr_tidy',            name:'Living room tidy',                   room:'Living Room',   time:8  },
     { id:'dr_tidy',            name:'Dining room tidy',                   room:'Dining Room',   time:5  },
@@ -1721,7 +1721,7 @@
   
   const GOING_OUT_TASKS = [
     // Launch (4)
-    { id:'l_start',            name:'Start a load of laundry',       room:'Laundry',          time:5  },
+    { id:'l_start',            name:'Start a load of laundry',       room:'Laundry Room',          time:5  },
     { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)', room:'Launch',            time:5  },
     { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',   room:'Launch',            time:5  },
     { id:'rob_mop',            name:'Run robot mop (downstairs)',    room:'Launch',            time:5  },
@@ -1744,9 +1744,9 @@
     { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',       room:'Cats',              time:5  },
     { id:'c_scoop_ds',         name:'Scoop downstairs litter',      room:'Cats',              time:5  },
     // Laundry (3)
-    { id:'l_dryer',            name:'Move laundry to dryer',        room:'Laundry',           time:5  },
-    { id:'l_fold',             name:'Fold laundry',                 room:'Laundry',           time:20 },
-    { id:'l_put_away',         name:'Put away laundry',             room:'Laundry',           time:10 },
+    { id:'l_dryer',            name:'Move laundry to dryer',        room:'Laundry Room',           time:5  },
+    { id:'l_fold',             name:'Fold laundry',                 room:'Laundry Room',           time:20 },
+    { id:'l_put_away',         name:'Put away laundry',             room:'Laundry Room',           time:10 },
     // Tidy all rooms (12)
     { id:'lr_tidy',            name:'Living room tidy',             room:'Living Room',       time:10 },
     { id:'dr_tidy',            name:'Dining room tidy',             room:'Dining Room',       time:10 },
