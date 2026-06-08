@@ -766,6 +766,8 @@
   let currentTab = 'alina';
   let overflowOpen = false;
   let dailiesOpen = true;
+  let otherTasksOpen = true;
+  let completedOpen = false;
   
   // ─── CORE LOGIC ────────────────────────────────────────────────────────────
   
@@ -1276,26 +1278,46 @@
     let html = '';
   
     if (dailies.length) {
-      const dailyLeftMin = dailies.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
-      const dailiesSorted = [...dailies.filter(t => !wasCompletedToday(t)), ...dailies.filter(t => wasCompletedToday(t))];
+      const dailiesUndone = dailies.filter(t => !wasCompletedToday(t));
+      const dailyLeftMin = dailiesUndone.reduce((s,t) => s + t.time, 0);
       html += '<div class="section"><div class="section-label">' +
         '<button class="section-label-btn' + (dailiesOpen ? ' open' : '') + '" onclick="toggleDailies()">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
-          'Daily Tasks (' + dailies.length + ')' +
+          'Daily Tasks (' + dailiesUndone.length + ')' +
         '</button>' +
         '<span class="section-label-time">⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining</span>' +
       '</div>' +
       '<div id="dailiesList" style="display:' + (dailiesOpen ? 'block' : 'none') + '">';
-      dailiesSorted.forEach(t => html += renderCard(t, false));
+      dailiesUndone.forEach(t => html += renderCard(t, false));
       html += '</div></div>';
     }
-  
+
     if (capped.length) {
-      const otherLeftMin = capped.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
-      const cappedSorted = [...capped.filter(t => !wasCompletedToday(t)), ...capped.filter(t => wasCompletedToday(t))];
-      html += '<div class="section"><div class="section-label"><span>Other Tasks (' + capped.length + ')</span><span class="section-label-time">⏱ ~' + fmtMinutes(otherLeftMin) + ' remaining</span></div>';
-      cappedSorted.forEach(t => html += renderCard(t, true));
-      html += '</div>';
+      const cappedUndone = capped.filter(t => !wasCompletedToday(t));
+      const otherLeftMin = cappedUndone.reduce((s,t) => s + t.time, 0);
+      html += '<div class="section"><div class="section-label">' +
+        '<button class="section-label-btn' + (otherTasksOpen ? ' open' : '') + '" id="otherTasksToggle" onclick="toggleOtherTasks()">' +
+          '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
+          'Other Tasks (' + cappedUndone.length + ')' +
+        '</button>' +
+        '<span class="section-label-time">⏱ ~' + fmtMinutes(otherLeftMin) + ' remaining</span>' +
+      '</div>' +
+      '<div id="otherTasksList" style="display:' + (otherTasksOpen ? 'block' : 'none') + '">';
+      cappedUndone.forEach(t => html += renderCard(t, true));
+      html += '</div></div>';
+    }
+
+    const completedTasks = hand.filter(t => wasCompletedToday(t));
+    if (completedTasks.length) {
+      html += '<div class="overflow-section" style="margin-top:8px">' +
+        '<button class="overflow-toggle' + (completedOpen ? ' open' : '') + '" id="completedToggle" onclick="toggleCompleted()">' +
+          '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
+          'Completed (' + completedTasks.length + ')' +
+        '</button>' +
+        '<div id="completedList" style="display:' + (completedOpen ? 'block' : 'none') + '">' +
+        '<div class="section" style="margin-top:8px">';
+      completedTasks.forEach(t => html += renderCard(t, false));
+      html += '</div></div></div>';
     }
   
     if (overflow.length || notDue.length) {
@@ -1362,7 +1384,7 @@
       overdueHtml = '<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>';
     }
   
-    const ownerHtml = task.owner === 'either' ? '<span class="owner-badge owner-bob">Bob too</span>' : '';
+    const ownerHtml = task.owner === 'bob' ? '<span class="owner-badge owner-bob">Bob</span>' : '';
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
     const pinBadge = isPinned && !task.oneOff ? '<span class="pin-badge">&#128204;</span>' : '';
     const oneOffBadge = task.oneOff ? '<span class="oneoff-badge">once</span>' : '';
@@ -1435,7 +1457,7 @@
     'Cat care':         'Water, food, litter',
     'Laundry':          'Check washer before moving on',
     'Bathrooms':        'Top to bottom, tidy first',
-    'Bedroom':          'Tidy before making bed',
+    'Bedroom':          'Tidy first',
     'Living spaces':    'Tidy before wiping surfaces',
     'Office':           'Clear desk before dusting',
     'Hall & entries':   'Sweep last',
@@ -1489,7 +1511,7 @@
     const blocks = [];
   
     // ── LAUNCH: passive/cycle-starting tasks ──
-    const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop'];
+    const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
     const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id));
     if (launchTasks.length) {
       blocks.push({ label: 'Launch', tasks: tidyFirst(launchTasks) });
@@ -1514,7 +1536,9 @@
   
     // ── LAUNDRY ISOLATION: l_dryer, l_fold, l_put_away get their own block ──
     const LAUNDRY_IDS = ['l_dryer', 'l_fold', 'l_put_away'];
-    const laundryTasks = hand.filter(t => LAUNDRY_IDS.includes(t.id) && !assigned.has(t.id));
+    const laundryTasks = hand
+      .filter(t => LAUNDRY_IDS.includes(t.id) && !assigned.has(t.id))
+      .sort((a, b) => LAUNDRY_IDS.indexOf(a.id) - LAUNDRY_IDS.indexOf(b.id));
     if (laundryTasks.length) {
       blocks.push({ label: 'Laundry', tasks: laundryTasks });
       laundryTasks.forEach(t => assigned.add(t.id));
@@ -2088,17 +2112,21 @@
   }
   
   function renderPresetChecklist(taskIds, taskSource) {
+    const allRealTasks = getAllTasks();
     let html = '';
     taskIds.forEach(id => {
-      const t = taskSource.find(x => x.id === id) || getAllTasks().find(x => x.id === id);
+      const t = taskSource.find(x => x.id === id) || allRealTasks.find(x => x.id === id);
       if (!t) return;
       const isDone = wasCompletedToday(t);
+      const realTask = allRealTasks.find(x => x.id === id);
+      const taskDue = realTask && !isDone && isDue(realTask);
+      const dueHtml = taskDue ? ' <span class="task-overdue" style="font-size:10px;padding:1px 5px">due</span>' : '';
       html +=
         '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')" style="margin:0 0 6px">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
-              '<span class="sprint-card-name">' + t.name + '</span>' +
+              '<span class="sprint-card-name">' + t.name + dueHtml + '</span>' +
               '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
             '</div>' +
             '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + t.room + '</div>' +
@@ -2835,6 +2863,16 @@
   
   function toggleDailies() {
     dailiesOpen = !dailiesOpen;
+    renderAlina();
+  }
+
+  function toggleOtherTasks() {
+    otherTasksOpen = !otherTasksOpen;
+    renderAlina();
+  }
+
+  function toggleCompleted() {
+    completedOpen = !completedOpen;
     renderAlina();
   }
 
