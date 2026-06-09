@@ -1399,10 +1399,62 @@
       html = '<div class="empty">Nothing due — all clear!</div>';
     }
   
+    // Quick-log: record a completion for anything you did that isn't in the hand
+    html += '<div class="section" style="margin-top:12px">' +
+      '<button class="more-btn" style="margin-bottom:' + (quickLogOpen ? '8px' : '0') + '" onclick="toggleQuickLog()">' + (quickLogOpen ? '&minus; Log something else' : '+ Log something else I did') + '</button>';
+    if (quickLogOpen) {
+      html += '<input class="search-input" id="quickLogInput" style="width:100%" placeholder="&#128269; Search any task&hellip;" value="' + quickLogQuery.replace(/"/g,'&quot;') + '" oninput="quickLogQuery=this.value;renderQuickLogResults()">' +
+        '<div id="quickLogResults" style="margin-top:8px"></div>';
+    }
+    html += '</div>';
+
     html += '<div class="bottom-pad"></div>';
     document.getElementById('alinaTaskList').innerHTML = html;
+    if (quickLogOpen) renderQuickLogResults();
   }
-  
+
+  let quickLogOpen = false;
+  let quickLogQuery = '';
+
+  function toggleQuickLog() {
+    quickLogOpen = !quickLogOpen;
+    if (!quickLogOpen) quickLogQuery = '';
+    renderAlina();
+    if (quickLogOpen) {
+      const inp = document.getElementById('quickLogInput');
+      if (inp) inp.focus();
+    }
+  }
+
+  function renderQuickLogResults() {
+    const el = document.getElementById('quickLogResults');
+    if (!el) return;
+    const q = quickLogQuery.trim().toLowerCase();
+    if (q.length < 2) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 2px">Type to search all tasks &mdash; logging here doesn\'t touch today\'s hand.</div>'; return; }
+    const matches = getAllTasks()
+      .filter(t => !t.oneOff && (t.name.toLowerCase().includes(q) || t.room.toLowerCase().includes(q)))
+      .slice(0, 6);
+    if (!matches.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 2px">No tasks match.</div>'; return; }
+    el.innerHTML = matches.map(t => {
+      const done = wasCompletedToday(t);
+      return '<div class="sprint-card' + (done ? ' done' : '') + '" onclick="quickLogComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
+        '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
+        '<div class="sprint-card-body"><div class="sprint-card-top">' +
+          '<span class="sprint-card-name">' + t.name + '</span>' +
+          '<span class="sprint-card-time">' + t.room + (done ? ' &middot; done today' : '') + '</span>' +
+        '</div></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function quickLogComplete(id) {
+    const t = getAllTasks().find(x => x.id === id);
+    if (!t) return;
+    if (wasCompletedToday(t)) { showToast('Already logged today'); return; }
+    if (state.starvation) state.starvation[id] = 0;
+    completeTask(id);
+  }
+
   function renderCard(task, canSwap) {
     const isDone = wasCompletedToday(task);
     const overdue = task.oneOff ? 0 : daysOverdue(task);
