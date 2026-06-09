@@ -713,7 +713,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto' };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null };
   }
   
   async function loadState() {
@@ -754,6 +754,8 @@
           presetHands: parsed.presetHands || {},
           lastBackupDate: parsed.lastBackupDate || null,
           zoneMode: parsed.zoneMode || 'auto',
+          paused: !!parsed.paused,
+          pausedAt: parsed.pausedAt || null,
         };
       }
     } catch (e) {
@@ -906,6 +908,12 @@
   function dealHand() {
     const today = todayStr();
     if (state.handDate === today && state.hand) return;
+
+    // Vacation mode: keep the existing hand, skip dealing and starvation ticks
+    if (state.paused) {
+      if (!state.hand) { state.hand = []; state.handDate = today; saveState(); }
+      return;
+    }
 
     const preferTier = state._dealPreferTier || null;
     if (preferTier) delete state._dealPreferTier;
@@ -1367,7 +1375,17 @@
     const notDue = getNotDueTasks();
   
     let html = '';
-  
+
+    if (state.paused) {
+      const since = state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+      html += '<div class="section" style="margin-top:12px">' +
+        '<div style="background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:var(--radius);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+          '<div><div style="font-weight:600;color:var(--amber)">&#9208; Vacation mode</div>' +
+          '<div style="font-size:12px;color:var(--text3)">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
+          '<button class="add-btn" style="background:var(--amber);flex-shrink:0" onclick="resumeApp()">I\'m back</button>' +
+        '</div></div>';
+    }
+
     if (dailies.length) {
       const dailiesUndone = dailies.filter(t => !wasCompletedToday(t));
       const dailyLeftMin = dailiesUndone.reduce((s,t) => s + t.time, 0);
@@ -2846,6 +2864,16 @@
         return logHtml;
       })() +
   
+      // Card: Vacation mode
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Vacation Mode</div>' +
+        '<div class="settings-card-desc">Pause while you\'re away: no new hands are dealt and starvation stops accruing. When you resume, every task\'s last-done date shifts forward by the time away, so you don\'t come home to a wall of fake-overdue tasks.</div>' +
+        (state.paused
+          ? '<div style="font-size:13px;color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
+            '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
+          : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
+      '</div>' +
+
       // Card 6: Backup
       '<div class="settings-card">' +
         '<div class="settings-card-title">Backup</div>' +
@@ -2873,6 +2901,33 @@
     document.getElementById('settingsContent').innerHTML = html;
   }
   
+  function pauseApp() {
+    state.paused = true;
+    state.pausedAt = Date.now();
+    saveNow();
+    render();
+    showToast('Paused — enjoy your time away!');
+  }
+
+  function resumeApp() {
+    if (!state.paused) return;
+    const pausedAt = state.pausedAt || Date.now();
+    const delta = Date.now() - pausedAt;
+    // Shift pre-pause completions forward by the pause duration so nothing
+    // aged while away. Completions logged during the pause stay as-is.
+    Object.keys(state.completions).forEach(id => {
+      const ts = state.completions[id];
+      if (ts && ts <= pausedAt) state.completions[id] = Math.min(ts + delta, Date.now());
+    });
+    state.paused = false;
+    state.pausedAt = null;
+    state.hand = null;
+    state.handDate = null;
+    saveNow();
+    render();
+    showToast('Welcome home! Due dates shifted by ' + Math.max(1, Math.round(delta / 86400000)) + 'd');
+  }
+
   function downloadBackup(auto) {
     const json = JSON.stringify(state);
     const blob = new Blob([json], { type: 'application/json' });
@@ -2951,6 +3006,8 @@
       tierCLastDate: parsed.tierCLastDate || null,
       lastBackupDate: parsed.lastBackupDate || null,
       zoneMode: parsed.zoneMode || 'auto',
+      paused: !!parsed.paused,
+      pausedAt: parsed.pausedAt || null,
     };
     ta.value = '';
     saveState();
