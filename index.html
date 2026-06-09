@@ -443,6 +443,10 @@
           <input type="checkbox" id="f_cat" style="width:16px;height:16px;">
           <label for="f_cat">Cat-related task (priority tiebreaker)</label>
         </div>
+        <div>
+          <div class="field-label">Active months (none selected = all year)</div>
+          <div id="monthChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="modal-btn" onclick="closeModal()">Cancel</button>
@@ -677,6 +681,17 @@
     { id:'house_furnace',    name:'Change furnace filter',               room:'Whole House',   freq:60,  time:10, owner:'bob' },
   ];
   
+  // Seasonal defaults: months (1–12) when a task is in season. Applied once via
+  // migration into state.taskMonths; user edits in Manage always win after that.
+  const APR_OCT = [4,5,6,7,8,9,10];
+  const MAR_NOV = [3,4,5,6,7,8,9,10,11];
+  const DEFAULT_MONTHS = {
+    bp_tidy: MAR_NOV, bp_sweep: MAR_NOV, bp_furniture: MAR_NOV,
+    k_win: APR_OCT, lr_win: APR_OCT, dr_win: APR_OCT, dsb_win: APR_OCT,
+    usb_win: APR_OCT, bed_win: APR_OCT, sun_win: APR_OCT, off_win: APR_OCT,
+    br_win: APR_OCT, mud_win: APR_OCT,
+  };
+
   // Zone → rooms mapping
   const ZONE_ROOMS = {
     1: ['Dining Room','Mud Room','Back Porch'],
@@ -713,7 +728,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false };
   }
   
   async function loadState() {
@@ -756,6 +771,8 @@
           zoneMode: parsed.zoneMode || 'auto',
           paused: !!parsed.paused,
           pausedAt: parsed.pausedAt || null,
+          taskMonths: parsed.taskMonths || {},
+          seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
         };
       }
     } catch (e) {
@@ -841,6 +858,12 @@
     if (task.oneOff) return true;
     return daysOverdue(task) >= 0;
   }
+
+  function inSeason(task) {
+    const months = (state.taskMonths || {})[task.id];
+    if (!months || !months.length || months.length >= 12) return true;
+    return months.includes(new Date().getMonth() + 1);
+  }
   
   function autoZone(date) {
     const day = (date || new Date()).getDate();
@@ -883,6 +906,7 @@
     return getAllTasks()
       .filter(t => {
         if (!isDue(t)) return false;
+        if (!inSeason(t)) return false;
         if (owner === 'alina') return t.owner === 'alina' || t.owner === 'either';
         if (owner === 'bob')   return t.owner === 'bob';
         return true;
@@ -895,6 +919,7 @@
       t.freq === 1 &&
       !t.oneOff &&
       isDue(t) &&
+      inSeason(t) &&
       (t.owner === 'alina' || t.owner === 'either')
     ).sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
   }
@@ -946,7 +971,7 @@
     ALWAYS_ASSIGN_IDS.forEach(id => {
       if (pinnedSet.has(id) || dailyIds.includes(id)) return;
       const task = allTasks.find(t => t.id === id);
-      if (task && isDue(task)) alwaysAssigned.push(id);
+      if (task && isDue(task) && inSeason(task)) alwaysAssigned.push(id);
     });
     if (laundryLoadId && !pinnedSet.has(laundryLoadId)) alwaysAssigned.push(laundryLoadId);
     const alwaysAssignedSet = new Set(alwaysAssigned);
@@ -1022,7 +1047,7 @@
       state.starvationDate = today;
       const handSet = new Set(state.hand);
       allTasks.forEach(t => {
-        if (isDue(t) && !handSet.has(t.id)) {
+        if (isDue(t) && inSeason(t) && !handSet.has(t.id)) {
           state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
         } else if (handSet.has(t.id)) {
           state.starvation[t.id] = 0;
@@ -1056,6 +1081,7 @@
       .filter(t =>
         (t.owner === 'alina' || t.owner === 'either') &&
         !isDue(t) &&
+        inSeason(t) &&
         !state.hand.includes(t.id)
       )
       .sort((a,b) => {
@@ -2184,6 +2210,7 @@
     const allTasks = getAllTasks();
     const pool = allTasks.filter(t => {
       if (!isDue(t)) return false;
+      if (!inSeason(t)) return false;
       if (wasCompletedToday(t)) return false;
       if (randomTier !== 'all' && getTaskTier(t) !== randomTier) return false;
       return true;
@@ -3008,6 +3035,8 @@
       zoneMode: parsed.zoneMode || 'auto',
       paused: !!parsed.paused,
       pausedAt: parsed.pausedAt || null,
+      taskMonths: parsed.taskMonths || {},
+      seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
     };
     ta.value = '';
     saveState();
@@ -3082,7 +3111,9 @@
       const isCustom = !!(state.customTasks && state.customTasks[t.id]);
       const ownerLabel = t.owner === 'alina' ? 'Alina' : t.owner === 'bob' ? 'Bob' : 'Either';
       const overdue = daysOverdue(t);
-      const statusHtml = overdue >= 0
+      const statusHtml = !inSeason(t)
+        ? '<span class="status-ok">&#10052; off-season</span>'
+        : overdue >= 0
         ? '<span class="status-due">Due</span>'
         : '<span class="status-ok">in ' + Math.ceil(-overdue) + 'd</span>';
       const isDoneToday = wasCompletedToday(t);
@@ -3136,11 +3167,33 @@
     return [...TASKS.filter(t => !deleted.includes(t.id)), ...custom];
   }
   
+  let editingMonths = new Set();
+
+  function renderMonthChips() {
+    const el = document.getElementById('monthChips');
+    if (!el) return;
+    const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    el.innerHTML = labels.map((lab, i) => {
+      const m = i + 1;
+      const on = editingMonths.has(m);
+      return '<button type="button" onclick="toggleMonthChip(' + m + ')" style="padding:5px 8px;font-size:12px;border-radius:8px;cursor:pointer;border:1px solid ' + (on ? 'var(--green)' : 'var(--border2)') + ';background:' + (on ? 'var(--green)' : 'var(--bg2)') + ';color:' + (on ? '#fff' : 'var(--text2)') + '">' + lab + '</button>';
+    }).join('');
+  }
+
+  function toggleMonthChip(m) {
+    if (editingMonths.has(m)) editingMonths.delete(m);
+    else editingMonths.add(m);
+    renderMonthChips();
+  }
+
   function openModal(id) {
     editingId = id;
     const modal = document.getElementById('taskModal');
     document.getElementById('modalTitle').textContent = id ? 'Edit task' : 'Add task';
-  
+
+    editingMonths = new Set(id ? ((state.taskMonths || {})[id] || []) : []);
+    renderMonthChips();
+
     if (id) {
       const task = getAllTasks().find(t => t.id === id);
       if (!task) return;
@@ -3209,14 +3262,20 @@
     if (!state.customTasks) state.customTasks = {};
     if (!state.deletedIds) state.deletedIds = [];
   
+    if (!state.taskMonths) state.taskMonths = {};
+    const months = [...editingMonths].sort((a,b) => a - b);
+
     if (editingId) {
       const isBase = TASKS.find(t => t.id === editingId);
       if (isBase) state.deletedIds = [...new Set([...state.deletedIds, editingId])];
       state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat };
+      if (months.length && months.length < 12) state.taskMonths[editingId] = months;
+      else delete state.taskMonths[editingId];
     } else {
       const newId = 'custom_' + Date.now();
       state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat };
       state.completions[newId] = Date.now() - freq * 86400000;
+      if (months.length && months.length < 12) state.taskMonths[newId] = months;
     }
   
     state.hand = null;
@@ -3379,6 +3438,16 @@
   
     // Load state from persistent storage
     state = await loadState();
+
+    // One-time seasonal defaults; user edits in Manage win from then on
+    if (!state.seasonalDefaultsApplied) {
+      if (!state.taskMonths) state.taskMonths = {};
+      Object.entries(DEFAULT_MONTHS).forEach(([id, months]) => {
+        if (!(id in state.taskMonths)) state.taskMonths[id] = [...months];
+      });
+      state.seasonalDefaultsApplied = true;
+      saveState();
+    }
   
     // Apply loaded settings to UI
     const zoneEl = document.getElementById('zoneSelect');
