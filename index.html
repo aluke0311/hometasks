@@ -728,7 +728,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {} };
   }
   
   async function loadState() {
@@ -773,6 +773,7 @@
           pausedAt: parsed.pausedAt || null,
           taskMonths: parsed.taskMonths || {},
           seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
+          actualTimes: parsed.actualTimes || {},
         };
       }
     } catch (e) {
@@ -857,6 +858,47 @@
   function isDue(task) {
     if (task.oneOff) return true;
     return daysOverdue(task) >= 0;
+  }
+
+  // Learned time estimate: median of recorded actuals (3+ samples), else the static estimate
+  function taskTime(task) {
+    const a = (state.actualTimes || {})[task.id];
+    if (!a || a.length < 3) return task.time;
+    const s = [...a].sort((x,y) => x - y);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : Math.round((s[mid-1] + s[mid]) / 2);
+  }
+
+  // ── Per-task timer (transient, in-memory only) ──
+  let activeTimer = null;
+  let timerInterval = null;
+
+  function fmtElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function startTimerTick() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (!activeTimer) { clearInterval(timerInterval); return; }
+      const el = document.getElementById('timerElapsed_' + activeTimer.id);
+      if (el) el.textContent = '⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt);
+    }, 1000);
+  }
+
+  function toggleTimer(id) {
+    if (activeTimer && activeTimer.id === id) {
+      activeTimer = null;
+      clearInterval(timerInterval);
+      render();
+      showToast('Timer discarded — check the task off to record time');
+      return;
+    }
+    activeTimer = { id, startedAt: Date.now() };
+    startTimerTick();
+    render();
+    showToast('Timer running — check off to record');
   }
 
   function inSeason(task) {
@@ -990,10 +1032,10 @@
     const HEAVY_MAX = 2;
     const budget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
     const completedNonDailyTime = allTasks.filter(t => t.freq > 1 && wasCompletedToday(t))
-      .reduce((s, t) => s + t.time, 0);
+      .reduce((s, t) => s + taskTime(t), 0);
     const alwaysAssignedTime = alwaysAssigned.reduce((s, id) => {
       const t = allTasks.find(t => t.id === id);
-      return s + (t ? t.time : 0);
+      return s + (t ? taskTime(t) : 0);
     }, 0);
 
     let timeUsed = completedNonDailyTime + alwaysAssignedTime;
@@ -1012,24 +1054,26 @@
         return Math.random() - 0.5;
       });
       for (const task of freqPool) {
-        const isHeavy = task.time > HEAVY_THRESHOLD;
+        const tt = taskTime(task);
+        const isHeavy = tt > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
         if (timeUsed >= budget) break;
-        if (timeUsed + task.time > budget && selected.length > 0) break;
+        if (timeUsed + tt > budget && selected.length > 0) break;
         selected.push(task);
-        timeUsed += task.time;
+        timeUsed += tt;
         if (isHeavy) heavyCount++;
       }
     } else {
       // Keep Up / Catch Up: score-sorted pool fills budget (algorithm decides)
       // Score already encodes the mode difference via overdueWeight (0.5 vs 0.8)
       for (const task of pool) {
-        const isHeavy = task.time > HEAVY_THRESHOLD;
+        const tt = taskTime(task);
+        const isHeavy = tt > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
         if (timeUsed >= budget) break;
-        if (timeUsed + task.time > budget && selected.length > 0) break;
+        if (timeUsed + tt > budget && selected.length > 0) break;
         selected.push(task);
-        timeUsed += task.time;
+        timeUsed += tt;
         if (isHeavy) heavyCount++;
       }
     }
@@ -1151,6 +1195,18 @@
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
     }
     _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday };
+    // Record elapsed time if this task's timer is running (ignore <1 min and >4 h)
+    if (activeTimer && activeTimer.id === id) {
+      const mins = Math.round((Date.now() - activeTimer.startedAt) / 60000);
+      if (mins >= 1 && mins <= 240) {
+        if (!state.actualTimes) state.actualTimes = {};
+        if (!state.actualTimes[id]) state.actualTimes[id] = [];
+        state.actualTimes[id].push(mins);
+        if (state.actualTimes[id].length > 10) state.actualTimes[id].shift();
+      }
+      activeTimer = null;
+      clearInterval(timerInterval);
+    }
     // Clear snooze if task was snoozed
     if (state.snoozed) delete state.snoozed[id];
     // Auto-unpin on completion
@@ -1387,9 +1443,9 @@
 
     const hand = getHandTasks();
     const doneCount = hand.filter(t => wasCompletedToday(t)).length;
-    const totalMin = hand.reduce((s,t) => s + t.time, 0);
-  
-    const leftMin = hand.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+    const totalMin = hand.reduce((s,t) => s + taskTime(t), 0);
+
+    const leftMin = hand.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
     document.getElementById('progressText').textContent = doneCount + ' / ' + hand.length + ' done';
     document.getElementById('progressBar').style.width = hand.length ? Math.round(doneCount/hand.length*100) + '%' : '0%';
     document.getElementById('totalTime').textContent = '⏱ ~' + fmtMinutes(leftMin) + ' left';
@@ -1414,7 +1470,7 @@
 
     if (dailies.length) {
       const dailiesUndone = dailies.filter(t => !wasCompletedToday(t));
-      const dailyLeftMin = dailiesUndone.reduce((s,t) => s + t.time, 0);
+      const dailyLeftMin = dailiesUndone.reduce((s,t) => s + taskTime(t), 0);
       html += '<div class="section"><div class="section-label">' +
         '<button class="section-label-btn' + (dailiesOpen ? ' open' : '') + '" onclick="toggleDailies()">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
@@ -1429,7 +1485,7 @@
 
     if (capped.length) {
       const cappedUndone = capped.filter(t => !wasCompletedToday(t));
-      const otherLeftMin = cappedUndone.reduce((s,t) => s + t.time, 0);
+      const otherLeftMin = cappedUndone.reduce((s,t) => s + taskTime(t), 0);
       html += '<div class="section"><div class="section-label">' +
         '<button class="section-label-btn' + (otherTasksOpen ? ' open' : '') + '" id="otherTasksToggle" onclick="toggleOtherTasks()">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
@@ -1582,6 +1638,11 @@
     const snoozeBtn = !isDone && !isPinned && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
     const earlierBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'ep_' + task.id + '\')">did earlier</button>' : '';
     const whyBtn = !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();showWhy(\'' + task.id + '\')" title="Why was this dealt?">why?</button>' : '';
+    const timerRunning = activeTimer && activeTimer.id === task.id;
+    const timerBtn = !isDone ? (timerRunning
+      ? '<button class="task-btn" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">discard ⏱</button>'
+      : '<button class="task-btn" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">⏱ time it</button>') : '';
+    const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
@@ -1596,7 +1657,8 @@
           '<div class="task-meta">' +
             (task.room ? '<span class="task-room">' + task.room + '</span>' : '') +
             (!task.oneOff ? '<span class="task-freq">' + freqLabel(task.freq) + '</span>' : '') +
-            '<span class="task-time">⏱ ' + fmtMinutes(task.time) + '</span>' +
+            '<span class="task-time">⏱ ' + fmtMinutes(taskTime(task)) + '</span>' +
+            timerChip +
             overdueHtml +
             ownerHtml +
           '</div>' +
@@ -1624,7 +1686,7 @@
           '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
         '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
     '</div>';
   }
   
@@ -1828,8 +1890,8 @@
   
     const sprintBlocks = getSprintBlocks();
     const doneCount = hand.filter(t => wasCompletedToday(t)).length;
-    const totalMin = hand.reduce((s,t) => s + t.time, 0);
-    const doneMin = hand.filter(t => wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+    const totalMin = hand.reduce((s,t) => s + taskTime(t), 0);
+    const doneMin = hand.filter(t => wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
     const leftMin = totalMin - doneMin;
   
     let html = '<div class="sprint-progress">' +
@@ -1848,7 +1910,7 @@
       if (blockIdx > 0) html += '<div class="sprint-block-divider"></div>';
       const allDone = block.tasks.every(t => wasCompletedToday(t));
       const blockHint = BLOCK_HINTS[block.label] || '';
-      const blockLeftMin = block.tasks.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + t.time, 0);
+      const blockLeftMin = block.tasks.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
       html += '<div class="sprint-block">' +
         '<div class="sprint-block-header">' +
           '<span class="sprint-block-num">' + (blockIdx + 1) + '</span>' +
@@ -1866,6 +1928,10 @@
       visibleTasks.forEach(t => {
         const isDone = wasCompletedToday(t);
         const sPinned = state.pinnedIds && state.pinnedIds.includes(t.id);
+        const sRunning = activeTimer && activeTimer.id === t.id;
+        const sTimerBtn = !isDone
+          ? '<button onclick="event.stopPropagation();toggleTimer(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid ' + (sRunning ? 'var(--red)' : 'var(--border2)') + ';border-radius:6px;color:' + (sRunning ? 'var(--red)' : 'var(--text3)') + ';background:transparent;cursor:pointer;flex-shrink:0">⏱</button>'
+          : '';
         const sRemoveBtn = !isDone && !sPinned
           ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
           : '';
@@ -1874,9 +1940,12 @@
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
               '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + '</span>' +
-              '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
+              (sRunning
+                ? '<span class="sprint-card-time" id="timerElapsed_' + t.id + '" style="color:var(--green);font-weight:600">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
+                : '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>') +
             '</div>' +
           '</div>' +
+          sTimerBtn +
           sRemoveBtn +
         '</div>';
       });
@@ -3037,6 +3106,7 @@
       pausedAt: parsed.pausedAt || null,
       taskMonths: parsed.taskMonths || {},
       seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
+      actualTimes: parsed.actualTimes || {},
     };
     ta.value = '';
     saveState();
@@ -3126,6 +3196,11 @@
       const avgHint = avg !== null && avg > t.freq * 1.4
         ? ' · <span style="color:var(--amber)">avg ' + avg + 'd</span>'
         : '';
+      const samples = (state.actualTimes || {})[t.id] || [];
+      const learned = taskTime(t);
+      const timeHint = samples.length >= 3 && learned !== t.time
+        ? ' · <span style="color:var(--blue)">~' + learned + 'm (est ' + t.time + 'm, n=' + samples.length + ')</span>'
+        : '';
       html +=
         '<div class="manage-card' + (isDoneToday ? ' mc-done' : '') + '">' +
           '<div class="manage-card-main">' +
@@ -3134,7 +3209,7 @@
             '</button>' +
             '<div class="manage-card-body">' +
               '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
-              '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
+              '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + timeHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
             '</div>' +
             '<div class="manage-card-icons">' +
               '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
