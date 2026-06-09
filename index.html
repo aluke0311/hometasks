@@ -294,6 +294,7 @@
           <span class="stat-badge" id="totalTime"></span>
           <div class="stats-zone">
             <select class="zone-select" id="zoneSelect" onchange="saveZone()">
+              <option value="auto" id="zoneAutoOption">Auto zone</option>
               <option value="0">No zone focus</option>
               <option value="1">Zone 1 — Dining, Mud, Porches</option>
               <option value="2">Zone 2 — Kitchen</option>
@@ -712,7 +713,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto' };
   }
   
   async function loadState() {
@@ -752,6 +753,7 @@
           tierCLastDate: parsed.tierCLastDate || null,
           presetHands: parsed.presetHands || {},
           lastBackupDate: parsed.lastBackupDate || null,
+          zoneMode: parsed.zoneMode || 'auto',
         };
       }
     } catch (e) {
@@ -838,6 +840,15 @@
     return daysOverdue(task) >= 0;
   }
   
+  function autoZone(date) {
+    const day = (date || new Date()).getDate();
+    return Math.min(Math.ceil(day / 7), 5); // 1–7→1 … 22–28→4, 29+→5
+  }
+
+  function effectiveZone() {
+    return (state.zoneMode || 'auto') === 'auto' ? autoZone() : state.zone;
+  }
+
   function scoreTaskParts(task, zone) {
     const zoneRooms = ZONE_ROOMS[zone] || [];
     const inZone = zoneRooms.some(r => task.room.includes(r) || r.includes(task.room));
@@ -874,7 +885,7 @@
         if (owner === 'bob')   return t.owner === 'bob';
         return true;
       })
-      .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+      .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
   }
   
   function getDailies() {
@@ -883,7 +894,7 @@
       !t.oneOff &&
       isDue(t) &&
       (t.owner === 'alina' || t.owner === 'either')
-    ).sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+    ).sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
   }
   
   function getTaskTier(task) {
@@ -913,7 +924,7 @@
     const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday;
     const dueLaundryLoads = allTasks
       .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
-      .sort((a,b) => scoreTask(a, state.zone) - scoreTask(b, state.zone));
+      .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
     // Don't assign another laundry load if one was already completed today or is pinned
     const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
 
@@ -1328,6 +1339,12 @@
   }
   
   function renderAlina() {
+    // Sync zone selector (auto label shows this week's zone)
+    const autoOpt = document.getElementById('zoneAutoOption');
+    if (autoOpt) autoOpt.textContent = 'Auto — Zone ' + autoZone() + ' this week';
+    const zoneSel = document.getElementById('zoneSelect');
+    if (zoneSel) zoneSel.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
+
     // Sync active mode button
     ['maintenance', 'catchup', 'byfreq'].forEach(m => {
       const btn = document.getElementById('modeBtn-' + m);
@@ -1573,7 +1590,7 @@
   function showWhy(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
-    const p = scoreTaskParts(task, state.zone);
+    const p = scoreTaskParts(task, effectiveZone());
     const fmt = v => (v > 0 ? '+' : '') + (Math.round(v * 10) / 10);
 
     function row(label, value, note, skip) {
@@ -2777,7 +2794,7 @@
       // Card 2: Active Zone reference (selector lives in My Hand stats bar)
       '<div class="settings-card">' +
         '<div class="settings-card-title">Active Zone</div>' +
-        '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. Switch zones from the My Hand tab.</div>' +
+        '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. In Auto mode the zone follows the calendar (1st–7th = Zone 1, 8th–14th = Zone 2, …). Override from the My Hand tab.</div>' +
         '<table class="zone-ref-table" style="margin-top:4px">' +
           '<tr><th>Zone</th><th>Rooms</th></tr>' +
           ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
@@ -2933,6 +2950,7 @@
       mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
       tierCLastDate: parsed.tierCLastDate || null,
       lastBackupDate: parsed.lastBackupDate || null,
+      zoneMode: parsed.zoneMode || 'auto',
     };
     ta.value = '';
     saveState();
@@ -3199,7 +3217,13 @@
   }
   
   function saveZone() {
-    state.zone = parseInt(document.getElementById('zoneSelect').value);
+    const v = document.getElementById('zoneSelect').value;
+    if (v === 'auto') {
+      state.zoneMode = 'auto';
+    } else {
+      state.zoneMode = 'manual';
+      state.zone = parseInt(v);
+    }
     state.hand = null;
     saveState();
     render();
@@ -3301,7 +3325,7 @@
   
     // Apply loaded settings to UI
     const zoneEl = document.getElementById('zoneSelect');
-    if (zoneEl) zoneEl.value = state.zone;
+    if (zoneEl) zoneEl.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
 
     render();
     autoBackupCheck();
