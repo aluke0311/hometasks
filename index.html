@@ -391,6 +391,18 @@
     </div>
   </div>
 
+  <!-- Why this task? modal -->
+  <div class="modal-backdrop" id="whyModal" onclick="if(event.target===this)closeWhyModal()">
+    <div class="modal">
+      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div class="modal-header">
+        <span class="modal-title" id="whyTitle">Why this task?</span>
+        <button class="modal-close" onclick="closeWhyModal()">&#10005;</button>
+      </div>
+      <div class="modal-body" id="whyBody"></div>
+    </div>
+  </div>
+
   <!-- Task edit/add modal -->
   <div class="modal-backdrop" id="taskModal">
     <div class="modal">
@@ -826,22 +838,31 @@
     return daysOverdue(task) >= 0;
   }
   
-  function scoreTask(task, zone) {
+  function scoreTaskParts(task, zone) {
     const zoneRooms = ZONE_ROOMS[zone] || [];
     const inZone = zoneRooms.some(r => task.room.includes(r) || r.includes(task.room));
     const overdue = daysOverdue(task);
     const overdueRatio = overdue / task.freq;
-  
-    let score = task.freq;
-    if (task.cat) score -= 0.5;
-    if (inZone) score -= 2;
     const overdueWeight = (state.mode === 'catchup') ? 0.8 : 0.5;
-    score -= Math.min(overdueRatio * task.freq * overdueWeight, task.freq * 0.8);
     const starvation = (state.starvation || {})[task.id] || 0;
-    score -= Math.min(starvation * 0.3, task.freq * 0.15);
-    if ((state.flaggedIds || []).includes(task.id)) score -= 50;
-    if (task.freq > 60) score += (Math.random() - 0.5) * 2;
+    const parts = {
+      base: task.freq,
+      cat: task.cat ? -0.5 : 0,
+      zone: inZone ? -2 : 0,
+      overdue: -Math.min(overdueRatio * task.freq * overdueWeight, task.freq * 0.8),
+      starvation: -Math.min(starvation * 0.3, task.freq * 0.15),
+      flagged: (state.flaggedIds || []).includes(task.id) ? -50 : 0,
+      overdueDays: overdue,
+      starvationDays: starvation,
+      jitter: task.freq > 60,
+    };
+    parts.total = parts.base + parts.cat + parts.zone + parts.overdue + parts.starvation + parts.flagged;
+    return parts;
+  }
 
+  function scoreTask(task, zone) {
+    let score = scoreTaskParts(task, zone).total;
+    if (task.freq > 60) score += (Math.random() - 0.5) * 2;
     return score;
   }
   
@@ -1499,6 +1520,7 @@
     const removeBtn = !isDone ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
     const snoozeBtn = !isDone && !isPinned && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
     const earlierBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'ep_' + task.id + '\')">did earlier</button>' : '';
+    const whyBtn = !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();showWhy(\'' + task.id + '\')" title="Why was this dealt?">why?</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
@@ -1541,11 +1563,51 @@
           '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
         '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + removeBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
     '</div>';
   }
   
   
+  // ─── WHY THIS TASK? ────────────────────────────────────────────────────────
+
+  function showWhy(id) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    const p = scoreTaskParts(task, state.zone);
+    const fmt = v => (v > 0 ? '+' : '') + (Math.round(v * 10) / 10);
+
+    function row(label, value, note, skip) {
+      if (skip) return '';
+      return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border)">' +
+        '<div><div style="font-size:14px;color:var(--text)">' + label + '</div>' +
+        (note ? '<div style="font-size:12px;color:var(--text3)">' + note + '</div>' : '') + '</div>' +
+        '<div style="font-size:15px;font-weight:600;white-space:nowrap;color:' + (value < 0 ? 'var(--green)' : 'var(--text2)') + '">' + fmt(value) + '</div>' +
+      '</div>';
+    }
+
+    const overdueNote = p.overdueDays >= 1 ? Math.floor(p.overdueDays) + ' days overdue' :
+                        p.overdueDays >= 0 ? 'due today' :
+                        'not due for ' + Math.ceil(-p.overdueDays) + 'd (raises score)';
+    let html =
+      '<div style="font-size:13px;color:var(--text3);margin-bottom:4px">Lower score = dealt sooner. ' + task.name + ' scores:</div>' +
+      row('Base score', p.base, 'frequency: ' + freqLabel(task.freq), false) +
+      row('Overdue', p.overdue, overdueNote + ' &middot; capped at &minus;' + (task.freq * 0.8), p.overdue === 0) +
+      row('Starvation', p.starvation, p.starvationDays + ' day' + (p.starvationDays === 1 ? '' : 's') + ' due but not dealt &middot; capped at &minus;' + (Math.round(task.freq * 0.15 * 10) / 10), p.starvation === 0) +
+      row('Zone focus', p.zone, task.room + ' is in the active zone', p.zone === 0) +
+      row('Cat task', p.cat, 'priority tiebreaker', p.cat === 0) +
+      row('Flagged', p.flagged, 'flagged tasks always surface first', p.flagged === 0) +
+      (p.jitter ? '<div style="font-size:12px;color:var(--text3);padding:8px 0;border-bottom:0.5px solid var(--border)">&plusmn;1 random shuffle for variety (applied to long-interval tasks each deal)</div>' : '') +
+      '<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700"><span>Total</span><span>' + (Math.round(p.total * 10) / 10) + '</span></div>';
+
+    document.getElementById('whyTitle').textContent = 'Why this task?';
+    document.getElementById('whyBody').innerHTML = html;
+    document.getElementById('whyModal').classList.add('open');
+  }
+
+  function closeWhyModal() {
+    document.getElementById('whyModal').classList.remove('open');
+  }
+
   // ─── UI HELPERS ────────────────────────────────────────────────────────────
   
   function switchTab(tab) {
