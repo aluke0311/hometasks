@@ -728,6 +728,7 @@
           completionHistory: parsed.completionHistory || {},
           mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
           tierCLastDate: parsed.tierCLastDate || null,
+          presetHands: parsed.presetHands || {},
         };
       }
     } catch (e) {
@@ -781,12 +782,6 @@
     return d === 0 || d === 6;
   }
 
-  function daysBetween(dateStrA, dateStrB) {
-    const a = new Date(dateStrA + 'T00:00:00');
-    const b = new Date(dateStrB + 'T00:00:00');
-    return Math.round((b - a) / 86400000);
-  }
-  
   function fmtMinutes(min) {
     if (min < 60) return min + 'm';
     const h = Math.floor(min / 60);
@@ -1728,8 +1723,14 @@
     { id:'mud_tidy',           name:'Tidy mud room',                      room:'Mud Room',      time:8  },
     { id:'bp_tidy',            name:'Tidy back porch',                    room:'Back Porch',    time:8  },
     { id:'usb_tidy',           name:'Tidy up (US bath)',                  room:'US Bathroom',   time:5  },
-    // Whole house
-    { id:'house_dust',         name:'Dust surfaces',                      room:'Whole House',   time:15 },
+    // Dust surfaces (per room)
+    { id:'lr_dust',            name:'Dust surfaces (living room)',        room:'Living Room',   time:8  },
+    { id:'dr_dust',            name:'Dust surfaces (dining)',             room:'Dining Room',   time:8  },
+    { id:'bed_dust',           name:'Dust surfaces (bedroom)',            room:'Bedroom',       time:8  },
+    { id:'br_dust',            name:'Dust surfaces (back room)',          room:'Back Room',     time:8  },
+    { id:'off_dust',           name:'Dust surfaces (office)',             room:'Office',        time:8  },
+    { id:'hs_dust',            name:'Dust surfaces (hall)',               room:'Hall & Stairs', time:8  },
+    { id:'lroom_dust',         name:'Dust surfaces (laundry room)',       room:'Laundry Room',  time:5  },
   ];
 
   const FULL_RESET_SECTIONS = [
@@ -1740,7 +1741,7 @@
     { label:'Cat care',       ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_litter_robot_bin','c_scoop_ds','c_feeders'] },
     { label:'Laundry',        ids:['l_dryer','l_fold','l_put_away'] },
     { label:'Tidy all rooms', ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','sun_tidy','off_tidy','br_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
-    { label:'Whole house',    ids:['house_dust'] },
+    { label:'Dust surfaces',  ids:['lr_dust','dr_dust','bed_dust','br_dust','off_dust','hs_dust','lroom_dust'] },
   ];
   
   const GOING_OUT_TASKS = [
@@ -2233,10 +2234,6 @@
     html += categoryHeader('Guests');
 
     const guestActive = state.guestHand && state.guestHand.length;
-    const guestTimeMap = {
-      emergency: presetTotalTime([{ ids: GUEST_EMERGENCY_IDS }]),
-      day: 0, overnight: 0,
-    };
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
         '<div class="settings-card-title">Guest Prep</div>' +
@@ -2580,6 +2577,8 @@
       flaggedIds:    parsed.flaggedIds    || [],
       completionHistory: parsed.completionHistory || {},
       presetHands:   parsed.presetHands   || {},
+      mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
+      tierCLastDate: parsed.tierCLastDate || null,
     };
     ta.value = '';
     saveState();
