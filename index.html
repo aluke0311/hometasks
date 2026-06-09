@@ -690,7 +690,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null };
   }
   
   async function loadState() {
@@ -729,6 +729,7 @@
           mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
           tierCLastDate: parsed.tierCLastDate || null,
           presetHands: parsed.presetHands || {},
+          lastBackupDate: parsed.lastBackupDate || null,
         };
       }
     } catch (e) {
@@ -2510,7 +2511,15 @@
         return logHtml;
       })() +
   
-      // Card 6: Export / Import
+      // Card 6: Backup
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Backup</div>' +
+        '<div class="settings-card-desc">A backup file downloads automatically once a week so your history is never only in this browser. Save it somewhere safe (or let Downloads collect them).</div>' +
+        '<div style="font-size:13px;color:var(--text2);margin-bottom:10px">Last backup: <b>' + (state.lastBackupDate ? new Date(state.lastBackupDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never') + '</b></div>' +
+        '<button class="add-btn" style="width:100%" onclick="downloadBackup(false)">Back up now</button>' +
+      '</div>' +
+
+      // Card 7: Export / Import
       '<div class="settings-card">' +
         '<div class="settings-card-title">Export / Import</div>' +
         '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
@@ -2529,6 +2538,32 @@
     document.getElementById('settingsContent').innerHTML = html;
   }
   
+  function downloadBackup(auto) {
+    const json = JSON.stringify(state);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hometasks-backup-' + todayStr() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    state.lastBackupDate = todayStr();
+    saveState();
+    showToast(auto ? 'Weekly backup saved to Downloads' : 'Backup downloaded');
+    if (currentTab === 'settings') renderSettings();
+  }
+
+  function autoBackupCheck() {
+    const last = state.lastBackupDate;
+    if (last) {
+      const days = (new Date(todayStr() + 'T00:00:00') - new Date(last + 'T00:00:00')) / 86400000;
+      if (days < 7) return;
+    }
+    downloadBackup(true);
+  }
+
   function exportData() {
     const json = JSON.stringify(state);
     const ta = document.getElementById('exportTextarea');
@@ -2579,6 +2614,7 @@
       presetHands:   parsed.presetHands   || {},
       mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
       tierCLastDate: parsed.tierCLastDate || null,
+      lastBackupDate: parsed.lastBackupDate || null,
     };
     ta.value = '';
     saveState();
@@ -2939,8 +2975,9 @@
     // Apply loaded settings to UI
     const zoneEl = document.getElementById('zoneSelect');
     if (zoneEl) zoneEl.value = state.zone;
-  
+
     render();
+    autoBackupCheck();
   }
   
   init();
