@@ -200,6 +200,8 @@
   
     .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.undoable { pointer-events: auto; }
+    .toast-undo-btn { background: none; border: none; color: var(--amber); font-size: 13px; font-weight: 600; margin-left: 10px; cursor: pointer; padding: 0; }
   
     /* Loading overlay */
     .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: 14px; }
@@ -1055,6 +1057,8 @@
     return s === todayStr();
   }
   
+  let _undoBuffer = null;
+
   function completeTask(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
@@ -1072,6 +1076,7 @@
       state.completionHistory[id].push(Date.now());
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
     }
+    _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday };
     // Clear snooze if task was snoozed
     if (state.snoozed) delete state.snoozed[id];
     // Auto-unpin on completion
@@ -1085,7 +1090,50 @@
     }
     saveNow();
     render();
-    showToast('Done!');
+    if (task.oneOff) showToast('Done!');
+    else showUndoToast(id);
+  }
+
+  function undoComplete() {
+    if (!_undoBuffer) return;
+    const { id, prev, hadHistoryToday } = _undoBuffer;
+    _undoBuffer = null;
+    if (prev) state.completions[id] = prev;
+    else delete state.completions[id];
+    if (!hadHistoryToday && state.completionHistory && state.completionHistory[id]) {
+      const today = todayStr();
+      state.completionHistory[id] = state.completionHistory[id].filter(ts => {
+        const d = new Date(ts);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
+      });
+    }
+    saveNow();
+    render();
+    showToast('Undone');
+  }
+
+  function completeEarlier(id, daysAgo) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
+    state.completions[id] = ts;
+    if (!state.completionHistory) state.completionHistory = {};
+    if (!state.completionHistory[id]) state.completionHistory[id] = [];
+    state.completionHistory[id].push(ts);
+    state.completionHistory[id].sort((a,b) => a - b);
+    if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
+    if (state.starvation) state.starvation[id] = 0;
+    if (state.snoozed) delete state.snoozed[id];
+    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+    if (!isDue(task)) {
+      state.hand = (state.hand || []).filter(h => h !== id);
+      if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+    }
+    saveNow();
+    render();
+    showToast('Marked done ' + (daysAgo === 1 ? 'yesterday' : daysAgo + ' days ago'));
   }
   
   function flagTask(id) {
@@ -1389,6 +1437,7 @@
     const pinBtn = !isDone && !task.oneOff ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
     const removeBtn = !isDone ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
     const snoozeBtn = !isDone && !isPinned && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
+    const earlierBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'ep_' + task.id + '\')">did earlier</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
@@ -1424,8 +1473,14 @@
           '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',2)">2d</button>' +
           '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',3)">3d</button>' +
         '</div>' +
+        '<div class="snooze-picker-row" id="ep_' + task.id + '">' +
+          '<span style="font-size:12px;color:var(--text3)">Done:</span>' +
+          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',1)">yesterday</button>' +
+          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',2)">2d ago</button>' +
+          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
+        '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + removeBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + removeBtn + flagBtn + undoBtn + '</div>' +
     '</div>';
   }
   
@@ -2957,9 +3012,18 @@
   function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
+    t.classList.remove('undoable');
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function showUndoToast(id) {
+    const t = document.getElementById('toast');
+    t.innerHTML = 'Done! <button class="toast-undo-btn" onclick="undoComplete()">Undo</button>';
+    t.classList.add('show', 'undoable');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show', 'undoable'), 5000);
   }
   
   // ─── ASYNC INIT ────────────────────────────────────────────────────────────
