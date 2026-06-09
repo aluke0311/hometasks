@@ -328,6 +328,10 @@
       <div id="presetsContent"></div>
     </div>
   
+    <div id="statsView" style="display:none">
+      <div id="statsContent"></div>
+    </div>
+
     <div id="settingsView" style="display:none">
       <div id="settingsContent"></div>
     </div>
@@ -349,6 +353,10 @@
     <button class="tab" data-tab="presets" onclick="switchTab('presets')">
       <span class="tab-icon">🗂</span>
       <span class="tab-label">Presets</span>
+    </button>
+    <button class="tab" data-tab="stats" onclick="switchTab('stats')">
+      <span class="tab-icon">📊</span>
+      <span class="tab-label">Stats</span>
     </button>
     <button class="tab" data-tab="settings" onclick="switchTab('settings')">
       <span class="tab-icon">⚙️</span>
@@ -1294,6 +1302,7 @@
     else if (currentTab === 'sprint') renderSprint();
     else if (currentTab === 'manage') renderManage();
     else if (currentTab === 'presets') renderPresets();
+    else if (currentTab === 'stats') renderStats();
     else if (currentTab === 'settings') renderSettings();
   }
   
@@ -1541,7 +1550,7 @@
   
   function switchTab(tab) {
     currentTab = tab;
-    const views = ['alina', 'manage', 'sprint', 'presets', 'settings'];
+    const views = ['alina', 'manage', 'sprint', 'presets', 'stats', 'settings'];
     views.forEach(v => {
       const el = document.getElementById(v + 'View');
       if (el) el.style.display = tab === v ? 'block' : 'none';
@@ -2519,6 +2528,146 @@
     document.getElementById('presetsContent').innerHTML = html;
   }
   
+  // ─── STATS TAB ─────────────────────────────────────────────────────────────
+
+  function dayKeyOf(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function statsByDay() {
+    const allTasks = getAllTasks();
+    const timeById = {};
+    allTasks.forEach(t => timeById[t.id] = t.time);
+    TASKS.forEach(t => { if (!(t.id in timeById)) timeById[t.id] = t.time; });
+    const days = {};
+    Object.entries(state.completionHistory || {}).forEach(([id, stamps]) => {
+      (stamps || []).forEach(ts => {
+        const key = dayKeyOf(ts);
+        if (!days[key]) days[key] = { count: 0, minutes: 0 };
+        days[key].count++;
+        days[key].minutes += timeById[id] || 0;
+      });
+    });
+    return days;
+  }
+
+  function medianRealFreq(taskId) {
+    const h = (state.completionHistory || {})[taskId];
+    if (!h || h.length < 3) return null;
+    const sorted = [...h].sort((a,b) => a - b);
+    const intervals = [];
+    for (let i = 1; i < sorted.length; i++) intervals.push((sorted[i] - sorted[i-1]) / 86400000);
+    intervals.sort((a,b) => a - b);
+    const mid = Math.floor(intervals.length / 2);
+    const med = intervals.length % 2 ? intervals[mid] : (intervals[mid-1] + intervals[mid]) / 2;
+    return Math.round(med);
+  }
+
+  function renderStats() {
+    const days = statsByDay();
+    const today = new Date();
+
+    function keyDaysAgo(n) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - n);
+      return dayKeyOf(d.getTime());
+    }
+
+    // ── Streak: consecutive days with ≥1 completion, today not required yet ──
+    let streak = 0;
+    const start = (days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count > 0) ? 0 : 1;
+    for (let i = start; i < 365; i++) {
+      if (days[keyDaysAgo(i)] && days[keyDaysAgo(i)].count > 0) streak++;
+      else break;
+    }
+
+    // ── Week comparison (last 7 days vs the 7 before) ──
+    function sumRange(from, to) {
+      let count = 0, minutes = 0;
+      for (let i = from; i < to; i++) {
+        const d = days[keyDaysAgo(i)];
+        if (d) { count += d.count; minutes += d.minutes; }
+      }
+      return { count, minutes };
+    }
+    const thisWeek = sumRange(0, 7);
+    const lastWeek = sumRange(7, 14);
+
+    // ── Heatmap: 13 weeks, columns = weeks, rows = Sun–Sat ──
+    const totalDays = 91 + today.getDay(); // pad back to a Sunday
+    const cells = [];
+    let maxCount = 0;
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const key = keyDaysAgo(i);
+      const count = (days[key] && days[key].count) || 0;
+      if (count > maxCount) maxCount = count;
+      cells.push({ key, count, future: false });
+    }
+    const weeks = [];
+    for (let w = 0; w < cells.length; w += 7) weeks.push(cells.slice(w, w + 7));
+
+    function cellColor(count) {
+      if (count === 0) return 'background:var(--bg3)';
+      const op = count <= 2 ? 0.3 : count <= 4 ? 0.55 : count <= 7 ? 0.8 : 1;
+      return 'background:var(--green);opacity:' + op;
+    }
+    let heatHtml = '<div style="display:flex;gap:3px;justify-content:flex-start;overflow-x:auto;padding-bottom:4px">';
+    weeks.forEach(week => {
+      heatHtml += '<div style="display:flex;flex-direction:column;gap:3px">';
+      week.forEach(c => {
+        heatHtml += '<div title="' + c.key + ': ' + c.count + '" style="width:12px;height:12px;border-radius:3px;' + cellColor(c.count) + '"></div>';
+      });
+      heatHtml += '</div>';
+    });
+    heatHtml += '</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
+
+    // ── Chronically overdue ──
+    const allTasks = getAllTasks();
+    const chronic = allTasks
+      .map(t => ({ t, real: medianRealFreq(t.id) }))
+      .filter(x => x.real !== null && x.t.freq > 1 && x.real > x.t.freq * 1.5)
+      .sort((a,b) => (b.real / b.t.freq) - (a.real / a.t.freq))
+      .slice(0, 12);
+
+    let chronicHtml;
+    if (!chronic.length) {
+      chronicHtml = '<div class="settings-card-desc" style="margin-bottom:0">Nothing chronically behind &mdash; every task with enough history is getting done close to its target. 🎉</div>';
+    } else {
+      chronicHtml = chronic.map(x =>
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:0.5px solid var(--border);gap:10px">' +
+          '<div style="min-width:0"><div style="font-size:14px;color:var(--text)">' + x.t.name + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + x.t.room + '</div></div>' +
+          '<div style="font-size:12px;color:var(--amber);white-space:nowrap">every ~' + x.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
+        '</div>'
+      ).join('');
+    }
+
+    const html =
+      '<div style="padding-bottom:32px">' +
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">This Week</div>' +
+        '<div class="settings-stats-grid">' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + thisWeek.count + '</div><div class="settings-stat-label">done, last 7 days' + (lastWeek.count ? ' (prev: ' + lastWeek.count + ')' : '') + '</div></div>' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + fmtMinutes(thisWeek.minutes) + '</div><div class="settings-stat-label">est. effort' + (lastWeek.minutes ? ' (prev: ' + fmtMinutes(lastWeek.minutes) + ')' : '') + '</div></div>' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + streak + '</div><div class="settings-stat-label">day streak</div></div>' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + ((days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count) || 0) + '</div><div class="settings-stat-label">done today</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Activity</div>' +
+        heatHtml +
+      '</div>' +
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Chronically Overdue</div>' +
+        '<div class="settings-card-desc">Tasks whose real median interval (3+ completions) runs more than 1.5&times; their target.</div>' +
+        chronicHtml +
+      '</div>' +
+      '</div>';
+
+    document.getElementById('statsContent').innerHTML = html;
+  }
+
   // ─── SETTINGS TAB ──────────────────────────────────────────────────────────
   
   function renderSettings() {
