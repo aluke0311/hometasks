@@ -392,6 +392,29 @@
     </div>
   </div>
 
+  <!-- Log time modal -->
+  <div class="modal-backdrop" id="timeModal" onclick="if(event.target===this)closeTimeModal()">
+    <div class="modal">
+      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div class="modal-header">
+        <span class="modal-title">Log time</span>
+        <button class="modal-close" onclick="closeTimeModal()">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div id="timeModalTask" style="font-size:15px;font-weight:500"></div>
+        <div id="timeModalHint" style="font-size:12px;color:var(--text3)"></div>
+        <div>
+          <div class="field-label">Minutes</div>
+          <input class="field-input" id="timeModalMinutes" type="number" min="1" max="600" placeholder="e.g. 15">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn" onclick="closeTimeModal()">Discard</button>
+        <button class="modal-btn primary" onclick="saveTimeEntry()">Save time</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Why this task? modal -->
   <div class="modal-backdrop" id="whyModal" onclick="if(event.target===this)closeWhyModal()">
     <div class="modal">
@@ -890,16 +913,52 @@
 
   function toggleTimer(id) {
     if (activeTimer && activeTimer.id === id) {
+      const mins = Math.max(1, Math.round((Date.now() - activeTimer.startedAt) / 60000));
       activeTimer = null;
       clearInterval(timerInterval);
       render();
-      showToast('Timer discarded — check the task off to record time');
+      openTimeModal(id, mins, 'Timer stopped — confirm or adjust, or discard.');
       return;
     }
     activeTimer = { id, startedAt: Date.now() };
     startTimerTick();
     render();
-    showToast('Timer running — check off to record');
+    showToast('Timer running — stop it or check off to log time');
+  }
+
+  function recordTime(id, mins) {
+    if (!state.actualTimes) state.actualTimes = {};
+    if (!state.actualTimes[id]) state.actualTimes[id] = [];
+    state.actualTimes[id].push(mins);
+    if (state.actualTimes[id].length > 10) state.actualTimes[id].shift();
+    saveState();
+  }
+
+  let timeModalTaskId = null;
+
+  function openTimeModal(id, minutes, hint) {
+    const t = getAllTasks().find(x => x.id === id);
+    if (!t) return;
+    timeModalTaskId = id;
+    document.getElementById('timeModalTask').textContent = t.name;
+    document.getElementById('timeModalHint').textContent = hint || 'Logged times sharpen the estimate used for budgeting (median of last 10, needs 3+).';
+    document.getElementById('timeModalMinutes').value = minutes || '';
+    document.getElementById('timeModal').classList.add('open');
+  }
+
+  function closeTimeModal() {
+    document.getElementById('timeModal').classList.remove('open');
+    timeModalTaskId = null;
+  }
+
+  function saveTimeEntry() {
+    const mins = parseInt(document.getElementById('timeModalMinutes').value);
+    if (!mins || mins < 1 || mins > 600) { showToast('Enter minutes between 1 and 600'); return; }
+    const id = timeModalTaskId;
+    closeTimeModal();
+    recordTime(id, mins);
+    render();
+    showToast('⏱ ' + mins + 'm logged');
   }
 
   function inSeason(task) {
@@ -1200,15 +1259,10 @@
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
     }
     _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
-    // Record elapsed time if this task's timer is running (ignore <1 min and >4 h)
+    // Timer running on this task: stop it and let the modal confirm the entry
+    let _timedMins = null;
     if (activeTimer && activeTimer.id === id) {
-      const mins = Math.round((Date.now() - activeTimer.startedAt) / 60000);
-      if (mins >= 1 && mins <= 240) {
-        if (!state.actualTimes) state.actualTimes = {};
-        if (!state.actualTimes[id]) state.actualTimes[id] = [];
-        state.actualTimes[id].push(mins);
-        if (state.actualTimes[id].length > 10) state.actualTimes[id].shift();
-      }
+      _timedMins = Math.max(1, Math.round((Date.now() - activeTimer.startedAt) / 60000));
       activeTimer = null;
       clearInterval(timerInterval);
     }
@@ -1228,6 +1282,7 @@
     render();
     if (task.oneOff) showToast('Done!');
     else showUndoToast(id);
+    if (_timedMins !== null) openTimeModal(id, _timedMins, 'Done! Confirm the timed entry, adjust it, or discard.');
   }
 
   function undoComplete() {
@@ -1667,7 +1722,7 @@
     const whyBtn = !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();showWhy(\'' + task.id + '\')" title="Why was this dealt?">why?</button>' : '';
     const timerRunning = activeTimer && activeTimer.id === task.id;
     const timerBtn = !isDone ? (timerRunning
-      ? '<button class="task-btn" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">discard ⏱</button>'
+      ? '<button class="task-btn" style="color:var(--green);border-color:var(--green)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">stop ⏱</button>'
       : '<button class="task-btn" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">⏱ time it</button>') : '';
     const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
     const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started…') + '</button>' : '';
@@ -3347,6 +3402,7 @@
               '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + timeHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
             '</div>' +
             '<div class="manage-card-icons">' +
+              '<button class="icon-btn" onclick="openTimeModal(\'' + t.id + '\',\'\')" title="Log time manually">&#9201;</button>' +
               '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
               '<button class="icon-btn" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' +
               '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
