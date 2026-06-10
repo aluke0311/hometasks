@@ -91,14 +91,15 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `zoneMode` — `'auto'` (default; zone follows day-of-month: 1–7→Z1 … 29+→Z5 via `autoZone()`/`effectiveZone()`) | `'manual'`
 - `paused` / `pausedAt` — vacation mode; while paused no dealing or starvation ticks, on resume pre-pause completion timestamps shift forward by the pause duration
 - `taskMonths` — `{taskId: [1..12]}` seasonal windows; out-of-season tasks are excluded from dealing pools and starvation. `seasonalDefaultsApplied` guards the one-time defaults migration (porch tasks Mar–Nov, window-cleaning Apr–Oct)
-- `actualTimes` — `{taskId: minutes[]}` (last 10) recorded by the per-task timer; `taskTime()` returns the median of 3+ samples (else static `time`) and drives budget filling and time displays
+- `actualTimes` — `{taskId: minutes[]}` (last 10); fed by the timer (stop or check-off opens a confirm/adjust modal) or manual entry (⏲ icon in Manage); `taskTime()` returns the median of 3+ samples (else static `time`) and drives budget filling and time displays
+- `inProgress` — `{taskId: timestamp}` started-but-unfinished tasks (e.g. cat fountain in the dishwasher); carried into every new hand by `dealHand` until completed; cleared on complete/snooze/remove, restored by undo
 
 ### UI Tabs
 
 - **Today** — the main dealt hand; check off (undo toast), flag, snooze, "did earlier" backdating, "why?" score-breakdown modal (`scoreTaskParts`), per-task timer, and a quick-log search to record completions outside the hand
 - **Sprints** — timed sprint view of today's hand (per-task timer buttons here too)
 - **Presets** — generate and work through preset checklists: Guest Prep (day/overnight variants), Full Reset, Going Out of Town
-- **Stats** — 13-week heatmap, week-vs-week counts, streak, chronically-overdue list (all derived from `completionHistory`, no own state)
+- **Stats** — 13-week heatmap, week-vs-week counts, streak, Budget Insight (suggests budget changes from median non-daily throughput, apply-only), Chronically Overdue card, and full Completion Cadence list with due badges, +Today/flag, "set target Nd" adoption, and tap-name-to-edit. Real cadence (`cadenceInfo()`, colored `~Nd real`) also shows inline on Today and Manage cards
 - **Manage** — full task list with filters; add/edit/delete custom tasks, hide base tasks; month chips in the editor set seasonal windows
 - **Settings** — budget sliders, vacation mode toggle, backup card, import/export state (the zone selector lives on the Today tab)
 
