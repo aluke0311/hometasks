@@ -728,7 +728,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {} };
   }
   
   async function loadState() {
@@ -774,6 +774,7 @@
           taskMonths: parsed.taskMonths || {},
           seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
           actualTimes: parsed.actualTimes || {},
+          inProgress: parsed.inProgress || {},
         };
       }
     } catch (e) {
@@ -1082,6 +1083,10 @@
     allTasks.forEach(t => {
       if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
     });
+    // In-progress tasks carry into every new hand until finished
+    Object.keys(state.inProgress || {}).forEach(id => {
+      if (allTasks.find(t => t.id === id)) newHandIds.add(id);
+    });
     state.hand = [...newHandIds];
     state.handDate = today;
 
@@ -1194,7 +1199,7 @@
       state.completionHistory[id].push(Date.now());
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
     }
-    _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday };
+    _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
     // Record elapsed time if this task's timer is running (ignore <1 min and >4 h)
     if (activeTimer && activeTimer.id === id) {
       const mins = Math.round((Date.now() - activeTimer.startedAt) / 60000);
@@ -1207,8 +1212,9 @@
       activeTimer = null;
       clearInterval(timerInterval);
     }
-    // Clear snooze if task was snoozed
+    // Clear snooze / in-progress on completion
     if (state.snoozed) delete state.snoozed[id];
+    if (state.inProgress) delete state.inProgress[id];
     // Auto-unpin on completion
     if (state.pinnedIds && state.pinnedIds.includes(id)) {
       state.pinnedIds = state.pinnedIds.filter(p => p !== id);
@@ -1226,10 +1232,14 @@
 
   function undoComplete() {
     if (!_undoBuffer) return;
-    const { id, prev, hadHistoryToday } = _undoBuffer;
+    const { id, prev, hadHistoryToday, wasInProgress } = _undoBuffer;
     _undoBuffer = null;
     if (prev) state.completions[id] = prev;
     else delete state.completions[id];
+    if (wasInProgress) {
+      if (!state.inProgress) state.inProgress = {};
+      state.inProgress[id] = wasInProgress;
+    }
     if (!hadHistoryToday && state.completionHistory && state.completionHistory[id]) {
       const today = todayStr();
       state.completionHistory[id] = state.completionHistory[id].filter(ts => {
@@ -1277,6 +1287,19 @@
     saveState(); render();
   }
   
+  function toggleInProgress(id) {
+    if (!state.inProgress) state.inProgress = {};
+    if (state.inProgress[id]) {
+      delete state.inProgress[id];
+      showToast('No longer in progress');
+    } else {
+      state.inProgress[id] = Date.now();
+      showToast('Marked in progress — it\'ll stay in your hand until done');
+    }
+    saveState();
+    render();
+  }
+
   function uncompleteTask(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
@@ -1312,6 +1335,7 @@
   function removeFromHand(id) {
     state.hand = (state.hand || []).filter(h => h !== id);
     if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+    if (state.inProgress) delete state.inProgress[id]; // else it returns on next deal
     saveState();
     render();
   }
@@ -1626,6 +1650,9 @@
       const snoozeDate = new Date(snoozeUntil).toLocaleDateString('en-US', {month:'short', day:'numeric'});
       overdueHtml = '<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>';
     }
+
+    const isInProgress = !!(state.inProgress && state.inProgress[task.id]);
+    const inProgressBadge = !isDone && isInProgress ? '<span class="task-snoozed">&#9203; in progress</span>' : '';
   
     const ownerHtml = task.owner === 'bob' ? '<span class="owner-badge owner-bob">Bob</span>' : '';
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
@@ -1643,6 +1670,7 @@
       ? '<button class="task-btn" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">discard ⏱</button>'
       : '<button class="task-btn" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">⏱ time it</button>') : '';
     const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
+    const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started…') + '</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
@@ -1659,6 +1687,7 @@
             (!task.oneOff ? '<span class="task-freq">' + freqLabel(task.freq) + '</span>' : '') +
             '<span class="task-time">⏱ ' + fmtMinutes(taskTime(task)) + '</span>' +
             timerChip +
+            inProgressBadge +
             overdueHtml +
             ownerHtml +
           '</div>' +
@@ -1686,7 +1715,7 @@
           '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
         '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + swapBtn + startedBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
     '</div>';
   }
   
@@ -1932,6 +1961,10 @@
         const isDone = wasCompletedToday(t);
         const sPinned = state.pinnedIds && state.pinnedIds.includes(t.id);
         const sRunning = activeTimer && activeTimer.id === t.id;
+        const sInProgress = !!(state.inProgress && state.inProgress[t.id]);
+        const sProgressBtn = !isDone
+          ? '<button onclick="event.stopPropagation();toggleInProgress(\'' + t.id + '\')" title="' + (sInProgress ? 'Clear in progress' : 'Mark in progress') + '" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid ' + (sInProgress ? 'var(--amber)' : 'var(--border2)') + ';border-radius:6px;color:' + (sInProgress ? 'var(--amber)' : 'var(--text3)') + ';background:' + (sInProgress ? 'var(--amber-bg)' : 'transparent') + ';cursor:pointer;flex-shrink:0">&#9203;</button>'
+          : '';
         const sTimerBtn = !isDone
           ? '<button onclick="event.stopPropagation();toggleTimer(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid ' + (sRunning ? 'var(--red)' : 'var(--border2)') + ';border-radius:6px;color:' + (sRunning ? 'var(--red)' : 'var(--text3)') + ';background:transparent;cursor:pointer;flex-shrink:0">⏱</button>'
           : '';
@@ -1942,12 +1975,13 @@
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
-              '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + '</span>' +
+              '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + (sInProgress ? ' <span style="font-size:10px;color:var(--amber);background:var(--amber-bg);padding:1px 5px;border-radius:8px">&#9203; in progress</span>' : '') + '</span>' +
               (sRunning
                 ? '<span class="sprint-card-time" id="timerElapsed_' + t.id + '" style="color:var(--green);font-weight:600">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
                 : '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>') +
             '</div>' +
           '</div>' +
+          sProgressBtn +
           sTimerBtn +
           sRemoveBtn +
         '</div>';
@@ -3207,6 +3241,7 @@
       taskMonths: parsed.taskMonths || {},
       seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
       actualTimes: parsed.actualTimes || {},
+      inProgress: parsed.inProgress || {},
     };
     ta.value = '';
     saveState();
@@ -3575,6 +3610,7 @@
     state.snoozed[id] = Date.now() + days * 86400000;
     state.hand = (state.hand || []).filter(h => h !== id);
     if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+    if (state.inProgress) delete state.inProgress[id];
     saveState();
     render();
     showToast('Snoozed ' + days + 'd');
