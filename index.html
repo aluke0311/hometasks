@@ -2760,6 +2760,62 @@
     return Math.round(med);
   }
 
+  // Budget insight: compare actual non-daily throughput (median minutes/day over
+  // the last 28 days, zero-activity days excluded) against the configured budgets.
+  // Hand-agnostic by design: redeals, presets, and quick-logs all count the same.
+  function budgetSuggestion() {
+    const allTasks = getAllTasks();
+    const byId = {};
+    allTasks.forEach(t => byId[t.id] = t);
+    const days = {};
+    const today = todayStr();
+    Object.entries(state.completionHistory || {}).forEach(([id, stamps]) => {
+      const t = byId[id];
+      if (!t || t.freq <= 1) return;
+      (stamps || []).forEach(ts => {
+        if ((Date.now() - ts) / 86400000 > 28) return;
+        const key = dayKeyOf(ts);
+        if (key === today) return; // today is still in progress
+        if (!days[key]) {
+          const d = new Date(ts);
+          days[key] = { min: 0, weekend: d.getDay() === 0 || d.getDay() === 6 };
+        }
+        days[key].min += taskTime(t);
+      });
+    });
+    const wd = [], we = [];
+    Object.values(days).forEach(d => (d.weekend ? we : wd).push(d.min));
+    function median(arr) {
+      if (!arr.length) return null;
+      const s = [...arr].sort((a,b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 ? s[m] : Math.round((s[m-1] + s[m]) / 2);
+    }
+    function analyze(arr, current, minDays) {
+      const med = median(arr);
+      if (med === null || arr.length < minDays) return { median: med, days: arr.length, target: null };
+      let target = null;
+      if (Math.abs(med - current) >= Math.max(10, current * 0.2)) {
+        target = Math.max(15, Math.round(med / 5) * 5);
+        if (target === current) target = null;
+      }
+      return { median: med, days: arr.length, target };
+    }
+    return {
+      weekday: analyze(wd, state.budgetWeekday, 6),
+      weekend: analyze(we, state.budgetWeekend, 3),
+    };
+  }
+
+  function applyBudget(type, value) {
+    if (type === 'weekday') state.budgetWeekday = value;
+    else state.budgetWeekend = value;
+    state.hand = null;
+    saveState();
+    render();
+    showToast((type === 'weekday' ? 'Weekday' : 'Weekend') + ' budget set to ' + value + 'm');
+  }
+
   function renderStats() {
     const days = statsByDay();
     const today = new Date();
@@ -2868,6 +2924,29 @@
           '<div class="settings-stat-box"><div class="settings-stat-num">' + ((days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count) || 0) + '</div><div class="settings-stat-label">done today</div></div>' +
         '</div>' +
       '</div>' +
+      (function() {
+        const bs = budgetSuggestion();
+        function line(label, a, current, type) {
+          if (a.median === null) return '<div style="font-size:13px;color:var(--text3);padding:6px 0">' + label + ': not enough history yet.</div>';
+          let html = '<div style="padding:6px 0;border-bottom:0.5px solid var(--border)">' +
+            '<div style="font-size:13px;color:var(--text2)">' + label + ': you actually do <b>~' + a.median + 'm</b>/day of non-daily work (median of ' + a.days + ' active days) vs a <b>' + current + 'm</b> budget.</div>';
+          if (a.target !== null) {
+            html += '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
+              '<span style="font-size:13px;color:var(--amber)">Suggest ' + (a.target > current ? 'raising' : 'lowering') + ' to ' + a.target + 'm</span>' +
+              '<button class="settings-save-btn" onclick="applyBudget(\'' + type + '\',' + a.target + ')">Apply</button>' +
+            '</div>';
+          } else {
+            html += '<div style="font-size:12px;color:var(--green);margin-top:2px">Budget matches your real pace 👍</div>';
+          }
+          return html + '</div>';
+        }
+        return '<div class="settings-card">' +
+          '<div class="settings-card-title">Budget Insight</div>' +
+          '<div class="settings-card-desc">Based on what you actually complete (any source: hand, redeals, presets, quick-log) — vacation and zero days excluded. Suggestions only; nothing changes unless you apply.</div>' +
+          line('Weekdays', bs.weekday, state.budgetWeekday, 'weekday') +
+          line('Weekends', bs.weekend, state.budgetWeekend, 'weekend') +
+        '</div>';
+      })() +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Activity</div>' +
         heatHtml +
