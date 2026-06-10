@@ -1831,11 +1831,15 @@
       catTasks.forEach(t => assigned.add(t.id));
     }
   
-    // ── LAUNDRY ISOLATION: l_dryer, l_fold, l_put_away get their own block ──
+    // ── LAUNDRY: process steps + everything in the Laundry Room, one block ──
+    // Loads/tidy first (decide what's washing), then process steps in order.
     const LAUNDRY_IDS = ['l_dryer', 'l_fold', 'l_put_away'];
     const laundryTasks = hand
-      .filter(t => LAUNDRY_IDS.includes(t.id) && !assigned.has(t.id))
-      .sort((a, b) => LAUNDRY_IDS.indexOf(a.id) - LAUNDRY_IDS.indexOf(b.id));
+      .filter(t => (LAUNDRY_IDS.includes(t.id) || t.room === 'Laundry Room') && !assigned.has(t.id))
+      .sort((a, b) => {
+        const ai = LAUNDRY_IDS.indexOf(a.id), bi = LAUNDRY_IDS.indexOf(b.id);
+        return (ai === -1 ? -1 : ai) - (bi === -1 ? -1 : bi);
+      });
     if (laundryTasks.length) {
       blocks.push({ label: 'Laundry', tasks: laundryTasks });
       laundryTasks.forEach(t => assigned.add(t.id));
@@ -1848,12 +1852,11 @@
       'Living Room': 'Living spaces', 'Dining Room': 'Living spaces',
       'Sunroom': 'Living spaces', 'Back Room': 'Living spaces',
       'Office': 'Office',
-      'Laundry Room': 'Laundry room',
       'Hall & Stairs': 'Hall & entries', 'Mud Room': 'Hall & entries', 'Back Porch': 'Hall & entries',
       'Whole House': 'Around the house', 'Robot': 'Around the house',
       'Downstairs': 'Around the house', 'Upstairs': 'Around the house',
     };
-    const GROUP_ORDER = ['Bathrooms', 'Bedroom', 'Living spaces', 'Office', 'Laundry room', 'Hall & entries', 'Around the house'];
+    const GROUP_ORDER = ['Bathrooms', 'Bedroom', 'Living spaces', 'Office', 'Hall & entries', 'Around the house'];
   
     const remaining = hand.filter(t => !assigned.has(t.id));
     const groups = {};
