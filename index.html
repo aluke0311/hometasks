@@ -1708,6 +1708,9 @@
 
     const isInProgress = !!(state.inProgress && state.inProgress[task.id]);
     const inProgressBadge = !isDone && isInProgress ? '<span class="task-snoozed">&#9203; in progress</span>' : '';
+
+    const cad = task.oneOff ? null : cadenceInfo(task);
+    const cadHtml = cad ? '<span style="font-size:11px;color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>' : '';
   
     const ownerHtml = task.owner === 'bob' ? '<span class="owner-badge owner-bob">Bob</span>' : '';
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
@@ -1740,6 +1743,7 @@
           '<div class="task-meta">' +
             (task.room ? '<span class="task-room">' + task.room + '</span>' : '') +
             (!task.oneOff ? '<span class="task-freq">' + freqLabel(task.freq) + '</span>' : '') +
+            cadHtml +
             '<span class="task-time">⏱ ' + fmtMinutes(taskTime(task)) + '</span>' +
             timerChip +
             inProgressBadge +
@@ -2905,6 +2909,29 @@
     showToast((type === 'weekday' ? 'Weekday' : 'Weekend') + ' budget set to ' + value + 'm');
   }
 
+  // Cadence = how often a task really gets done vs its target frequency
+  function cadenceInfo(task) {
+    const real = medianRealFreq(task.id);
+    if (real === null) return null;
+    const ratio = real / Math.max(task.freq, 1);
+    const color = ratio > 1.5 ? 'var(--red)' : ratio > 1.15 ? 'var(--amber)' : ratio < 0.8 ? 'var(--blue)' : 'var(--green)';
+    return { real, ratio, color };
+  }
+
+  // Adopt the real cadence as the new target frequency (same override path as the editor)
+  function setTaskFreq(id, freq) {
+    const t = getAllTasks().find(x => x.id === id);
+    if (!t || !freq || freq < 1) return;
+    if (!state.customTasks) state.customTasks = {};
+    if (!state.deletedIds) state.deletedIds = [];
+    if (TASKS.find(x => x.id === id)) state.deletedIds = [...new Set([...state.deletedIds, id])];
+    state.customTasks[id] = { ...t, freq };
+    state.hand = null;
+    saveState();
+    render();
+    showToast('Target updated: every ' + freq + 'd');
+  }
+
   function renderStats() {
     const days = statsByDay();
     const today = new Date();
@@ -2963,44 +2990,53 @@
     heatHtml += '</div>' +
       '<div style="font-size:11px;color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
 
-    // ── Completion cadence: every task with 3+ completions, worst ratio first ──
+    // ── Cadence: every task with 3+ completions, worst ratio first ──
     const allTasks = getAllTasks();
     const tracked = allTasks
-      .map(t => ({ t, real: medianRealFreq(t.id), n: ((state.completionHistory || {})[t.id] || []).length }))
-      .filter(x => x.real !== null && !x.t.oneOff)
-      .sort((a,b) => (b.real / Math.max(b.t.freq, 1)) - (a.real / Math.max(a.t.freq, 1)));
+      .map(t => ({ t, cad: cadenceInfo(t), n: ((state.completionHistory || {})[t.id] || []).length }))
+      .filter(x => x.cad !== null && !x.t.oneOff)
+      .sort((a,b) => b.cad.ratio - a.cad.ratio);
+    const chronic = tracked.filter(x => x.cad.ratio > 1.5);
 
-    let chronicHtml;
-    if (!tracked.length) {
-      chronicHtml = '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
-    } else {
-      chronicHtml = tracked.map(x => {
-        const ratio = x.real / Math.max(x.t.freq, 1);
-        const cadColor = ratio > 1.5 ? 'var(--red)' : ratio > 1.15 ? 'var(--amber)' : ratio < 0.8 ? 'var(--blue)' : 'var(--green)';
-        const overdue = daysOverdue(x.t);
-        const dueBadge = !inSeason(x.t)
-          ? '<span class="task-notdue">&#10052; off-season</span>'
-          : wasCompletedToday(x.t)
-          ? '<span class="task-notdue">done today</span>'
-          : overdue >= 1 ? '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>'
-          : overdue >= 0 ? '<span class="task-overdue">due</span>'
-          : '<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>';
-        const inHand = !!(state.hand && state.hand.includes(x.t.id));
-        const isFlagged = (state.flaggedIds || []).includes(x.t.id);
-        const todayBtn = inHand
-          ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
-          : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
-        const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"' + (isFlagged ? '' : ' aria-label="flag"') + '><span style="' + (isFlagged ? '' : 'opacity:0.35') + '">🚩</span></button>';
-        return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
-          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
-            '<div style="min-width:0"><span style="font-size:14px;color:var(--text)">' + x.t.name + '</span>' +
-            ' <span style="font-size:11px;color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
-            '<div style="font-size:12px;color:' + cadColor + ';white-space:nowrap">every ~' + x.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
-          '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;margin-top:5px">' + dueBadge + '<span style="flex:1"></span>' + todayBtn + flagBtn + '</div>' +
-        '</div>';
-      }).join('');
+    function cadenceRow(x) {
+      const overdue = daysOverdue(x.t);
+      const dueBadge = !inSeason(x.t)
+        ? '<span class="task-notdue">&#10052; off-season</span>'
+        : wasCompletedToday(x.t)
+        ? '<span class="task-notdue">done today</span>'
+        : overdue >= 1 ? '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>'
+        : overdue >= 0 ? '<span class="task-overdue">due</span>'
+        : '<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>';
+      const inHand = !!(state.hand && state.hand.includes(x.t.id));
+      const isFlagged = (state.flaggedIds || []).includes(x.t.id);
+      const todayBtn = inHand
+        ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
+        : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
+      const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + '">🚩</span></button>';
+      const adoptBtn = Math.abs(x.cad.ratio - 1) > 0.25 && x.cad.real !== x.t.freq
+        ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
+        : '';
+      return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
+          '<div style="min-width:0"><span style="font-size:14px;color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:3px" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
+          ' <span style="font-size:11px;color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
+          '<div style="font-size:12px;color:' + x.cad.color + ';white-space:nowrap">every ~' + x.cad.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + todayBtn + flagBtn + '</div>' +
+      '</div>';
     }
+
+    const chronicCardHtml = '<div class="settings-card">' +
+      '<div class="settings-card-title">Chronically Overdue</div>' +
+      '<div class="settings-card-desc">Tasks whose real interval runs more than 1.5&times; their target.</div>' +
+      (chronic.length
+        ? chronic.map(cadenceRow).join('')
+        : '<div class="settings-card-desc" style="margin-bottom:0">Nothing chronically behind &mdash; every tracked task is reasonably on pace. 🎉</div>') +
+    '</div>';
+
+    const chronicHtml = tracked.length
+      ? tracked.map(cadenceRow).join('')
+      : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
 
     const html =
       '<div style="padding-bottom:32px">' +
@@ -3040,9 +3076,10 @@
         '<div class="settings-card-title">Activity</div>' +
         heatHtml +
       '</div>' +
+      chronicCardHtml +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Completion Cadence</div>' +
-        '<div class="settings-card-desc">How often each task really gets done (median interval, 3+ completions), worst-behind first. <span style="color:var(--red)">Red</span> = 1.5&times;+ behind target, <span style="color:var(--amber)">amber</span> = somewhat behind, <span style="color:var(--green)">green</span> = on pace, <span style="color:var(--blue)">blue</span> = more often than needed.</div>' +
+        '<div class="settings-card-desc">How often each task really gets done (median interval, 3+ completions), worst-behind first. <span style="color:var(--red)">Red</span> = 1.5&times;+ behind target, <span style="color:var(--amber)">amber</span> = somewhat behind, <span style="color:var(--green)">green</span> = on pace, <span style="color:var(--blue)">blue</span> = more often than needed. Tap a name to edit its target.</div>' +
         chronicHtml +
       '</div>' +
       '</div>';
@@ -3382,9 +3419,9 @@
       const mdpId = 'mdp_' + t.id;
       const inHand = !!(state.hand && state.hand.includes(t.id));
       const isFlagged = (state.flaggedIds || []).includes(t.id);
-      const avg = avgRealFreq(t.id);
-      const avgHint = avg !== null && avg > t.freq * 1.4
-        ? ' · <span style="color:var(--amber)">avg ' + avg + 'd</span>'
+      const cad = cadenceInfo(t);
+      const avgHint = cad !== null
+        ? ' · <span style="color:' + cad.color + '">~' + cad.real + 'd real</span>'
         : '';
       const samples = (state.actualTimes || {})[t.id] || [];
       const learned = taskTime(t);
