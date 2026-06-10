@@ -1079,9 +1079,17 @@
     const alwaysAssignedSet = new Set(alwaysAssigned);
 
     // Scored pool of all due non-daily tasks (laundry load tasks handled separately above)
-    const nonDailyPool = getDueTasks('alina').filter(t =>
-      t.freq > 1 && !pinnedSet.has(t.id) && !alwaysAssignedSet.has(t.id) && !LAUNDRY_LOAD_IDS.has(t.id)
-    );
+    // Flagged tasks bypass the isDue check so they always surface even if not yet overdue
+    const flaggedSet = new Set(state.flaggedIds || []);
+    const nonDailyPool = allTasks.filter(t =>
+      t.freq > 1 &&
+      (isDue(t) || flaggedSet.has(t.id)) &&
+      inSeason(t) &&
+      (t.owner === 'alina' || t.owner === 'either') &&
+      !pinnedSet.has(t.id) &&
+      !alwaysAssignedSet.has(t.id) &&
+      !LAUNDRY_LOAD_IDS.has(t.id)
+    ).sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
 
     // If a tier preference was requested, float that tier to the top while keeping score order within each group
     const pool = preferTier
@@ -2996,8 +3004,6 @@
       .map(t => ({ t, cad: cadenceInfo(t), n: ((state.completionHistory || {})[t.id] || []).length }))
       .filter(x => x.cad !== null && !x.t.oneOff)
       .sort((a,b) => b.cad.ratio - a.cad.ratio);
-    const chronic = tracked.filter(x => x.cad.ratio > 1.5);
-
     function cadenceRow(x) {
       const overdue = daysOverdue(x.t);
       const dueBadge = !inSeason(x.t)
@@ -3013,7 +3019,7 @@
         ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
         : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
       const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + '">🚩</span></button>';
-      const adoptBtn = Math.abs(x.cad.ratio - 1) > 0.25 && x.cad.real !== x.t.freq
+      const adoptBtn = x.cad.color !== 'var(--green)' && x.cad.real !== x.t.freq
         ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
         : '';
       return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
@@ -3025,14 +3031,6 @@
         '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + todayBtn + flagBtn + '</div>' +
       '</div>';
     }
-
-    const chronicCardHtml = '<div class="settings-card">' +
-      '<div class="settings-card-title">Chronically Overdue</div>' +
-      '<div class="settings-card-desc">Tasks whose real interval runs more than 1.5&times; their target.</div>' +
-      (chronic.length
-        ? chronic.map(cadenceRow).join('')
-        : '<div class="settings-card-desc" style="margin-bottom:0">Nothing chronically behind &mdash; every tracked task is reasonably on pace. 🎉</div>') +
-    '</div>';
 
     const chronicHtml = tracked.length
       ? tracked.map(cadenceRow).join('')
@@ -3076,7 +3074,6 @@
         '<div class="settings-card-title">Activity</div>' +
         heatHtml +
       '</div>' +
-      chronicCardHtml +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Completion Cadence</div>' +
         '<div class="settings-card-desc">How often each task really gets done (median interval, 3+ completions), worst-behind first. <span style="color:var(--red)">Red</span> = 1.5&times;+ behind target, <span style="color:var(--amber)">amber</span> = somewhat behind, <span style="color:var(--green)">green</span> = on pace, <span style="color:var(--blue)">blue</span> = more often than needed. Tap a name to edit its target.</div>' +
