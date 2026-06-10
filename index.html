@@ -2818,25 +2818,43 @@
     heatHtml += '</div>' +
       '<div style="font-size:11px;color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
 
-    // ── Chronically overdue ──
+    // ── Completion cadence: every task with 3+ completions, worst ratio first ──
     const allTasks = getAllTasks();
-    const chronic = allTasks
-      .map(t => ({ t, real: medianRealFreq(t.id) }))
-      .filter(x => x.real !== null && x.t.freq > 1 && x.real > x.t.freq * 1.5)
-      .sort((a,b) => (b.real / b.t.freq) - (a.real / a.t.freq))
-      .slice(0, 12);
+    const tracked = allTasks
+      .map(t => ({ t, real: medianRealFreq(t.id), n: ((state.completionHistory || {})[t.id] || []).length }))
+      .filter(x => x.real !== null && !x.t.oneOff)
+      .sort((a,b) => (b.real / Math.max(b.t.freq, 1)) - (a.real / Math.max(a.t.freq, 1)));
 
     let chronicHtml;
-    if (!chronic.length) {
-      chronicHtml = '<div class="settings-card-desc" style="margin-bottom:0">Nothing chronically behind &mdash; every task with enough history is getting done close to its target. 🎉</div>';
+    if (!tracked.length) {
+      chronicHtml = '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
     } else {
-      chronicHtml = chronic.map(x =>
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:0.5px solid var(--border);gap:10px">' +
-          '<div style="min-width:0"><div style="font-size:14px;color:var(--text)">' + x.t.name + '</div>' +
-          '<div style="font-size:11px;color:var(--text3)">' + x.t.room + '</div></div>' +
-          '<div style="font-size:12px;color:var(--amber);white-space:nowrap">every ~' + x.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
-        '</div>'
-      ).join('');
+      chronicHtml = tracked.map(x => {
+        const ratio = x.real / Math.max(x.t.freq, 1);
+        const cadColor = ratio > 1.5 ? 'var(--red)' : ratio > 1.15 ? 'var(--amber)' : ratio < 0.8 ? 'var(--blue)' : 'var(--green)';
+        const overdue = daysOverdue(x.t);
+        const dueBadge = !inSeason(x.t)
+          ? '<span class="task-notdue">&#10052; off-season</span>'
+          : wasCompletedToday(x.t)
+          ? '<span class="task-notdue">done today</span>'
+          : overdue >= 1 ? '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>'
+          : overdue >= 0 ? '<span class="task-overdue">due</span>'
+          : '<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>';
+        const inHand = !!(state.hand && state.hand.includes(x.t.id));
+        const isFlagged = (state.flaggedIds || []).includes(x.t.id);
+        const todayBtn = inHand
+          ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
+          : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
+        const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"' + (isFlagged ? '' : ' aria-label="flag"') + '><span style="' + (isFlagged ? '' : 'opacity:0.35') + '">🚩</span></button>';
+        return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
+            '<div style="min-width:0"><span style="font-size:14px;color:var(--text)">' + x.t.name + '</span>' +
+            ' <span style="font-size:11px;color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
+            '<div style="font-size:12px;color:' + cadColor + ';white-space:nowrap">every ~' + x.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:5px">' + dueBadge + '<span style="flex:1"></span>' + todayBtn + flagBtn + '</div>' +
+        '</div>';
+      }).join('');
     }
 
     const html =
@@ -2855,8 +2873,8 @@
         heatHtml +
       '</div>' +
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Chronically Overdue</div>' +
-        '<div class="settings-card-desc">Tasks whose real median interval (3+ completions) runs more than 1.5&times; their target.</div>' +
+        '<div class="settings-card-title">Completion Cadence</div>' +
+        '<div class="settings-card-desc">How often each task really gets done (median interval, 3+ completions), worst-behind first. <span style="color:var(--red)">Red</span> = 1.5&times;+ behind target, <span style="color:var(--amber)">amber</span> = somewhat behind, <span style="color:var(--green)">green</span> = on pace, <span style="color:var(--blue)">blue</span> = more often than needed.</div>' +
         chronicHtml +
       '</div>' +
       '</div>';
@@ -3385,7 +3403,7 @@
     if (!state.hand.includes(id)) {
       state.hand.push(id);
       saveState();
-      renderManage();
+      render();
       showToast('Added to today\'s hand');
     }
   }
