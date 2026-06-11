@@ -1110,9 +1110,19 @@
     let heavyCount = 0;
     const selected = [];
 
+    // Flagged tasks bypass the budget and heavy caps entirely — flag means "always in hand"
+    const flaggedTasks = pool.filter(t => flaggedSet.has(t.id));
+    const fillPool = pool.filter(t => !flaggedSet.has(t.id));
+    flaggedTasks.forEach(t => {
+      const tt = taskTime(t);
+      selected.push(t);
+      timeUsed += tt;
+      if (tt > HEAVY_THRESHOLD) heavyCount++;
+    });
+
     if (mode === 'byfreq') {
       // Sort by raw frequency; shuffle within same-freq for variety; honour tier preference if set
-      const freqPool = [...pool].sort((a, b) => {
+      const freqPool = [...fillPool].sort((a, b) => {
         if (preferTier) {
           const aMatch = getTaskTier(a) === preferTier ? 0 : 1;
           const bMatch = getTaskTier(b) === preferTier ? 0 : 1;
@@ -1134,7 +1144,7 @@
     } else {
       // Keep Up / Catch Up: score-sorted pool fills budget (algorithm decides)
       // Score already encodes the mode difference via overdueWeight (0.5 vs 0.8)
-      for (const task of pool) {
+      for (const task of fillPool) {
         const tt = taskTime(task);
         const isHeavy = tt > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
@@ -1189,7 +1199,17 @@
   
   function getOverflowTasks() {
     dealHand();
-    return getDueTasks('alina').filter(t => t.freq > 1 && !state.hand.includes(t.id));
+    // Flagged tasks count as due here so "+ more" can surface them even before their due date
+    const flaggedSet = new Set(state.flaggedIds || []);
+    const due = getDueTasks('alina');
+    const dueIds = new Set(due.map(t => t.id));
+    const flaggedNotDue = getAllTasks()
+      .filter(t =>
+        flaggedSet.has(t.id) && !dueIds.has(t.id) &&
+        inSeason(t) &&
+        (t.owner === 'alina' || t.owner === 'either')
+      );
+    return [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id));
   }
   
   function getNotDueTasks() {
