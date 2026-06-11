@@ -1056,7 +1056,8 @@
     const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
     const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
     const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
-    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday;
+    const inProgressLaundryLoad = Object.keys(state.inProgress || {}).some(id => LAUNDRY_LOAD_IDS.has(id));
+    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday || inProgressLaundryLoad;
     const dueLaundryLoads = allTasks
       .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
       .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
