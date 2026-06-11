@@ -1110,15 +1110,21 @@
     let heavyCount = 0;
     const selected = [];
 
-    // Flagged tasks bypass the budget and heavy caps entirely — flag means "always in hand"
+    // Flagged tasks fill first and count against the budget; the first flagged task is
+    // always dealt even when the budget is already spent, so flagging guarantees surfacing.
+    // Flagged tasks that don't fit remain reachable via "+ Give me more".
     const flaggedTasks = pool.filter(t => flaggedSet.has(t.id));
     const fillPool = pool.filter(t => !flaggedSet.has(t.id));
-    flaggedTasks.forEach(t => {
+    for (const t of flaggedTasks) {
       const tt = taskTime(t);
+      if (selected.length > 0) {
+        if (timeUsed >= budget) break;
+        if (timeUsed + tt > budget) break;
+      }
       selected.push(t);
       timeUsed += tt;
       if (tt > HEAVY_THRESHOLD) heavyCount++;
-    });
+    }
 
     if (mode === 'byfreq') {
       // Sort by raw frequency; shuffle within same-freq for variety; honour tier preference if set

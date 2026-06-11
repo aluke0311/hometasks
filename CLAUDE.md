@@ -60,7 +60,7 @@ Tiers are used only for the `_dealPreferTier` feature (redeal with a tier prefer
 
 If `_dealPreferTier` is set (via redeal with tier button), tasks of that tier float to the top of the pool for that deal only, then the field is deleted.
 
-**Flagged tasks:** enter the pool even when not yet due (flag bypasses `isDue`), and are selected unconditionally before the budget fill loop — they ignore the time budget and heavy-task cap but their time still counts toward `timeUsed`. `getOverflowTasks()` (the "+ Give me more" source) also includes flagged not-yet-due tasks.
+**Flagged tasks:** enter the pool even when not yet due (flag bypasses `isDue`) and fill **first in every mode** — critical for By Freq, where the raw-frequency sort would otherwise ignore the -50 flag bonus entirely. They count against the budget and dealing stops at the limit, except the first flagged task is always dealt (so flagging guarantees surfacing even when the budget is spent). Flagged tasks that don't fit, and `getOverflowTasks()` generally, surface via "+ Give me more", which includes flagged not-yet-due tasks.
 
 **Laundry slot logic:**
 - "Load" tasks (`lroom_myclothes`, `lroom_towels`, `lroom_microfiber`, `k_towels`) compete for a single daily slot — at most one is assigned per day, chosen by score (most overdue wins)
