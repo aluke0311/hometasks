@@ -741,6 +741,8 @@
   }
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
+  // Bump on each deploy so you can confirm a Reload actually picked up the new version.
+  const APP_VERSION = '2026-06-13';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -3241,6 +3243,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Reload app</div>' +
         '<div class="settings-card-desc">Reloads the page to pick up the latest version. Your data is saved — nothing is lost. (This is not the same as redealing today\'s hand.)</div>' +
+        '<div style="font-size:13px;color:var(--text2);margin-bottom:10px">Version: <b>' + APP_VERSION + '</b></div>' +
         '<button class="add-btn" style="width:100%" onclick="location.reload()">&#8635; Reload app</button>' +
       '</div>' +
 
