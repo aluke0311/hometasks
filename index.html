@@ -644,6 +644,7 @@
     { id:'lroom_myclothes',  name:'My clothes laundry',                  room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
     { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
     { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
+    { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
     { id:'lroom_duvet',      name:'Wash duvet cover',                    room:'Laundry Room',  freq:30,  time:8,  owner:'bob' },
     { id:'lroom_dust',       name:'Dust surfaces (laundry room)',        room:'Laundry Room',  freq:30,  time:5,  owner:'either' },
     { id:'lroom_trash',      name:'Empty trash (laundry room)',          room:'Laundry Room',  freq:30,  time:2,  owner:'either' },
@@ -1052,7 +1053,7 @@
 
     // Laundry: pick exactly one "what to wash" task per day (most overdue by score);
     // suppress the daily process steps if nothing is due to wash.
-    const LAUNDRY_LOAD_IDS = new Set(['lroom_myclothes','lroom_towels','lroom_microfiber','k_towels']);
+    const LAUNDRY_LOAD_IDS = new Set(['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels']);
     const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
     const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
     const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
@@ -1931,10 +1932,15 @@
     const blocks = [];
   
     // ── LAUNCH: passive/cycle-starting tasks ──
+    // Today's laundry load (towels, microfiber, whites…) rides along next to
+    // "Start a load of laundry" so you know what to wash when you launch it.
+    const SPRINT_LOAD_IDS = ['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels'];
     const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
-    const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id));
+    const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id) || SPRINT_LOAD_IDS.includes(t.id));
     if (launchTasks.length) {
-      blocks.push({ label: 'Launch', tasks: tidyFirst(launchTasks) });
+      const launchOrder = ['l_start', ...SPRINT_LOAD_IDS, 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
+      launchTasks.sort((a, b) => launchOrder.indexOf(a.id) - launchOrder.indexOf(b.id));
+      blocks.push({ label: 'Launch', tasks: launchTasks });
       launchTasks.forEach(t => assigned.add(t.id));
     }
   
@@ -3383,6 +3389,7 @@
   
   let manageOwnerFilter = 'all';
   let manageRoomFilter = 'all';
+  let manageDueFilter = 'all';
   let manageSearch = '';
   let editingId = null;
   let sprintHideCompleted = false;
@@ -3416,6 +3423,11 @@
           '<option value="all"' + (manageRoomFilter==='all'?' selected':'') + '>All rooms</option>' +
           roomOpts +
         '</select>' +
+        '<select class="filter-select" onchange="manageDueFilter=this.value;renderManage()">' +
+          '<option value="all"' + (manageDueFilter==='all'?' selected':'') + '>All status</option>' +
+          '<option value="due"' + (manageDueFilter==='due'?' selected':'') + '>Due now</option>' +
+          '<option value="notdue"' + (manageDueFilter==='notdue'?' selected':'') + '>Not due</option>' +
+        '</select>' +
       '</div>' +
       '<div class="manage-list">';
   
@@ -3424,6 +3436,11 @@
       if (t.oneOff) return false;
       if (manageOwnerFilter !== 'all' && t.owner !== manageOwnerFilter) return false;
       if (manageRoomFilter !== 'all' && t.room !== manageRoomFilter) return false;
+      if (manageDueFilter !== 'all') {
+        const isDueNow = inSeason(t) && daysOverdue(t) >= 0;
+        if (manageDueFilter === 'due' && !isDueNow) return false;
+        if (manageDueFilter === 'notdue' && isDueNow) return false;
+      }
       if (search && !t.name.toLowerCase().includes(search)) return false;
       return true;
     }).sort((a,b) => a.freq - b.freq || a.name.localeCompare(b.name));
@@ -3443,6 +3460,7 @@
       const mdpId = 'mdp_' + t.id;
       const inHand = !!(state.hand && state.hand.includes(t.id));
       const isFlagged = (state.flaggedIds || []).includes(t.id);
+      const isPinned = (state.pinnedIds || []).includes(t.id);
       const cad = cadenceInfo(t);
       const avgHint = cad !== null
         ? ' · <span style="color:' + cad.color + '">~' + cad.real + 'd real</span>'
@@ -3463,7 +3481,7 @@
               '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + timeHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
             '</div>' +
             '<div class="manage-card-icons">' +
-              '<button class="icon-btn" onclick="openTimeModal(\'' + t.id + '\',\'\')" title="Log time manually">&#9201;</button>' +
+              '<button class="icon-btn" onclick="togglePin(\'' + t.id + '\')" title="' + (isPinned ? 'Unpin' : 'Pin') + '" style="' + (isPinned ? '' : 'opacity:0.4') + '">&#128204;</button>' +
               '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
               '<button class="icon-btn" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' +
               '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
