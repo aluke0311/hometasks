@@ -2127,6 +2127,7 @@
     { id:'k_trash',            name:'Take out trash',                      room:'Kitchen',       time:2  },
     { id:'k_recycling_out',    name:'Take out recycling',                  room:'Kitchen',       time:2  },
     { id:'k_compost',          name:'Take out compost',                    room:'Kitchen',       time:2  },
+    { id:'k_fridge',           name:'Clean out fridge',                    room:'Kitchen',       time:15 },
     // Trash run
     { id:'dsb_trash',          name:'Empty trash (DS bath)',               room:'DS Bathroom',   time:2  },
     { id:'usb_trash',          name:'Empty trash (US bath)',               room:'US Bathroom',   time:2  },
@@ -2181,7 +2182,7 @@
 
   const FULL_RESET_SECTIONS = [
     { label:'Launch',         ids:['l_start','rob_run_ds','rob_run_us','rob_mop'] },
-    { label:'Kitchen',        ids:['k_dishwasher','k_tidy','k_counters','k_stove','k_sink','k_trash','k_recycling_out','k_compost'] },
+    { label:'Kitchen',        ids:['k_dishwasher','k_tidy','k_counters','k_stove','k_sink','k_trash','k_recycling_out','k_compost','k_fridge'] },
     { label:'Trash run',      ids:['dsb_trash','usb_trash','bed_trash','lroom_trash','off_trash','hs_trash'] },
     { label:'Bathrooms',      ids:['dsb_toilet','dsb_sink','dsb_mirror','dsb_mop','usb_toilet','usb_sink','usb_mirror','usb_mop'] },
     { label:'Cat care',       ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_litter_robot_bin','c_scoop_ds','c_feeders'] },
