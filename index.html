@@ -38,8 +38,6 @@
     .header-logo { display: flex; align-items: center; gap: 8px; }
     .header-logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; flex-shrink: 0; }
     .header-logo-text { font-size: 16px; font-weight: 500; color: var(--text); }
-    .header-refresh { background: var(--bg2); border: 0.5px solid var(--border2); color: var(--text2); width: 34px; height: 34px; border-radius: 8px; font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .header-refresh:active { background: var(--border2); }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   
     .tab-row { display: none; }
@@ -272,7 +270,6 @@
           <div class="header-logo-icon">🏠</div>
           <span class="header-logo-text">Home Tasks</span>
         </div>
-        <button class="header-refresh" onclick="location.reload()" title="Reload app (get the latest version)" aria-label="Reload app">&#8635;</button>
       </div>
     </div>
   
@@ -3238,6 +3235,13 @@
           ? '<div style="font-size:13px;color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
             '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
           : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
+      '</div>' +
+
+      // Card: Reload app
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Reload app</div>' +
+        '<div class="settings-card-desc">Reloads the page to pick up the latest version. Your data is saved — nothing is lost. (This is not the same as redealing today\'s hand.)</div>' +
+        '<button class="add-btn" style="width:100%" onclick="location.reload()">&#8635; Reload app</button>' +
       '</div>' +
 
       // Card 6: Backup
