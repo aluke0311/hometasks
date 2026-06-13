@@ -1445,7 +1445,7 @@
       return task && isDue(task);
     });
     if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
-    state.hand = [...dueIds];
+    state.hand = mergeStickyHand(dueIds);
     state.handDate = todayStr();
     state.guestHand = null;
     state.resetHand = null;
@@ -2325,7 +2325,7 @@
 
   function loadPostIllnessPhase(maxPhase) {
     const ids = POST_ILLNESS_SECTIONS.filter(s => s.phase <= maxPhase).flatMap(s => s.ids);
-    state.hand = [...ids];
+    state.hand = mergeStickyHand(ids);
     state.handDate = todayStr();
     if (state.presetHands) state.presetHands.postIllness = null;
     saveState();
@@ -2387,11 +2387,21 @@
     renderPresets();
   }
 
+  // Loading a preset replaces the hand, but pinned and in-progress tasks must
+  // ride along so an unfinished task (e.g. cat fountain in the dishwasher)
+  // isn't lost. Preset ids win their slot; sticky ids are appended if absent.
+  function mergeStickyHand(ids) {
+    const sticky = [...(state.pinnedIds || []), ...Object.keys(state.inProgress || {})];
+    const hand = [...ids];
+    sticky.forEach(id => { if (!hand.includes(id)) hand.push(id); });
+    return hand;
+  }
+
   function loadRoomPreset(roomId, depth) {
     const key = 'room_' + roomId + '_' + depth;
     const ids = state.presetHands && state.presetHands[key];
     if (!ids || !ids.length) return;
-    state.hand = [...ids];
+    state.hand = mergeStickyHand(ids);
     state.handDate = todayStr();
     state.presetHands[key] = null;
     saveState();
@@ -2405,7 +2415,7 @@
     const allTasks = getAllTasks();
     const dueIds = allIds.filter(id => { const t = allTasks.find(t => t.id === id); return t && isDue(t); });
     if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
-    state.hand = [...dueIds];
+    state.hand = mergeStickyHand(dueIds);
     state.handDate = todayStr();
     state.presetHands[key] = null;
     saveState();
@@ -2478,7 +2488,7 @@
                 preset === 'reset' ? state.resetHand :
                 state.goingOutHand;
     if (!ids || !ids.length) return;
-    state.hand = [...ids];
+    state.hand = mergeStickyHand(ids);
     state.handDate = todayStr();
     state.guestHand = null;
     state.resetHand = null;
@@ -2506,7 +2516,7 @@
   function loadNewPreset(type) {
     const ids = state.presetHands && state.presetHands[type];
     if (!ids || !ids.length) return;
-    state.hand = [...ids];
+    state.hand = mergeStickyHand(ids);
     state.handDate = todayStr();
     state.presetHands[type] = null;
     saveState();
@@ -2522,7 +2532,7 @@
       return t && isDue(t);
     });
     if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
-    state.hand = [...dueIds];
+    state.hand = mergeStickyHand(dueIds);
     state.handDate = todayStr();
     state.presetHands[type] = null;
     saveState();
@@ -2531,7 +2541,7 @@
 
   function loadRecoveryPhase(maxPhase) {
     const ids = RECOVERY_SECTIONS.filter(s => s.phase <= maxPhase).flatMap(s => s.ids);
-    state.hand = [...ids];
+    state.hand = mergeStickyHand(ids);
     state.handDate = todayStr();
     if (state.presetHands) state.presetHands.recovery = null;
     saveState();
