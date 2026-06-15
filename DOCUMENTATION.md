@@ -57,13 +57,13 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 | Render: My Hand | 1579–1760 |
 | `renderCard` | 1762–1862 |
 | "Why this task?" modal | 1866–1902 |
-| Sprint tab | 1905–2150 |
-| Presets (definitions + render; incl. Weekly Reset & Seasonal Deep Clean) | 2152–3000 |
-| Stats tab | 3096–3240 |
-| Settings tab | 3242–3360 |
-| Vacation / backup / import (`applyImport` ~3475) | 3360–3548 |
-| Manage tab + modals | 3549–3860 |
-| Misc UI helpers + `init()` | 3862–3962 |
+| Sprint tab (incl. `copySprint`) | 1905–2171 |
+| Presets (definitions + render; incl. Weekly Reset & Seasonal Deep Clean) | 2172–3040 |
+| Stats tab | 3129–3273 |
+| Settings tab | 3275–3400 |
+| Vacation / backup / import (`applyImport` ~3508) | 3400–3580 |
+| Manage tab + modals | 3582–3900 |
+| Misc UI helpers + `init()` | 3902–3995 |
 
 ---
 
@@ -292,6 +292,14 @@ A guided, room-grouped walkthrough of today's hand:
   Around the house) → Other.
 - Per-block remaining time, "Hide done" toggle, and per-task
   timer / in-progress / remove controls. Tapping a card completes it.
+- A 📋 **Copy** button (`copySprint()`) writes the whole sprint to the clipboard
+  as markdown for pasting into notes/messages: a title line with the date, a
+  `done/total · ~time left` summary, then each block numbered with its label and
+  total time estimate, and each task as a markdown task-list item
+  (`- [ ] name — Nm`, or `- [x]` when done today). It respects the "Hide done"
+  toggle — when on, completed tasks and fully-done blocks are dropped and the
+  remaining blocks renumber sequentially. Falls back to a toast if the Clipboard
+  API is unavailable.
 
 ### All Tasks (`manage`)
 
