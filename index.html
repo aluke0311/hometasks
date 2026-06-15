@@ -1229,7 +1229,8 @@
         inSeason(t) &&
         (t.owner === 'alina' || t.owner === 'either')
       );
-    const result = [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id));
+    const removedSet = new Set(state.removedToday || []);
+    const result = [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id) && !removedSet.has(t.id));
     // By Freq mode: surface overflow in raw-frequency order (flagged still first), matching the deal.
     // Otherwise the score-sorted due list would let overdue long-interval tasks jump ahead of frequent ones.
     if (state.mode === 'byfreq') {
