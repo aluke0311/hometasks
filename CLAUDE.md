@@ -145,11 +145,16 @@ Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
 ## Known Issues / Watch-outs
 
-- **Dead preset task ids:** `ROOM_PRESETS` deep lists reference `k_backsplash`, `dsb_exhaust`, and `bed_vacuum`, which don't exist in `TASKS`. They're silently dropped, so Kitchen/DS Bathroom/Bedroom "Deep" presets are missing those steps. Fix by adding the tasks or correcting the ids.
-- **`completeEarlier` has no same-day dedup:** unlike `completeTask` (which guards with `_alreadyToday`), repeatedly tapping "did earlier" for the same day pushes duplicate `completionHistory` entries, inflating cadence/heatmap counts.
-- **`applyImport` omits a few newer fields** (`removedToday`, `removedTodayDate`); they self-heal on the next `dealHand`, but keep `applyImport` in sync with `defaultState()`/`loadState()` when adding state.
-- **Preset display-name drift:** some preset arrays use different `name`/`room` text than `TASKS` for the same id (e.g. `c_feeders`, `k_stove`, `k_sink`, several `GOING_OUT_TASKS` rooms). Cosmetic only — checklists prefer the preset array's text.
-- **Settings zone reference lists "Front Porch"**, which is not a real room (no tasks, not in `ZONE_ROOMS`). Cosmetic.
+The June 2026 review bugs — dead preset task ids (`k_backsplash`, `dsb_exhaust`, `dsb_mop`, `bed_vacuum`), `completeEarlier` double-logging, `applyImport` field gaps, preset name/room drift, and the phantom "Front Porch" zone entry — were all **fixed on 2026-06-15**.
+
+Editing pitfalls that remain true (also encoded in the `app-update` skill):
+- **Adding state** requires a default in all three of `defaultState()`, `loadState()`, and `applyImport`, or import silently drops the field.
+- **Preset task ids** in lists that render via `getAllTasks()` (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_*`) must exist in `TASKS`, or they silently vanish; `completeTask` returns early for unknown ids, so a phantom checklist item can never be checked off.
+
+Minor known behaviors (by design / low priority):
+- Random Task ignores owner, so it can surface a Bob-only task to add to the hand.
+- Stats "est. effort" uses static `time` while Budget Insight uses learned `taskTime()`.
+- The `freq > 60` jitter reshuffles the overflow list on each render (cosmetic; the cached hand is unaffected).
 
 ## Deployment
 

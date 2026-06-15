@@ -350,8 +350,10 @@ Generated checklists are stored in `presetHands` keyed by type or
 `room_<id>_<depth>`, except the three legacy presets with dedicated fields
 (`guestHand`, `resetHand`, `goingOutHand`).
 
-> **Known gap:** the deep room presets reference three task ids that don't exist
-> (`k_backsplash`, `dsb_exhaust`, `bed_vacuum`); they're silently dropped.
+> Preset id lists that render via `getAllTasks()` must reference ids that exist
+> in `TASKS` — unknown ids silently drop, and `completeTask` returns early for
+> them so they can't be checked off. (The obsolete deep-room ids were pruned on
+> 2026-06-15.)
 
 ---
 
@@ -470,16 +472,15 @@ It's always "due", and is removed entirely after completion.
   because `dealHand` re-adds anything completed today.
 - **Flagged + budget.** The first flagged task always surfaces; subsequent
   flagged tasks respect the budget and overflow to "Give me more".
-- **Heavy cap interaction.** Always-assigned (`c_fountain`, laundry load) and
-  flagged heavy tasks count toward the 2-heavy cap, so an unusually heavy
-  always-assigned day can leave little room for other big jobs.
+- **Heavy cap interaction.** As of 2026-06-15 every always-assigned task
+  (`c_fountain` and the laundry loads) is ≤5 min, so none are "heavy" — only
+  flagged tasks over 15 min consume the 2-heavy cap. Re-check this if a heavy
+  task is ever added to the always-assigned set.
 - **Jitter re-randomizes overflow ordering** for `freq > 60` tasks on each
   render (cosmetic — the cached hand is unaffected).
-- **`completeEarlier` lacks same-day dedup** (unlike `completeTask`): tapping
-  "did earlier" twice for the same day double-counts in history/stats.
-- **`applyImport` omits `removedToday`/`removedTodayDate`**; they self-heal on
-  the next deal.
-- **Preset name drift / dead ids** — see §8 and CLAUDE.md "Known Issues".
+- **Preset ids must exist in `TASKS`** for lists that render via
+  `getAllTasks()`, or they silently drop; `completeTask` returns early for
+  unknown ids, so a phantom checklist item can't be checked off.
 
 ---
 
