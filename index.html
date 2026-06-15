@@ -1219,7 +1219,18 @@
         inSeason(t) &&
         (t.owner === 'alina' || t.owner === 'either')
       );
-    return [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id));
+    const result = [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id));
+    // By Freq mode: surface overflow in raw-frequency order (flagged still first), matching the deal.
+    // Otherwise the score-sorted due list would let overdue long-interval tasks jump ahead of frequent ones.
+    if (state.mode === 'byfreq') {
+      result.sort((a, b) => {
+        const aFlag = flaggedSet.has(a.id) ? 0 : 1;
+        const bFlag = flaggedSet.has(b.id) ? 0 : 1;
+        if (aFlag !== bFlag) return aFlag - bFlag;
+        return a.freq - b.freq;
+      });
+    }
+    return result;
   }
   
   function getNotDueTasks() {
