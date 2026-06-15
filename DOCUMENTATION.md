@@ -47,7 +47,7 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 |------|-------|
 | CSS | 9–265 |
 | Body markup (views, nav, modals) | 266–480 |
-| `TASKS` array (182 entries) | 483–709 |
+| `TASKS` array (177 entries) | 483–703 |
 | `DEFAULT_MONTHS`, `ZONE_ROOMS` | 711–745 |
 | Storage layer (`loadState`/`saveState`/`defaultState`) | 746–840 |
 | Core logic (due, season, zone, scoring) | 842–1047 |
@@ -96,10 +96,8 @@ Each base task is an object in the `TASKS` array:
 `Cats`, `Kitchen`, `Laundry Room`, `Bedroom`, `Downstairs`, `Upstairs`,
 `Robot`, `Living Room`, `Dining Room`, `DS Bathroom`, `US Bathroom`, `Sunroom`,
 `Office`, `Back Room`, `Hall & Stairs`, `Mud Room`, `Back Porch`,
-`Whole House`, `Home Maintenance`. (Custom tasks may introduce others.) The
-`Home Maintenance` room (furnace filter, dryer vent & duct, smoke/CO detector
-test, water-heater flush, gutters) is intentionally in no zone — safety/appliance
-upkeep that shouldn't compete for zone bonuses.
+`Whole House`. (Custom tasks may introduce others.) `Whole House`, `Robot`,
+`Downstairs`, and `Upstairs` are zone-less — tasks in them don't receive zone bonuses.
 
 ### Custom tasks & overrides
 
@@ -517,7 +515,7 @@ It's always "due", and is removed entirely after completion.
 GitHub Pages. To ship a change:
 
 1. Edit `index.html`.
-2. Bump `APP_VERSION` to the current date (so a reload can be confirmed).
+2. Bump `APP_VERSION` to `YYYY-MM-DD vN` — start at `v1` for a new date, or increment `vN` if today's date is already in the current version (e.g. `v1` → `v2`).
 3. Verify in the browser preview.
 4. Commit + push. The live site updates; user `localStorage` is untouched.
 5. Note `✅ No export needed` or `⚠️ Export needed before deploying`.
