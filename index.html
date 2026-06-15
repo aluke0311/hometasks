@@ -486,12 +486,11 @@
     { id:'c_water_ds',       name:'Replace downstairs water',            room:'Cats',          freq:2,   time:2,  cat:true,  owner:'alina' },
     { id:'c_water_bowl_up',  name:'Wash upstairs water bowl',            room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
     { id:'c_water_bowl_ds',  name:'Wash downstairs water bowl',          room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
-    { id:'c_food_mats',      name:'Disinfect cat food mats',             room:'Cats',          freq:30,  time:5,  cat:true,  owner:'alina' },
-    { id:'c_cat_beds',       name:'Wash cat beds',                       room:'Cats',          freq:90,  time:10, cat:true,  owner:'alina' },
   
     // ── CAT LITTER / FEEDERS (bob) ──
     { id:'c_scoop_ds',       name:'Scoop downstairs litter',             room:'Cats',          freq:1,   time:3,  cat:true,  owner:'bob' },
     { id:'c_feeders',        name:'Clean feeders',                       room:'Cats',          freq:14,  time:10, cat:true,  owner:'bob' },
+    { id:'custom_1781494271558', name:'Clean upstairs feeder',           room:'Cats',          freq:14,  time:7,  owner:'either' },
     { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'bob' },
     { id:'c_litter_robot_wipe', name:'Wipe inside Litter Robot',         room:'Cats',          freq:21,  time:8,  cat:true,  owner:'bob' },
     { id:'c_litter_ds_change', name:'Change downstairs litter (full)',   room:'Cats',          freq:30,  time:10, cat:true,  owner:'bob' },
@@ -515,23 +514,21 @@
   
     // ── ROBOT VACUUMS ──
     { id:'rob_run_ds',       name:'Run robot vacuum (downstairs)',        room:'Downstairs',    freq:1,   time:2,  owner:'either' },
-    { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:7,   time:2,  owner:'either' },
-    { id:'rob_water',        name:'Refill robot water & empty dirty tank', room:'Robot',       freq:7,   time:5,  owner:'alina' },
-    { id:'rob_mop_pads',     name:'Clean robot mop pads',                room:'Robot',         freq:7,   time:5,  owner:'alina' },
-    { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:7,   time:2,  owner:'either' },
+    { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:4,   time:2,  owner:'either' },
+    { id:'rob_water',        name:'Refill robot water & empty dirty tank', room:'Robot',       freq:14,  time:5,  owner:'alina' },
+    { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:4,   time:2,  owner:'either' },
     { id:'rob_filters',      name:'Clean robot filters',                  room:'Robot',         freq:30,  time:5,  owner:'alina' },
     { id:'rob_sensors',      name:'Wipe robot sensors',                   room:'Robot',         freq:30,  time:5,  owner:'alina' },
     { id:'rob_deep',         name:'Deep clean robot',                     room:'Robot',         freq:90,  time:20, owner:'alina' },
   
     // ── KITCHEN ──
-    { id:'k_recycling_out',  name:'Take out recycling',                  room:'Kitchen',       freq:4,   time:2,  owner:'either' },
+    { id:'k_recycling_out',  name:'Take out recycling',                  room:'Kitchen',       freq:3,   time:2,  owner:'either' },
     { id:'k_compost',        name:'Take out compost',                    room:'Kitchen',       freq:4,   time:2,  owner:'bob' },
     { id:'k_trash',          name:'Take out trash',                      room:'Kitchen',       freq:7,   time:2,  owner:'either' },
     { id:'k_sink',           name:'Clean sink',                          room:'Kitchen',       freq:7,   time:5,  owner:'either' },
     { id:'k_stove',          name:'Clean stovetop',                      room:'Kitchen',       freq:7,   time:8,  owner:'alina' },
     { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  owner:'alina' },
-    { id:'k_backsplash',     name:'Degrease backsplash',                 room:'Kitchen',       freq:7,   time:8,  owner:'either' },
-    { id:'k_water_bottle',   name:'Wash water bottle',                   room:'Kitchen',       freq:7,   time:3,  owner:'alina' },
+    { id:'k_water_bottle',   name:'Wash water bottle',                   room:'Kitchen',       freq:3,   time:3,  owner:'alina' },
     { id:'k_fridge',         name:'Clean out fridge',                    room:'Kitchen',       freq:14,  time:15, owner:'either' },
     { id:'k_hood',           name:'Clean kitchen hood',                  room:'Kitchen',       freq:21,  time:10, owner:'either' },
     { id:'k_toaster',        name:'Clean toaster',                       room:'Kitchen',       freq:30,  time:5,  owner:'either' },
@@ -551,7 +548,6 @@
     { id:'k_freezer',        name:'Clean freezer',                       room:'Kitchen',       freq:90,  time:20, owner:'either' },
     { id:'k_dishwash_deep',  name:'Clean dishwasher',                    room:'Kitchen',       freq:90,  time:15, owner:'either' },
     { id:'k_butcher',        name:'Oil butcher block',                   room:'Kitchen',       freq:90,  time:8,  owner:'either' },
-    { id:'k_grocery_bags',   name:'Wash reusable grocery bags',          room:'Kitchen',       freq:90,  time:8,  owner:'either' },
     { id:'k_soap',           name:'Refill soap (kitchen)',               room:'Kitchen',       freq:90,  time:2,  owner:'either' },
     { id:'k_scrub_cup',      name:'Wash scrub brush cup',                room:'Kitchen',       freq:90,  time:5,  owner:'either' },
     { id:'k_recycling',      name:'Clean recycling bin',                 room:'Kitchen',       freq:120, time:10, owner:'either' },
@@ -576,7 +572,7 @@
   
     // ── DINING ROOM ──
     { id:'dr_table',         name:'Wipe table',                          room:'Dining Room',   freq:2,   time:3,  owner:'either' },
-    { id:'dr_tidy',          name:'Dining room tidy',                    room:'Dining Room',   freq:4,   time:5,  owner:'either' },
+    { id:'dr_tidy',          name:'Dining room tidy',                    room:'Dining Room',   freq:3,   time:5,  owner:'either' },
     { id:'dr_dust',          name:'Dust surfaces (dining)',              room:'Dining Room',   freq:21,  time:8,  owner:'either' },
     { id:'dr_purifier',      name:'Vacuum air purifier filter (dining)', room:'Dining Room',   freq:21,  time:5,  owner:'either' },
     { id:'dr_chairs',        name:'Vacuum chairs (dining)',              room:'Dining Room',   freq:180, time:10, owner:'either' },
@@ -591,10 +587,7 @@
     { id:'dsb_tub_vac',      name:'Vacuum tub (DS bath)',                room:'DS Bathroom',   freq:7,   time:5,  owner:'bob' },
     { id:'dsb_trash',        name:'Empty trash (DS bath)',               room:'DS Bathroom',   freq:30,  time:2,  owner:'either' },
     { id:'dsb_towels',       name:'Replace hand towels (DS bath)',       room:'DS Bathroom',   freq:10,  time:2,  owner:'either' },
-    { id:'dsb_mirror',       name:'Clean mirror (DS bath)',              room:'DS Bathroom',   freq:14,  time:5,  owner:'bob' },
-    { id:'dsb_mop',          name:'Mop floor (DS bath)',                 room:'DS Bathroom',   freq:14,  time:8,  owner:'either' },
-    { id:'dsb_mats',         name:'Wash bath mats (DS bath)',            room:'DS Bathroom',   freq:30,  time:5,  owner:'either' },
-    { id:'dsb_exhaust',      name:'Clean exhaust fan (DS bath)',         room:'DS Bathroom',   freq:30,  time:8,  owner:'either' },
+    { id:'dsb_mirror',       name:'Clean mirror (DS bath)',              room:'DS Bathroom',   freq:14,  time:5,  owner:'either' },
     { id:'dsb_tub',          name:'Clean shower/bath (DS bath)',         room:'DS Bathroom',   freq:60,  time:20, owner:'bob' },
     { id:'dsb_soap',         name:'Refill soap (DS bath)',               room:'DS Bathroom',   freq:90,  time:2,  owner:'either' },
     { id:'dsb_handles',      name:'Disinfect handles & switches (DS bath)', room:'DS Bathroom', freq:90, time:5, owner:'either' },
@@ -606,12 +599,10 @@
     { id:'usb_sink',         name:'Clean sink (US bath)',                room:'US Bathroom',   freq:7,   time:5,  owner:'alina' },
     { id:'usb_towels',       name:'Replace hand towels (US bath)',       room:'US Bathroom',   freq:7,   time:2,  owner:'either' },
     { id:'usb_trash',        name:'Empty trash (US bath)',               room:'US Bathroom',   freq:7,   time:2,  owner:'either' },
-    { id:'usb_mirror',       name:'Clean mirror (US bath)',              room:'US Bathroom',   freq:7,   time:5,  owner:'bob' },
+    { id:'usb_mirror',       name:'Clean mirror (US bath)',              room:'US Bathroom',   freq:7,   time:5,  owner:'either' },
     { id:'usb_shower',       name:'Clean shower (US bath)',              room:'US Bathroom',   freq:14,  time:15, owner:'bob' },
     { id:'usb_mop',          name:'Mop floor (US bath)',                 room:'US Bathroom',   freq:14,  time:8,  owner:'either' },
     { id:'usb_cups',         name:'Wash cups (US bath)',                 room:'US Bathroom',   freq:14,  time:5,  owner:'either' },
-    { id:'usb_mats',         name:'Wash bath mats (US bath)',            room:'US Bathroom',   freq:30,  time:5,  owner:'either' },
-    { id:'usb_exhaust',      name:'Clean exhaust fan (US bath)',         room:'US Bathroom',   freq:30,  time:8,  owner:'either' },
     { id:'usb_soap',         name:'Refill soap (US bath)',               room:'US Bathroom',   freq:60,  time:2,  owner:'either' },
     { id:'usb_grout',        name:'Steam clean grout',                   room:'US Bathroom',   freq:90,  time:30, owner:'bob' },
     { id:'usb_brush',        name:'Clean toilet brush',                  room:'US Bathroom',   freq:90,  time:5,  owner:'either' },
@@ -622,13 +613,12 @@
   
     // ── BEDROOM ──
     { id:'bed_clothes',      name:'Clean clothes off dresser',           room:'Bedroom',       freq:3,   time:5,  owner:'either' },
-    { id:'bed_vacuum',       name:'Vacuum floor (bedroom)',              room:'Bedroom',       freq:7,   time:8,  owner:'either' },
     { id:'bed_tidy',         name:'Tidy up (bedroom)',                   room:'Bedroom',       freq:7,   time:8,  owner:'either' },
     { id:'bed_dust',         name:'Dust surfaces (bedroom)',             room:'Bedroom',       freq:14,  time:8,  owner:'either' },
     { id:'bed_trash',        name:'Empty trash (bedroom)',               room:'Bedroom',       freq:14,  time:2,  owner:'either' },
     { id:'bed_sheets',       name:'Change bed sheets & wash',            room:'Bedroom',       freq:14,  time:15, owner:'bob' },
     { id:'bed_purifier',     name:'Vacuum air purifier filter (bedroom)', room:'Bedroom',      freq:21,  time:5,  owner:'either' },
-    { id:'bed_behind',       name:'Vacuum behind bed',                   room:'Bedroom',       freq:30,  time:8,  owner:'either' },
+    { id:'bed_behind',       name:'Vacuum behind bed',                   room:'Bedroom',       freq:60,  time:5,  owner:'either' },
     { id:'bed_drawer',       name:'Organize one drawer',                 room:'Bedroom',       freq:30,  time:10, owner:'either' },
     { id:'bed_mop_up',       name:'Mop upstairs',                        room:'Bedroom',       freq:30,  time:15, owner:'either' },
     { id:'bed_fan_filters',  name:'Replace ceiling fan filters',         room:'Bedroom',       freq:90,  time:10, owner:'bob' },
@@ -670,12 +660,11 @@
     { id:'off_win',          name:'Clean windows (office)',              room:'Office',        freq:180, time:15, owner:'either' },
   
     // ── BACK ROOM ──
-    { id:'br_tidy',          name:'Tidy back room',                      room:'Back Room',     freq:7,   time:5,  owner:'either' },
-    { id:'br_treadmill',     name:'Clean treadmill',                     room:'Back Room',     freq:7,   time:5,  owner:'either' },
+    { id:'br_tidy',          name:'Tidy back room',                      room:'Back Room',     freq:9,   time:5,  owner:'either' },
+    { id:'br_treadmill',     name:'Clean treadmill',                     room:'Back Room',     freq:30,  time:5,  owner:'either' },
     { id:'br_vacuum',        name:'Vacuum rug (back room)',              room:'Back Room',     freq:14,  time:5,  owner:'either' },
     { id:'br_dust',          name:'Dust surfaces (back room)',           room:'Back Room',     freq:21,  time:8,  owner:'either' },
     { id:'br_mirror',        name:'Clean mirror (back room)',            room:'Back Room',     freq:60,  time:5,  owner:'either' },
-    { id:'br_upholstery',    name:'Vacuum upholstery (back room)',       room:'Back Room',     freq:90,  time:15, owner:'either' },
     { id:'br_fan',           name:'Dust fixtures (back room)',           room:'Back Room',     freq:180, time:8,  owner:'either' },
     { id:'br_win',           name:'Clean windows (back room)',           room:'Back Room',     freq:180, time:15, owner:'either' },
   
@@ -695,14 +684,15 @@
   
     // ── BACK PORCH ──
     { id:'bp_tidy',          name:'Tidy back porch',                     room:'Back Porch',    freq:7,   time:8,  owner:'either' },
-    { id:'bp_sweep',         name:'Sweep back porch',                    room:'Back Porch',    freq:30,  time:8,  owner:'either' },
+    { id:'bp_sweep',         name:'Vacuum back porch couch',             room:'Back Porch',    freq:21,  time:8,  owner:'either' },
     { id:'bp_furniture',     name:'Wipe porch furniture',                room:'Back Porch',    freq:90,  time:10, owner:'either' },
   
     // ── WHOLE HOUSE ──
     { id:'house_doorknobs',  name:'Disinfect doorknobs & switches',      room:'Whole House',   freq:42,  time:8,  owner:'either' },
     { id:'house_entryway',   name:'Sweep entryway',                      room:'Whole House',   freq:42,  time:5,  owner:'either' },
-    { id:'house_vents',      name:'Dust vents',                          room:'Whole House',   freq:30,  time:10, owner:'either' },
+    { id:'house_vents',      name:'Dust vents',                          room:'Whole House',   freq:90,  time:10, owner:'either' },
     { id:'house_furnace',    name:'Change furnace filter',               room:'Whole House',   freq:60,  time:10, owner:'bob' },
+    { id:'custom_1776614703299', name:'Replace Pura fragrances',         room:'Whole House',   freq:30,  time:8,  owner:'either' },
   ];
   
   // Seasonal defaults: months (1–12) when a task is in season. Applied once via
@@ -3575,8 +3565,11 @@
   
   function getAllTasks() {
     const deleted = state.deletedIds || [];
-    const custom = Object.values(state.customTasks || {});
-    return [...TASKS.filter(t => !deleted.includes(t.id)), ...custom];
+    const custom = state.customTasks || {};
+    // A custom task always wins over a base task with the same id (override pattern),
+    // so suppress the base entry whether it was hidden via deletedIds or overridden.
+    const baseFiltered = TASKS.filter(t => !deleted.includes(t.id) && !custom[t.id]);
+    return [...baseFiltered, ...Object.values(custom)];
   }
   
   let editingMonths = new Set();
