@@ -754,7 +754,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null };
   }
   
   async function loadState() {
@@ -801,6 +801,8 @@
           seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
           actualTimes: parsed.actualTimes || {},
           inProgress: parsed.inProgress || {},
+          removedToday: parsed.removedToday || [],
+          removedTodayDate: parsed.removedTodayDate || null,
         };
       }
     } catch (e) {
@@ -1037,6 +1039,8 @@
 
   function dealHand() {
     const today = todayStr();
+    // Tasks removed from the hand stay out of the deal until the next day
+    if (state.removedTodayDate !== today) { state.removedToday = []; state.removedTodayDate = today; }
     if (state.handDate === today && state.hand) return;
 
     // Vacation mode: keep the existing hand, skip dealing and starvation ticks
@@ -1174,7 +1178,13 @@
     Object.keys(state.inProgress || {}).forEach(id => {
       if (allTasks.find(t => t.id === id)) newHandIds.add(id);
     });
-    state.hand = [...newHandIds];
+    // Tasks removed today stay out of any redeal until tomorrow (unless completed today)
+    const removedSet = new Set(state.removedToday || []);
+    state.hand = [...newHandIds].filter(id => {
+      if (!removedSet.has(id)) return true;
+      const t = allTasks.find(x => x.id === id);
+      return t && wasCompletedToday(t);
+    });
     state.handDate = today;
 
     // Starvation: tick once per calendar day
@@ -1440,6 +1450,9 @@
     state.hand = (state.hand || []).filter(h => h !== id);
     if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
     if (state.inProgress) delete state.inProgress[id]; // else it returns on next deal
+    // Keep it out of any redeal until tomorrow
+    if (state.removedTodayDate !== todayStr()) { state.removedToday = []; state.removedTodayDate = todayStr(); }
+    if (!state.removedToday.includes(id)) state.removedToday.push(id);
     saveState();
     render();
   }
@@ -1477,6 +1490,8 @@
   
   function pinTask(id) {
     if (!state.pinnedIds) state.pinnedIds = [];
+    // Pinning a previously-removed task overrides the for-today removal
+    if (state.removedToday) state.removedToday = state.removedToday.filter(x => x !== id);
     if (state.pinnedIds.includes(id)) return;
     state.pinnedIds.push(id);
     // If task isn't in hand, add it and bump lowest-priority non-pinned non-daily
