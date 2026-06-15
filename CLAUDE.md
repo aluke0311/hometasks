@@ -21,18 +21,20 @@ Each task has:
 - `owner` — `'alina'`, `'bob'`, or `'either'`
 - `cat` — boolean, true for cat-care tasks (minor score boost)
 
-The base task list lives in the `TASKS` array (~line 402). Users can add custom tasks and hide base tasks without touching code.
+The base task list lives in the `TASKS` array (~line 483). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
 
-### Scoring (`scoreTask`, ~line 786)
+### Scoring (`scoreTask` ~line 996, `scoreTaskParts` ~line 974)
 
-Lower score = higher priority. Key components:
+Lower score = higher priority. `scoreTaskParts` returns the labeled component breakdown (used by the "why?" modal); `scoreTask` sums them and adds jitter. Components:
 - Base score = `task.freq` (lower frequency → lower base → higher priority)
 - Overdue penalty: reduces score based on how overdue the task is, capped at `freq * 0.8`; weight is `0.5` normally, `0.8` in Catch Up mode
-- Starvation: `+1/day` for each day a task is due but not dealt; reduces score, **capped at `freq * 0.15`** (this cap is critical — without it, long-interval tasks accumulate infinite priority and dominate the hand)
+- Starvation: the `starvation` counter ticks `+1` per calendar day a task is due but not dealt; the score reduction is `-0.3 * count`, **capped at `freq * 0.15`** (this cap is critical — without it, long-interval tasks accumulate infinite priority and dominate the hand)
 - Flagged tasks: `-50` (always surfaces first)
 - Zone bonus: `-2` if task is in the active zone
+- Cat tasks: `-0.5` tiebreaker
+- Jitter: tasks with `freq > 60` get `±1` random added in `scoreTask` (not `scoreTaskParts`) for deep-clean variety
 
-### `getTaskTier(task)` (~line 824)
+### `getTaskTier(task)` (~line 1024)
 
 ```javascript
 function getTaskTier(task) {
@@ -44,7 +46,7 @@ function getTaskTier(task) {
 
 Tiers are used only for the `_dealPreferTier` feature (redeal with a tier preference) — they do **not** drive separate quota or bypass logic inside `dealHand`.
 
-### Hand Dealing (`dealHand`, ~line 830)
+### Hand Dealing (`dealHand`, ~line 1030)
 
 **Always-assigned (bypass budget):**
 - `c_fountain` — always appears when due, regardless of mode
@@ -63,7 +65,7 @@ If `_dealPreferTier` is set (via redeal with tier button), tasks of that tier fl
 **Flagged tasks:** enter the pool even when not yet due (flag bypasses `isDue`) and fill **first in every mode** — critical for By Freq, where the raw-frequency sort would otherwise ignore the -50 flag bonus entirely. They count against the budget and dealing stops at the limit, except the first flagged task is always dealt (so flagging guarantees surfacing even when the budget is spent). Flagged tasks that don't fit, and `getOverflowTasks()` generally, surface via "+ Give me more", which includes flagged not-yet-due tasks.
 
 **Laundry slot logic:**
-- "Load" tasks (`lroom_myclothes`, `lroom_towels`, `lroom_microfiber`, `k_towels`) compete for a single daily slot — at most one is assigned per day, chosen by score (most overdue wins)
+- "Load" tasks (`lroom_myclothes`, `lroom_towels`, `lroom_microfiber`, `lroom_whites`, `k_towels`) compete for a single daily slot — at most one is assigned per day, chosen by score (most overdue wins)
 - If a load task was already completed today or is pinned, no new load is assigned on redeal
 - "Process" steps (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) are daily tasks suppressed unless a load is assigned today, pinned, or already completed today
 
@@ -88,7 +90,9 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `tierCLastDate` — vestigial field kept for migration safety; no longer used in dealing logic
 - `_dealPreferTier` — transient; set before redeal to float a tier, deleted immediately after
 - `pinnedIds`, `flaggedIds`, `snoozed`, `deletedIds`, `customTasks`
-- `guestHand`, `resetHand`, `goingOutHand` — preset checklist state (Presets tab)
+- `guestHand`, `resetHand`, `goingOutHand` — legacy preset checklist state (Presets tab); all other presets live in `presetHands`
+- `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Express Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, room presets)
+- `removedToday` / `removedTodayDate` — task ids removed from the hand today; excluded from redeals and "give me more" until the next calendar day (unless completed today)
 - `lastBackupDate` — ISO date of last backup download (auto-download fires weekly on load)
 - `zoneMode` — `'auto'` (default; zone follows day-of-month: 1–7→Z1 … 29+→Z5 via `autoZone()`/`effectiveZone()`) | `'manual'`
 - `paused` / `pausedAt` — vacation mode; while paused no dealing or starvation ticks, on resume pre-pause completion timestamps shift forward by the pause duration
@@ -98,12 +102,28 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 
 ### UI Tabs
 
-- **Today** — the main dealt hand; check off (undo toast), flag, snooze, "did earlier" backdating, "why?" score-breakdown modal (`scoreTaskParts`), per-task timer, and a quick-log search to record completions outside the hand
-- **Sprints** — timed sprint view of today's hand (per-task timer buttons here too)
-- **Presets** — generate and work through preset checklists: Guest Prep (day/overnight variants), Full Reset, Going Out of Town
-- **Stats** — 13-week heatmap, week-vs-week counts, streak, Budget Insight (suggests budget changes from median non-daily throughput, apply-only), Chronically Overdue card, and full Completion Cadence list with due badges, +Today/flag, "set target Nd" adoption, and tap-name-to-edit. Real cadence (`cadenceInfo()`, colored `~Nd real`) also shows inline on Today and Manage cards
-- **Manage** — full task list with filters; add/edit/delete custom tasks, hide base tasks; month chips in the editor set seasonal windows
-- **Settings** — budget sliders, vacation mode toggle, backup card, import/export state (the zone selector lives on the Today tab)
+Six tabs in the bottom nav (internal `currentTab` id in parentheses):
+
+- **My Hand** (`alina`) — the main dealt hand titled "Today's Hand"; header has Redeal (+ A/B/C tier redeal), the zone selector, the three mode pills, and "+ one-off task". Cards: check off (undo toast), flag, snooze, "did earlier" backdating, pin, remove, started…/in-progress, per-task timer, "why?" score-breakdown modal (`scoreTaskParts`), and a quick-log search to record completions outside the hand. Sections: Daily Tasks, Other Tasks, Completed, "+ Give me more" / Backup list (due + not-due)
+- **Sprint** (`sprint`) — room-grouped, ordered walkthrough of today's hand (Launch → Kitchen → Cat care → Laundry → room groups), per-block time, hide-done toggle, per-task timer/in-progress/remove buttons
+- **All Tasks** (`manage`) — full task list with search + owner/room/status filters; add/edit/delete custom tasks, hide base tasks, pin/flag, +Today, edit last-done; month chips in the editor set seasonal windows; shows learned-time and real-cadence hints
+- **Presets** (`presets`) — see the Presets section below
+- **Stats** (`stats`) — This Week box (count/effort/streak/today), Budget Insight (suggests budget changes from median non-daily throughput, apply-only), 13-week activity heatmap, and full Completion Cadence list with due badges, +Today/flag, "set target Nd" adoption, and tap-name-to-edit. Real cadence (`cadenceInfo()`, colored `~Nd real`) also shows inline on My Hand and All Tasks cards
+- **Settings** (`settings`) — budget steppers, active-zone reference table, system overview, scoring explainer, recent-activity log, vacation mode toggle, reload-app card (shows `APP_VERSION`), weekly backup card, and export/import (paste or restore-from-file)
+
+### Presets Tab
+
+Presets build a checklist you tick through (completions count app-wide), then optionally "Load all" or "Load due only" into today's hand. `mergeStickyHand()` ensures pinned + in-progress tasks ride along when a preset is loaded. Categories:
+
+- **Random Task** — pick a random due task (optionally filtered to tier A/B/C), then add it to today
+- **Routines** — **Express Reset** (quick whole-house pass) and **Full Reset** (`state.resetHand`, complete 2–3h clean)
+- **Guests** — **Guest Prep** with Emergency (~15 min) / Day / Overnight variants (`state.guestHand`)
+- **Travel** — **Going Out of Town** (`state.goingOutHand`) and **Return Home**
+- **Special** — **Before Cleaners**, **Recovery Mode** (phased), **Post-Illness** (phased: Sanitize → Restore)
+- **Daily Rituals** — **Evening Shutdown** (fixed core + the single most-overdue tidy room)
+- **Rooms** — per-room **Quick** / **Deep** presets for all 14 rooms (`ROOM_PRESETS`)
+
+Generated preset state lives in `presetHands` (keyed by type or `room_<id>_<depth>`), except the three legacy ones that have dedicated fields (`guestHand`, `resetHand`, `goingOutHand`). Preset task definitions live in module constants near the top of the Presets section (`FULL_RESET_TASKS`/`FULL_RESET_SECTIONS`, `GOING_OUT_TASKS`/`…SECTIONS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_SHUTDOWN_FIXED`/`EVENING_TIDY_POOL`, `ROOM_PRESETS`).
 
 ### Zone System
 
@@ -115,6 +135,21 @@ Five cleaning zones (FlyLady-style), each covering specific rooms:
 - Zone 5: Living Room, Back Room
 
 Selecting a zone gives a `-2` score bonus to tasks in that zone.
+
+## Repository Files
+
+- `index.html` — the entire app (HTML + CSS + JS in one file, ~3870 lines)
+- `CLAUDE.md` — this file: working instructions + architecture summary for Claude
+- `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
+- `IMPROVEMENT_PLAN.md` — historical plan for the 9 features shipped in June 2026; **all 9 are now implemented** (auto-backup, undo/backdating, quick-log, Stats tab, "why?" breakdown, zone auto-rotation, vacation mode, seasonal months, per-task timer). Its line-number anchors are stale; keep only as a record of intent
+
+## Known Issues / Watch-outs
+
+- **Dead preset task ids:** `ROOM_PRESETS` deep lists reference `k_backsplash`, `dsb_exhaust`, and `bed_vacuum`, which don't exist in `TASKS`. They're silently dropped, so Kitchen/DS Bathroom/Bedroom "Deep" presets are missing those steps. Fix by adding the tasks or correcting the ids.
+- **`completeEarlier` has no same-day dedup:** unlike `completeTask` (which guards with `_alreadyToday`), repeatedly tapping "did earlier" for the same day pushes duplicate `completionHistory` entries, inflating cadence/heatmap counts.
+- **`applyImport` omits a few newer fields** (`removedToday`, `removedTodayDate`); they self-heal on the next `dealHand`, but keep `applyImport` in sync with `defaultState()`/`loadState()` when adding state.
+- **Preset display-name drift:** some preset arrays use different `name`/`room` text than `TASKS` for the same id (e.g. `c_feeders`, `k_stove`, `k_sink`, several `GOING_OUT_TASKS` rooms). Cosmetic only — checklists prefer the preset array's text.
+- **Settings zone reference lists "Front Porch"**, which is not a real room (no tasks, not in `ZONE_ROOMS`). Cosmetic.
 
 ## Deployment
 
