@@ -21,7 +21,7 @@ Each task has:
 - `owner` — `'alina'`, `'bob'`, or `'either'`
 - `cat` — boolean, true for cat-care tasks (minor score boost)
 
-The base task list lives in the `TASKS` array (~line 483, 182 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
+The base task list lives in the `TASKS` array (~line 483, 177 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
 
 ### Scoring (`scoreTask` ~line 1015, `scoreTaskParts` ~line 993)
 
@@ -137,7 +137,7 @@ Five cleaning zones (FlyLady-style), each covering specific rooms:
 
 Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
-The **Home Maintenance** room (furnace filter, dryer vent & duct, smoke/CO detector test, water-heater flush, gutters) is intentionally in **no** zone — it groups safety/appliance upkeep that shouldn't compete for zone bonuses. `Whole House`, `Robot`, `Downstairs`, and `Upstairs` are likewise zone-less.
+`Whole House`, `Robot`, `Downstairs`, and `Upstairs` are zone-less rooms — tasks in them don't compete for zone bonuses.
 
 ## Repository Files
 
