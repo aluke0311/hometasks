@@ -739,7 +739,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-15 v3';
+  const APP_VERSION = '2026-06-15 v4';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -2154,7 +2154,7 @@
       lines.push(n + '. ' + block.label + ' (~' + fmtMinutes(blockMin) + ')');
       tasks.forEach(t => {
         const done = wasCompletedToday(t);
-        lines.push('   ' + (done ? '☑' : '☐') + ' ' + t.name + ' — ' + fmtMinutes(taskTime(t)));
+        lines.push('- [' + (done ? 'x' : ' ') + '] ' + t.name + ' — ' + fmtMinutes(taskTime(t)));
       });
       lines.push('');
     });
