@@ -486,6 +486,7 @@
     { id:'c_water_ds',       name:'Replace downstairs water',            room:'Cats',          freq:2,   time:2,  cat:true,  owner:'alina' },
     { id:'c_water_bowl_up',  name:'Wash upstairs water bowl',            room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
     { id:'c_water_bowl_ds',  name:'Wash downstairs water bowl',          room:'Cats',          freq:4,   time:3,  cat:true,  owner:'alina' },
+    { id:'c_beds',           name:'Wash cat beds & blankets',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'either' },
   
     // ── CAT LITTER / FEEDERS (bob) ──
     { id:'c_scoop_ds',       name:'Scoop downstairs litter',             room:'Cats',          freq:1,   time:3,  cat:true,  owner:'bob' },
@@ -538,13 +539,14 @@
     { id:'k_trash_sweep',    name:'Sweep under trash can',               room:'Kitchen',       freq:42,  time:5,  owner:'either' },
     { id:'k_fridge_out',     name:'Wipe outside of fridge',             room:'Kitchen',       freq:60,  time:5,  owner:'either' },
     { id:'k_dishwash_out',   name:'Wipe outside of dishwasher',         room:'Kitchen',       freq:60,  time:5,  owner:'either' },
-    { id:'k_microwave',      name:'Clean microwave',                     room:'Kitchen',       freq:60,  time:10, owner:'either' },
+    { id:'k_microwave',      name:'Clean microwave',                     room:'Kitchen',       freq:30,  time:10, owner:'either' },
     { id:'k_disposal',       name:'Clean garbage disposal',              room:'Kitchen',       freq:60,  time:8,  owner:'either' },
     { id:'k_espresso',       name:'Clean espresso machine',              room:'Kitchen',       freq:70,  time:10, owner:'either' },
     { id:'k_coffee',         name:'Clean coffee grinder',                room:'Kitchen',       freq:70,  time:8,  owner:'either' },
     { id:'k_knives',         name:'Sharpen knives',                      room:'Kitchen',       freq:90,  time:10, owner:'bob' },
     { id:'k_kettle',         name:'Descale kettle',                      room:'Kitchen',       freq:90,  time:10, owner:'either' },
     { id:'k_fridge_deep',    name:'Deep clean fridge',                   room:'Kitchen',       freq:90,  time:30, owner:'either' },
+    { id:'k_fridge_coils',   name:'Clean refrigerator coils',            room:'Kitchen',       freq:120, time:15, owner:'either' },
     { id:'k_freezer',        name:'Clean freezer',                       room:'Kitchen',       freq:90,  time:20, owner:'either' },
     { id:'k_dishwash_deep',  name:'Clean dishwasher',                    room:'Kitchen',       freq:90,  time:15, owner:'either' },
     { id:'k_butcher',        name:'Oil butcher block',                   room:'Kitchen',       freq:90,  time:8,  owner:'either' },
@@ -562,10 +564,11 @@
     // ── LIVING ROOM ──
     { id:'lr_tidy',          name:'Living room tidy',                    room:'Living Room',   freq:4,   time:8,  owner:'either' },
     { id:'lr_vacuum',        name:'Vacuum rug (living room)',            room:'Living Room',   freq:14,  time:8,  owner:'either' },
-    { id:'lr_dust',          name:'Dust surfaces (living room)',         room:'Living Room',   freq:14,  time:8,  owner:'either' },
+    { id:'lr_dust',          name:'Dust surfaces (living room)',         room:'Living Room',   freq:7,   time:8,  owner:'either' },
     { id:'lr_mirror',        name:'Clean mirror (living room)',          room:'Living Room',   freq:30,  time:5,  owner:'either' },
     { id:'lr_blinds',        name:'Dust blinds (living room)',           room:'Living Room',   freq:42,  time:10, owner:'either' },
     { id:'lr_sofa',          name:'Vacuum upholstery (living room)',     room:'Living Room',   freq:90,  time:15, owner:'either' },
+    { id:'lr_throws',        name:'Wash throw blankets',                 room:'Living Room',   freq:60,  time:5,  owner:'either' },
     { id:'lr_walls',         name:'Spot clean walls (living room)',      room:'Living Room',   freq:90,  time:10, owner:'either' },
     { id:'lr_fan',           name:'Dust ceiling fan (living room)',      room:'Living Room',   freq:180, time:10, owner:'either' },
     { id:'lr_win',           name:'Clean windows (living room)',         room:'Living Room',   freq:180, time:15, owner:'either' },
@@ -573,7 +576,7 @@
     // ── DINING ROOM ──
     { id:'dr_table',         name:'Wipe table',                          room:'Dining Room',   freq:2,   time:3,  owner:'either' },
     { id:'dr_tidy',          name:'Dining room tidy',                    room:'Dining Room',   freq:3,   time:5,  owner:'either' },
-    { id:'dr_dust',          name:'Dust surfaces (dining)',              room:'Dining Room',   freq:21,  time:8,  owner:'either' },
+    { id:'dr_dust',          name:'Dust surfaces (dining)',              room:'Dining Room',   freq:10,  time:8,  owner:'either' },
     { id:'dr_purifier',      name:'Vacuum air purifier filter (dining)', room:'Dining Room',   freq:21,  time:5,  owner:'either' },
     { id:'dr_chairs',        name:'Vacuum chairs (dining)',              room:'Dining Room',   freq:180, time:10, owner:'either' },
     { id:'dr_blinds',        name:'Dust blinds (dining)',                room:'Dining Room',   freq:42,  time:8,  owner:'either' },
@@ -601,6 +604,8 @@
     { id:'usb_trash',        name:'Empty trash (US bath)',               room:'US Bathroom',   freq:7,   time:2,  owner:'either' },
     { id:'usb_mirror',       name:'Clean mirror (US bath)',              room:'US Bathroom',   freq:7,   time:5,  owner:'either' },
     { id:'usb_shower',       name:'Clean shower (US bath)',              room:'US Bathroom',   freq:14,  time:15, owner:'bob' },
+    { id:'usb_showerhead',   name:'Descale showerhead (US bath)',        room:'US Bathroom',   freq:90,  time:10, owner:'either' },
+    { id:'usb_curtain',      name:'Wash shower curtain & liner (US bath)', room:'US Bathroom', freq:90, time:10, owner:'either' },
     { id:'usb_mop',          name:'Mop floor (US bath)',                 room:'US Bathroom',   freq:14,  time:8,  owner:'either' },
     { id:'usb_cups',         name:'Wash cups (US bath)',                 room:'US Bathroom',   freq:14,  time:5,  owner:'either' },
     { id:'usb_soap',         name:'Refill soap (US bath)',               room:'US Bathroom',   freq:60,  time:2,  owner:'either' },
@@ -616,7 +621,7 @@
     { id:'bed_tidy',         name:'Tidy up (bedroom)',                   room:'Bedroom',       freq:7,   time:8,  owner:'either' },
     { id:'bed_dust',         name:'Dust surfaces (bedroom)',             room:'Bedroom',       freq:14,  time:8,  owner:'either' },
     { id:'bed_trash',        name:'Empty trash (bedroom)',               room:'Bedroom',       freq:14,  time:2,  owner:'either' },
-    { id:'bed_sheets',       name:'Change bed sheets & wash',            room:'Bedroom',       freq:14,  time:15, owner:'bob' },
+    { id:'bed_sheets',       name:'Change bed sheets & wash',            room:'Bedroom',       freq:7,   time:15, owner:'bob' },
     { id:'bed_purifier',     name:'Vacuum air purifier filter (bedroom)', room:'Bedroom',      freq:21,  time:5,  owner:'either' },
     { id:'bed_behind',       name:'Vacuum behind bed',                   room:'Bedroom',       freq:60,  time:5,  owner:'either' },
     { id:'bed_drawer',       name:'Organize one drawer',                 room:'Bedroom',       freq:30,  time:10, owner:'either' },
@@ -632,13 +637,13 @@
     // ── LAUNDRY ROOM ──
     { id:'lroom_tidy',       name:'Tidy laundry room',                   room:'Laundry Room',  freq:7,   time:5,  owner:'either' },
     { id:'lroom_myclothes',  name:'My clothes laundry',                  room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
-    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
+    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
     { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
     { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
     { id:'lroom_duvet',      name:'Wash duvet cover',                    room:'Laundry Room',  freq:30,  time:8,  owner:'bob' },
     { id:'lroom_dust',       name:'Dust surfaces (laundry room)',        room:'Laundry Room',  freq:30,  time:5,  owner:'either' },
     { id:'lroom_trash',      name:'Empty trash (laundry room)',          room:'Laundry Room',  freq:30,  time:2,  owner:'either' },
-    { id:'lroom_washer',     name:'Clean washing machine',               room:'Laundry Room',  freq:90,  time:20, owner:'either' },
+    { id:'lroom_washer',     name:'Clean washing machine',               room:'Laundry Room',  freq:60,  time:20, owner:'either' },
     { id:'lroom_blankets',   name:'Wash blankets',                       room:'Laundry Room',  freq:180, time:10, owner:'either' },
   
     // ── CAT WATER FOUNTAIN (alina, top priority) ──
@@ -691,8 +696,16 @@
     { id:'house_doorknobs',  name:'Disinfect doorknobs & switches',      room:'Whole House',   freq:42,  time:8,  owner:'either' },
     { id:'house_entryway',   name:'Sweep entryway',                      room:'Whole House',   freq:42,  time:5,  owner:'either' },
     { id:'house_vents',      name:'Dust vents',                          room:'Whole House',   freq:90,  time:10, owner:'either' },
-    { id:'house_furnace',    name:'Change furnace filter',               room:'Whole House',   freq:60,  time:10, owner:'bob' },
+    { id:'house_baseboards', name:'Wipe baseboards (whole house)',       room:'Whole House',   freq:90,  time:25, owner:'either' },
+    { id:'house_rug_deep',   name:'Deep clean / shampoo rugs',           room:'Whole House',   freq:180, time:45, owner:'either' },
     { id:'custom_1776614703299', name:'Replace Pura fragrances',         room:'Whole House',   freq:30,  time:8,  owner:'either' },
+
+    // ── HOME MAINTENANCE (safety / appliance upkeep — not in any zone) ──
+    { id:'house_furnace',    name:'Change furnace filter',               room:'Home Maintenance', freq:60,  time:10, owner:'bob' },
+    { id:'hm_dryervent',     name:'Clean dryer vent & duct',             room:'Home Maintenance', freq:365, time:30, owner:'bob' },
+    { id:'hm_smoke',         name:'Test smoke & CO detectors / batteries', room:'Home Maintenance', freq:180, time:10, owner:'either' },
+    { id:'hm_water_heater',  name:'Flush water heater',                  room:'Home Maintenance', freq:365, time:30, owner:'bob' },
+    { id:'hm_gutters',       name:'Clean gutters',                       room:'Home Maintenance', freq:180, time:60, owner:'bob' },
   ];
   
   // Seasonal defaults: months (1–12) when a task is in season. Applied once via
@@ -761,8 +774,14 @@
         let budgetWeekday = 45, budgetWeekend = 90;
         if (parsed.budgetWeekday != null) budgetWeekday = parsed.budgetWeekday;
         if (parsed.budgetWeekend != null) budgetWeekend = parsed.budgetWeekend;
+        // Backfill: a base task added since the user's last visit has no completion
+        // timestamp; without this daysOverdue() would read ~20,000 days overdue.
+        // Seed it as "due now" (last done exactly freq days ago), like defaultState().
+        const completions = parsed.completions || {};
+        const _now = Date.now();
+        TASKS.forEach(t => { if (completions[t.id] == null) completions[t.id] = _now - t.freq * 86400000; });
         return {
-          completions: parsed.completions || {},
+          completions,
   
           budgetWeekday,
           budgetWeekend,
@@ -2281,6 +2300,16 @@
     { label:'Living spaces', ids:['lr_tidy','dr_table'] },
     { label:'Cat care',      ids:['c_scoop_ds','c_water_ds','c_water_up'] },
   ];
+  const WEEKLY_RESET_SECTIONS = [
+    { label:'Launch',        ids:['l_start','rob_run_ds','rob_mop'] },
+    { label:'Bedroom',       ids:['bed_sheets','bed_make'] },
+    { label:'Bathroom',      ids:['usb_toilet','usb_sink','usb_mirror','usb_tidy'] },
+    { label:'Kitchen',       ids:['k_dishwasher','k_counters','k_sink','k_tidy'] },
+    { label:'Living spaces', ids:['lr_tidy','lr_vacuum','lr_dust','dr_tidy','dr_table'] },
+    { label:'Floors',        ids:['hs_sweep'] },
+    { label:'Laundry',       ids:['lroom_towels'] },
+    { label:'Cat care',      ids:['c_fountain','c_scoop_ds','c_water_ds','c_water_up'] },
+  ];
   const RETURN_HOME_SECTIONS = [
     { label:'Launch',        ids:['l_start','rob_run_ds'] },
     { label:'Kitchen',       ids:['k_fridge','k_counters','k_dishwasher'] },
@@ -2300,7 +2329,7 @@
   ];
 
   function getNewPresetSections(type) {
-    return { expressReset: EXPRESS_RESET_SECTIONS, returnHome: RETURN_HOME_SECTIONS,
+    return { expressReset: EXPRESS_RESET_SECTIONS, weeklyReset: WEEKLY_RESET_SECTIONS, returnHome: RETURN_HOME_SECTIONS,
              beforeCleaners: BEFORE_CLEANERS_SECTIONS, recovery: RECOVERY_SECTIONS,
              postIllness: POST_ILLNESS_SECTIONS }[type] || [];
   }
@@ -2567,6 +2596,31 @@
     switchTab('sprint');
   }
 
+  // ── SEASONAL DEEP CLEAN ─────────────────────────────────────────────────────
+  // Spring-cleaning blitz: snapshot every in-season Tier C (deep-clean) task into
+  // one checklist. Stored flat in presetHands.seasonalDeep, so the generic
+  // loadNewPreset/loadNewPresetDueOnly/clearNewPreset('seasonalDeep') all work;
+  // only rendering needs structure, which seasonalDeepSections() rebuilds by room.
+  function generateSeasonalDeepClean() {
+    const ids = getAllTasks().filter(t => getTaskTier(t) === 'C' && inSeason(t)).map(t => t.id);
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands.seasonalDeep = ids;
+    saveState();
+    renderPresets();
+  }
+
+  function seasonalDeepSections() {
+    const ids = (state.presetHands && state.presetHands.seasonalDeep) || [];
+    const allTasks = getAllTasks();
+    const byRoom = {};
+    ids.forEach(id => {
+      const t = allTasks.find(x => x.id === id);
+      if (!t) return;
+      (byRoom[t.room] = byRoom[t.room] || []).push(id);
+    });
+    return Object.keys(byRoom).sort().map(room => ({ label: room, ids: byRoom[room] }));
+  }
+
   function renderNewPresetChecklist(sections) {
     const allTasks = getAllTasks();
     let html = '';
@@ -2685,6 +2739,20 @@
     if (exActive) {
       html += loadBtns("loadNewPreset('expressReset')", "loadNewPresetDueOnly('expressReset')");
       html += renderNewPresetChecklist(EXPRESS_RESET_SECTIONS);
+    }
+    html += '</div>';
+
+    // Weekly Reset
+    const wrActive = ph.weeklyReset && ph.weeklyReset.length;
+    const wrTime = presetTotalTime(WEEKLY_RESET_SECTIONS);
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Weekly Reset</div>' +
+        '<div class="settings-card-desc">The classic weekly / Sunday reset. ~' + fmtMinutes(wrTime) + '. Sheets, bathroom, kitchen, vacuum + dust the living spaces, towels, cat care.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (wrActive ? '14px' : '0') + '" onclick="generateNewPreset(\'weeklyReset\')">Generate Weekly Reset</button>';
+    if (wrActive) {
+      html += loadBtns("loadNewPreset('weeklyReset')", "loadNewPresetDueOnly('weeklyReset')");
+      html += renderNewPresetChecklist(WEEKLY_RESET_SECTIONS);
     }
     html += '</div>';
 
@@ -2847,6 +2915,25 @@
     if (esActive) {
       html += loadBtns("loadNewPreset('eveningShutdown')", "loadNewPresetDueOnly('eveningShutdown')");
       html += renderPresetChecklist(ph.eveningShutdown, allTasks);
+    }
+    html += '</div>';
+
+    // ── SEASONAL ──────────────────────────────────────────────────────────────
+    html += categoryHeader('Seasonal');
+
+    const sdActive = ph.seasonalDeep && ph.seasonalDeep.length;
+    const sdSections = sdActive ? seasonalDeepSections() : [];
+    const sdTime = sdActive ? presetTotalTime(sdSections) : 0;
+    const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()];
+    html +=
+      '<div class="settings-card" style="margin-top:4px">' +
+        '<div class="settings-card-title">Seasonal Deep Clean</div>' +
+        '<div class="settings-card-desc">Spring-cleaning checklist: every in-season deep task (windows, baseboards, ceiling fans, behind furniture, appliances, grout…). Generate it, then chip away — or "Load due only" for just what\'s actually due now.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (sdActive ? '14px' : '0') + '" onclick="generateSeasonalDeepClean()">Generate ' + monthName + ' Deep Clean</button>';
+    if (sdActive) {
+      html += '<div style="font-size:12px;color:var(--amber);margin-bottom:10px">' + ph.seasonalDeep.length + ' tasks · ~' + fmtMinutes(sdTime) + ' total</div>';
+      html += loadBtns("loadNewPreset('seasonalDeep')", "loadNewPresetDueOnly('seasonalDeep')");
+      html += renderNewPresetChecklist(sdSections);
     }
     html += '</div>';
 
@@ -3395,8 +3482,11 @@
       showToast('Invalid data — check and try again'); return false;
     }
     if (!confirm('Replace all current data with the imported data?')) return false;
+    const _impNow = Date.now();
+    const impCompletions = parsed.completions || {};
+    TASKS.forEach(t => { if (impCompletions[t.id] == null) impCompletions[t.id] = _impNow - t.freq * 86400000; });
     state = {
-      completions:   parsed.completions   || {},
+      completions:   impCompletions,
       budgetWeekday: parsed.budgetWeekday != null ? parsed.budgetWeekday : 45,
       budgetWeekend: parsed.budgetWeekend != null ? parsed.budgetWeekend : 90,
       zone:          parsed.zone          != null ? parsed.zone          : 0,
