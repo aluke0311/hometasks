@@ -739,7 +739,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-15 v1';
+  const APP_VERSION = '2026-06-15 v3';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -2071,6 +2071,7 @@
         '<span class="sprint-progress-text">' + doneCount + ' / ' + hand.length + '</span>' +
       '</div>' +
       '<span class="sprint-time-left">~' + fmtMinutes(leftMin) + ' left</span>' +
+      '<button onclick="copySprint()" style="font-size:11px;padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">📋 Copy</button>' +
       '<button onclick="toggleSprintCompleted()" style="font-size:11px;padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:' + (sprintHideCompleted ? 'var(--green-bg)' : 'transparent') + ';color:' + (sprintHideCompleted ? 'var(--green)' : 'var(--text3)') + ';cursor:pointer;white-space:nowrap;flex-shrink:0">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
     '</div>';
   
@@ -2129,7 +2130,45 @@
     html += '<div class="bottom-pad"></div>';
     container.innerHTML = html;
   }
-  
+
+  function copySprint() {
+    const blocks = getSprintBlocks();
+    if (!blocks.length) { showToast('No sprint to copy'); return; }
+    const hand = getHandTasks();
+    const doneCount = hand.filter(t => wasCompletedToday(t)).length;
+    const totalMin = hand.reduce((s, t) => s + taskTime(t), 0);
+    const doneMin = hand.filter(t => wasCompletedToday(t)).reduce((s, t) => s + taskTime(t), 0);
+    const leftMin = totalMin - doneMin;
+
+    const lines = [];
+    lines.push("Today's Sprint · " + todayStr());
+    lines.push(doneCount + '/' + hand.length + ' done · ~' + fmtMinutes(leftMin) + ' left');
+    lines.push('');
+
+    let n = 0;
+    blocks.forEach(block => {
+      const tasks = sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
+      if (!tasks.length) return;
+      n++;
+      const blockMin = tasks.reduce((s, t) => s + taskTime(t), 0);
+      lines.push(n + '. ' + block.label + ' (~' + fmtMinutes(blockMin) + ')');
+      tasks.forEach(t => {
+        const done = wasCompletedToday(t);
+        lines.push('   ' + (done ? '☑' : '☐') + ' ' + t.name + ' — ' + fmtMinutes(taskTime(t)));
+      });
+      lines.push('');
+    });
+
+    const text = lines.join('\n').trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => showToast('Sprint copied to clipboard!'))
+        .catch(() => showToast('Couldn\'t copy — try again'));
+    } else {
+      showToast('Clipboard not available');
+    }
+  }
+
   // ─── PRESETS TAB ───────────────────────────────────────────────────────────
   
   // ── Preset task definitions ──
