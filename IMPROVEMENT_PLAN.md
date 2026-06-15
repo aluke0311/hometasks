@@ -138,3 +138,27 @@ committing.
 - Don't break: laundry slot logic, preset hands, `_dealPreferTier`, the
   starvation cap. Touch `dealHand` minimally (features 6–8 only filter the
   pool or change the zone input).
+
+---
+
+## Follow-on work shipped — cleaning-schedule research pass (2026-06-15)
+
+Separate from the 9 features above. Driven by a review of current cleaning advice
+(frequency guides, weekly-reset routines, spring-cleaning checklists, "commonly
+forgotten" lists) versus the existing task model. All **✅ No export needed**.
+
+- **Frequencies tightened** toward expert consensus / pet-ownership norms: bed
+  sheets 14→7, towels 14→7, microwave 60→30, washing machine 90→60, living-room
+  dusting 14→7, dining dusting 21→10. (Downstairs-bath changes were skipped — that
+  bath is rarely used.)
+- **12 new tasks** filling common gaps: refrigerator coils; US-bath showerhead
+  descale + shower-curtain/liner wash; living-room throw blankets; cat beds &
+  blankets; whole-house baseboards + rug shampoo; and a new **Home Maintenance**
+  room (furnace filter relocated here, dryer vent & duct, smoke/CO detector test,
+  water-heater flush, gutters) intentionally in no zone.
+- **Two new presets:** **Weekly Reset** (fixed-section, the classic Sunday reset)
+  and **Seasonal Deep Clean** (dynamic — snapshots every in-season Tier C task into
+  one room-grouped spring-cleaning checklist).
+- **Completion backfill** added to `loadState`/`applyImport` so newly added base
+  tasks read as due-now instead of ~20,000 days overdue. This removes the last
+  reason adding a base task might need an export.

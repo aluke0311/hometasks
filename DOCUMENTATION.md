@@ -30,7 +30,7 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 
 ## 1. Overview & architecture
 
-- **Single file.** The entire app is `index.html` (~3,870 lines): HTML, CSS, and
+- **Single file.** The entire app is `index.html` (~3,960 lines): HTML, CSS, and
   vanilla JavaScript with **no build step, no dependencies, no server**.
 - **Client-only state.** Everything the user does lives in browser
   `localStorage` under the key `hometasks_v8`. There is no account and no sync.
@@ -47,23 +47,23 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 |------|-------|
 | CSS | 9–265 |
 | Body markup (views, nav, modals) | 266–480 |
-| `TASKS` array | 483–696 |
-| `DEFAULT_MONTHS`, `ZONE_ROOMS` | 698–717 |
-| Storage layer (`loadState`/`saveState`/`defaultState`) | 733–827 |
-| Core logic (due, season, zone, scoring) | 837–1028 |
-| `dealHand` | 1030–1195 |
-| Hand/overflow/not-due selectors | 1197–1250 |
-| Completion + task actions | 1284–1552 |
-| Render: My Hand | 1556–1695 |
-| `renderCard` | 1739–1834 |
-| "Why this task?" modal | 1839–1875 |
-| Sprint tab | 1892–2114 |
-| Presets (definitions + render) | 2116–2889 |
-| Stats tab | 2891–3148 |
-| Settings tab | 3150–3296 |
-| Vacation / backup / import | 3298–3429 |
-| Manage tab + modals | 3445–3738 |
-| Misc UI helpers + `init()` | 3740–3866 |
+| `TASKS` array (182 entries) | 483–709 |
+| `DEFAULT_MONTHS`, `ZONE_ROOMS` | 711–745 |
+| Storage layer (`loadState`/`saveState`/`defaultState`) | 746–840 |
+| Core logic (due, season, zone, scoring) | 842–1047 |
+| `dealHand` | 1049–1214 |
+| Hand/overflow/not-due selectors | 1216–1311 |
+| Completion + task actions | 1313–1575 |
+| Render: My Hand | 1579–1760 |
+| `renderCard` | 1762–1862 |
+| "Why this task?" modal | 1866–1902 |
+| Sprint tab | 1905–2150 |
+| Presets (definitions + render; incl. Weekly Reset & Seasonal Deep Clean) | 2152–3000 |
+| Stats tab | 3096–3240 |
+| Settings tab | 3242–3360 |
+| Vacation / backup / import (`applyImport` ~3475) | 3360–3548 |
+| Manage tab + modals | 3549–3860 |
+| Misc UI helpers + `init()` | 3862–3962 |
 
 ---
 
@@ -96,7 +96,10 @@ Each base task is an object in the `TASKS` array:
 `Cats`, `Kitchen`, `Laundry Room`, `Bedroom`, `Downstairs`, `Upstairs`,
 `Robot`, `Living Room`, `Dining Room`, `DS Bathroom`, `US Bathroom`, `Sunroom`,
 `Office`, `Back Room`, `Hall & Stairs`, `Mud Room`, `Back Porch`,
-`Whole House`. (Custom tasks may introduce others.)
+`Whole House`, `Home Maintenance`. (Custom tasks may introduce others.) The
+`Home Maintenance` room (furnace filter, dryer vent & duct, smoke/CO detector
+test, water-heater flush, gutters) is intentionally in no zone — safety/appliance
+upkeep that shouldn't compete for zone bonuses.
 
 ### Custom tasks & overrides
 
@@ -336,6 +339,7 @@ Presets build a checklist you tick through (completions count app-wide). Each ha
 |----------|--------|-----------|
 | (top) | **Random Task** | Pick a random due task, optionally filtered to tier A/B/C; add to today |
 | Routines | **Express Reset** | Quick whole-house pass (kitchen, baths, bedroom, living spaces, cat care) |
+| Routines | **Weekly Reset** | The classic weekly/Sunday reset (~2h): sheets, bathroom, kitchen, vacuum + dust living spaces, towels, cat care (`WEEKLY_RESET_SECTIONS`) |
 | Routines | **Full Reset** | Complete whole-house clean, ~2–3h (`resetHand`) |
 | Guests | **Guest Prep** | Emergency (~15m) / Day / Overnight variants (`guestHand`) |
 | Travel | **Going Out of Town** | Leave the house in great shape (`goingOutHand`) |
@@ -344,11 +348,21 @@ Presets build a checklist you tick through (completions count app-wide). Each ha
 | Special | **Recovery Mode** | Phased plan for overwhelm; Phase 1 alone is enough |
 | Special | **Post-Illness** | Phase 1 sanitize high-touch surfaces → Phase 2 restore |
 | Daily Rituals | **Evening Shutdown** | Dishes, counters, cat water + the single most-overdue tidy room |
+| Seasonal | **Seasonal Deep Clean** | Spring-cleaning blitz: snapshots every in-season Tier C task into one room-grouped checklist |
 | Rooms | **Per-room Quick / Deep** | Quick or deep preset for each of the 14 rooms (`ROOM_PRESETS`) |
 
 Generated checklists are stored in `presetHands` keyed by type or
 `room_<id>_<depth>`, except the three legacy presets with dedicated fields
 (`guestHand`, `resetHand`, `goingOutHand`).
+
+**Fixed-section presets** (Express Reset, Weekly Reset, Return Home, Before
+Cleaners, Recovery, Post-Illness) define a `*_SECTIONS` constant and register in
+`getNewPresetSections()`, so the generic `generateNewPreset` / `loadNewPreset` /
+`loadNewPresetDueOnly` / `clearNewPreset` drive them. **Seasonal Deep Clean** is
+the one dynamic preset: it has **no** section constant — `generateSeasonalDeepClean()`
+computes its id list from `getAllTasks()` (every in-season Tier C task) at generate
+time, stores it flat in `presetHands.seasonalDeep`, and `seasonalDeepSections()`
+regroups it by room for rendering. It reuses the generic load/clear functions.
 
 > Preset id lists that render via `getAllTasks()` must reference ids that exist
 > in `TASKS` — unknown ids silently drop, and `completeTask` returns early for
@@ -364,7 +378,7 @@ Stored as JSON under `localStorage['hometasks_v8']`. Defaults come from
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `completions` | `{id: ts}` | Last completion timestamp per task |
+| `completions` | `{id: ts}` | Last completion timestamp per task. `loadState`/`applyImport` backfill any base task missing an entry to `now − freq` days (newly added tasks read as due-now, not ~20,000 days overdue) |
 | `completionHistory` | `{id: ts[]}` | Up to 100 completion timestamps per task (drives stats/cadence) |
 | `starvation` | `{id: count}` | Consecutive days due but not dealt |
 | `starvationDate` | string | Last date starvation ticked |
@@ -404,6 +418,13 @@ Stored as JSON under `localStorage['hometasks_v8']`. Defaults come from
 missing field with a safe default. **Adding a new state field never requires an
 export** — just give it a default here. `mode: 'survival'` (a removed mode) is
 migrated to `maintenance`.
+
+`loadState()` (and `applyImport()`) also **backfill `completions`**: any task in
+`TASKS` without a completion timestamp is seeded to `now − freq` days. This means
+**adding a new base task never requires an export either** — without the backfill,
+`daysOverdue()` would treat the missing timestamp as epoch and report ~20,000 days
+overdue; with it, the new task simply reads as due-now and phases into the hand
+naturally.
 
 ### When an export IS required before deploying
 
@@ -481,6 +502,13 @@ It's always "due", and is removed entirely after completion.
 - **Preset ids must exist in `TASKS`** for lists that render via
   `getAllTasks()`, or they silently drop; `completeTask` returns early for
   unknown ids, so a phantom checklist item can't be checked off.
+- **New base tasks are backfilled, not absurdly overdue.** `loadState`/`applyImport`
+  seed a missing `completions[id]` to `now − freq` days, so a task added in a deploy
+  shows as due-now rather than ~20,000 days overdue on the user's existing data.
+- **Seasonal Deep Clean keys off Tier C (`freq > 60`).** It therefore includes a
+  few light upkeep items (soap refills, descales) alongside true deep tasks, and it
+  still lists DS-bath deep tasks even though that bath is rarely used. By design —
+  skip them or use "Load due only".
 
 ---
 

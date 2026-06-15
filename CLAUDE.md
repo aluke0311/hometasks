@@ -21,9 +21,9 @@ Each task has:
 - `owner` — `'alina'`, `'bob'`, or `'either'`
 - `cat` — boolean, true for cat-care tasks (minor score boost)
 
-The base task list lives in the `TASKS` array (~line 483). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
+The base task list lives in the `TASKS` array (~line 483, 182 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
 
-### Scoring (`scoreTask` ~line 996, `scoreTaskParts` ~line 974)
+### Scoring (`scoreTask` ~line 1015, `scoreTaskParts` ~line 993)
 
 Lower score = higher priority. `scoreTaskParts` returns the labeled component breakdown (used by the "why?" modal); `scoreTask` sums them and adds jitter. Components:
 - Base score = `task.freq` (lower frequency → lower base → higher priority)
@@ -34,7 +34,7 @@ Lower score = higher priority. `scoreTaskParts` returns the labeled component br
 - Cat tasks: `-0.5` tiebreaker
 - Jitter: tasks with `freq > 60` get `±1` random added in `scoreTask` (not `scoreTaskParts`) for deep-clean variety
 
-### `getTaskTier(task)` (~line 1024)
+### `getTaskTier(task)` (~line 1043)
 
 ```javascript
 function getTaskTier(task) {
@@ -46,7 +46,7 @@ function getTaskTier(task) {
 
 Tiers are used only for the `_dealPreferTier` feature (redeal with a tier preference) — they do **not** drive separate quota or bypass logic inside `dealHand`.
 
-### Hand Dealing (`dealHand`, ~line 1030)
+### Hand Dealing (`dealHand`, ~line 1049)
 
 **Always-assigned (bypass budget):**
 - `c_fountain` — always appears when due, regardless of mode
@@ -80,7 +80,7 @@ Selected via three pill buttons in the Today tab header. Switching a mode clears
 ### State
 
 Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key fields:
-- `completions` — `{taskId: timestamp}` of last completion
+- `completions` — `{taskId: timestamp}` of last completion. `loadState` and `applyImport` backfill any base task missing an entry to `now − freq` days, so a newly added base task reads as due-now instead of ~20,000 days overdue
 - `completionHistory` — `{taskId: timestamp[]}` last 100 completion timestamps per task
 - `starvation` — `{taskId: count}` of consecutive days due but not dealt
 - `hand` / `handDate` — today's task list
@@ -91,7 +91,7 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `_dealPreferTier` — transient; set before redeal to float a tier, deleted immediately after
 - `pinnedIds`, `flaggedIds`, `snoozed`, `deletedIds`, `customTasks`
 - `guestHand`, `resetHand`, `goingOutHand` — legacy preset checklist state (Presets tab); all other presets live in `presetHands`
-- `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Express Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, room presets)
+- `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Express Reset, Weekly Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, Seasonal Deep Clean, room presets)
 - `removedToday` / `removedTodayDate` — task ids removed from the hand today; excluded from redeals and "give me more" until the next calendar day (unless completed today)
 - `lastBackupDate` — ISO date of last backup download (auto-download fires weekly on load)
 - `zoneMode` — `'auto'` (default; zone follows day-of-month: 1–7→Z1 … 29+→Z5 via `autoZone()`/`effectiveZone()`) | `'manual'`
@@ -116,14 +116,15 @@ Six tabs in the bottom nav (internal `currentTab` id in parentheses):
 Presets build a checklist you tick through (completions count app-wide), then optionally "Load all" or "Load due only" into today's hand. `mergeStickyHand()` ensures pinned + in-progress tasks ride along when a preset is loaded. Categories:
 
 - **Random Task** — pick a random due task (optionally filtered to tier A/B/C), then add it to today
-- **Routines** — **Express Reset** (quick whole-house pass) and **Full Reset** (`state.resetHand`, complete 2–3h clean)
+- **Routines** — **Express Reset** (quick whole-house pass), **Weekly Reset** (the classic weekly/Sunday reset: sheets, bathroom, kitchen, vacuum + dust the living spaces, towels, cat care; `WEEKLY_RESET_SECTIONS`, ~2h), and **Full Reset** (`state.resetHand`, complete 2–3h clean)
 - **Guests** — **Guest Prep** with Emergency (~15 min) / Day / Overnight variants (`state.guestHand`)
 - **Travel** — **Going Out of Town** (`state.goingOutHand`) and **Return Home**
 - **Special** — **Before Cleaners**, **Recovery Mode** (phased), **Post-Illness** (phased: Sanitize → Restore)
 - **Daily Rituals** — **Evening Shutdown** (fixed core + the single most-overdue tidy room)
+- **Seasonal** — **Seasonal Deep Clean**: a spring-cleaning blitz that snapshots every in-season Tier C task into one room-grouped checklist. Built dynamically by `generateSeasonalDeepClean()` (no fixed section constant), stored flat in `presetHands.seasonalDeep`, regrouped for render by `seasonalDeepSections()`. Load all → or Load due only →
 - **Rooms** — per-room **Quick** / **Deep** presets for all 14 rooms (`ROOM_PRESETS`)
 
-Generated preset state lives in `presetHands` (keyed by type or `room_<id>_<depth>`), except the three legacy ones that have dedicated fields (`guestHand`, `resetHand`, `goingOutHand`). Preset task definitions live in module constants near the top of the Presets section (`FULL_RESET_TASKS`/`FULL_RESET_SECTIONS`, `GOING_OUT_TASKS`/`…SECTIONS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_SHUTDOWN_FIXED`/`EVENING_TIDY_POOL`, `ROOM_PRESETS`).
+Generated preset state lives in `presetHands` (keyed by type or `room_<id>_<depth>`), except the three legacy ones that have dedicated fields (`guestHand`, `resetHand`, `goingOutHand`). Preset task definitions live in module constants near the top of the Presets section (`FULL_RESET_TASKS`/`FULL_RESET_SECTIONS`, `GOING_OUT_TASKS`/`…SECTIONS`, `EXPRESS_RESET_SECTIONS`, `WEEKLY_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_SHUTDOWN_FIXED`/`EVENING_TIDY_POOL`, `ROOM_PRESETS`). Seasonal Deep Clean has **no** constant — its id list is computed at generate time. Fixed-section presets register in `getNewPresetSections()`; Weekly Reset is wired there as `weeklyReset` so the generic `generateNewPreset`/`loadNewPreset`/`loadNewPresetDueOnly`/`clearNewPreset` handle it.
 
 ### Zone System
 
@@ -136,9 +137,11 @@ Five cleaning zones (FlyLady-style), each covering specific rooms:
 
 Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
+The **Home Maintenance** room (furnace filter, dryer vent & duct, smoke/CO detector test, water-heater flush, gutters) is intentionally in **no** zone — it groups safety/appliance upkeep that shouldn't compete for zone bonuses. `Whole House`, `Robot`, `Downstairs`, and `Upstairs` are likewise zone-less.
+
 ## Repository Files
 
-- `index.html` — the entire app (HTML + CSS + JS in one file, ~3870 lines)
+- `index.html` — the entire app (HTML + CSS + JS in one file, ~3960 lines)
 - `CLAUDE.md` — this file: working instructions + architecture summary for Claude
 - `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
 - `IMPROVEMENT_PLAN.md` — historical plan for the 9 features shipped in June 2026; **all 9 are now implemented** (auto-backup, undo/backdating, quick-log, Stats tab, "why?" breakdown, zone auto-rotation, vacation mode, seasonal months, per-task timer). Its line-number anchors are stale; keep only as a record of intent
@@ -155,6 +158,7 @@ Minor known behaviors (by design / low priority):
 - Random Task ignores owner, so it can surface a Bob-only task to add to the hand.
 - Stats "est. effort" uses static `time` while Budget Insight uses learned `taskTime()`.
 - The `freq > 60` jitter reshuffles the overflow list on each render (cosmetic; the cached hand is unaffected).
+- Seasonal Deep Clean keys off Tier C (`freq > 60`), so it includes a few light upkeep items (soap refills, descales) alongside true deep-clean tasks, and it still lists DS-bath deep tasks even though that bath is rarely used. Both are by design — skip them or use "Load due only".
 
 ## Deployment
 
@@ -167,6 +171,7 @@ All app data (completions, starvation, custom tasks, settings) lives in `localSt
 **Export/import is NOT needed for:**
 - UI or logic changes (scoring, dealing, modes)
 - Adding new state fields — `loadState()` has a migration block that sets safe defaults for any missing fields
+- Adding new base tasks to `TASKS` — `loadState`/`applyImport` backfill missing `completions` so they read as due-now, not absurdly overdue
 
 **Export first IS needed when:**
 - The `STORAGE_KEY` constant is bumped to a new version — the old key is abandoned and state starts fresh
