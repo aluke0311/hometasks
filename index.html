@@ -739,7 +739,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-15 v4';
+  const APP_VERSION = '2026-06-17 v1';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -2361,8 +2361,17 @@
     { label:'Phase 3 — Restore',   ids:['rob_run_ds','usb_sink','bed_tidy','k_sink','lroom_tidy'], phase:3 },
   ];
 
+  const TIDY_EVERYWHERE_SECTIONS = [
+    { label:'Kitchen',      ids:['k_dishwasher','k_tidy','k_counters'] },
+    { label:'Living spaces', ids:['lr_tidy','dr_tidy','hs_tidy'] },
+    { label:'Bedroom',      ids:['bed_tidy'] },
+    { label:'Upstairs',     ids:['usb_tidy','lroom_tidy'] },
+    { label:'Other rooms',  ids:['sun_tidy','off_tidy','br_tidy','mud_tidy','bp_tidy'] },
+  ];
+
   function getNewPresetSections(type) {
-    return { expressReset: EXPRESS_RESET_SECTIONS, weeklyReset: WEEKLY_RESET_SECTIONS, returnHome: RETURN_HOME_SECTIONS,
+    return { expressReset: EXPRESS_RESET_SECTIONS, tidyEverywhere: TIDY_EVERYWHERE_SECTIONS,
+             weeklyReset: WEEKLY_RESET_SECTIONS, returnHome: RETURN_HOME_SECTIONS,
              beforeCleaners: BEFORE_CLEANERS_SECTIONS, recovery: RECOVERY_SECTIONS,
              postIllness: POST_ILLNESS_SECTIONS }[type] || [];
   }
@@ -2772,6 +2781,20 @@
     if (exActive) {
       html += loadBtns("loadNewPreset('expressReset')", "loadNewPresetDueOnly('expressReset')");
       html += renderNewPresetChecklist(EXPRESS_RESET_SECTIONS);
+    }
+    html += '</div>';
+
+    // Tidy Everywhere
+    const teActive = ph.tidyEverywhere && ph.tidyEverywhere.length;
+    const teTime = presetTotalTime(TIDY_EVERYWHERE_SECTIONS);
+    html +=
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Tidy Everywhere</div>' +
+        '<div class="settings-card-desc">Tidy every room in the house, plus unload the dishwasher and wipe counters. ~' + fmtMinutes(teTime) + '.</div>' +
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (teActive ? '14px' : '0') + '" onclick="generateNewPreset(\'tidyEverywhere\')">Generate Tidy Everywhere</button>';
+    if (teActive) {
+      html += loadBtns("loadNewPreset('tidyEverywhere')", "loadNewPresetDueOnly('tidyEverywhere')");
+      html += renderNewPresetChecklist(TIDY_EVERYWHERE_SECTIONS);
     }
     html += '</div>';
 
