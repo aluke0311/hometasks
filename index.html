@@ -739,7 +739,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-17 v1';
+  const APP_VERSION = '2026-06-17 v2';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -1800,7 +1800,7 @@
       ? '<button class="task-btn" style="color:var(--green);border-color:var(--green)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">stop ⏱</button>'
       : '<button class="task-btn" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">⏱ time it</button>') : '';
     const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
-    const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started…') + '</button>' : '';
+    const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started') + '</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
 
@@ -2174,7 +2174,7 @@
   // ── Preset task definitions ──
   const GUEST_DAY_IDS = [
     'lr_tidy','dr_tidy','k_tidy','k_counters','dr_table',
-    'dsb_toilet','dsb_sink','dsb_mirror','dsb_mop',
+    'dsb_toilet','dsb_sink','dsb_mirror',
     'house_entryway','rob_run_ds','rob_mop',
     'c_scoop_ds','c_water_ds','c_feeders'
   ];
@@ -3487,10 +3487,15 @@
 
   function autoBackupCheck() {
     const last = state.lastBackupDate;
-    if (last) {
-      const days = (new Date(todayStr() + 'T00:00:00') - new Date(last + 'T00:00:00')) / 86400000;
-      if (days < 7) return;
+    // No prior backup (e.g. fresh install): record today as the baseline instead of
+    // forcing a download on first ever load. Auto-backups then fire weekly from here.
+    if (!last) {
+      state.lastBackupDate = todayStr();
+      saveState();
+      return;
     }
+    const days = (new Date(todayStr() + 'T00:00:00') - new Date(last + 'T00:00:00')) / 86400000;
+    if (days < 7) return;
     downloadBackup(true);
   }
 
