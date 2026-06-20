@@ -739,7 +739,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-17 v2';
+  const APP_VERSION = '2026-06-20';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -1403,6 +1403,15 @@
     if (!state.flaggedIds.includes(id)) state.flaggedIds.push(id);
     saveState(); render();
   }
+  function markTaskDue(id) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+    saveState();
+    render();
+    showToast('Marked as due');
+  }
+
   function unflagTask(id) {
     if (!state.flaggedIds) return;
     state.flaggedIds = state.flaggedIds.filter(x => x !== id);
@@ -1803,6 +1812,7 @@
     const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started') + '</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
+    const markDueBtn = !isDone && !isDue(task) && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();markTaskDue(\'' + task.id + '\')" title="Mark as due (enters dealing pool without flag priority)">mark due</button>' : '';
 
     const dpId = 'dp_' + task.id;
     const spId = 'sp_' + task.id;
@@ -1846,7 +1856,7 @@
           '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
         '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + startedBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + swapBtn + startedBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + markDueBtn + flagBtn + undoBtn + '</div>' +
     '</div>';
   }
   
@@ -2336,7 +2346,8 @@
   const WEEKLY_RESET_SECTIONS = [
     { label:'Launch',        ids:['l_start','rob_run_ds','rob_mop'] },
     { label:'Bedroom',       ids:['bed_sheets','bed_make'] },
-    { label:'Bathroom',      ids:['usb_toilet','usb_sink','usb_mirror','usb_tidy'] },
+    { label:'US Bathroom',   ids:['usb_toilet','usb_sink','usb_mirror','usb_tidy'] },
+    { label:'DS Bathroom',   ids:['dsb_toilet','dsb_sink','dsb_mirror'] },
     { label:'Kitchen',       ids:['k_dishwasher','k_counters','k_sink','k_tidy'] },
     { label:'Living spaces', ids:['lr_tidy','lr_vacuum','lr_dust','dr_tidy','dr_table'] },
     { label:'Floors',        ids:['hs_sweep'] },
@@ -3231,13 +3242,16 @@
       const adoptBtn = x.cad.color !== 'var(--green)' && x.cad.real !== x.t.freq
         ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
         : '';
+      const markDueCadBtn = overdue < 0
+        ? '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="markTaskDue(\'' + x.t.id + '\')">mark due</button>'
+        : '';
       return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
           '<div style="min-width:0"><span style="font-size:14px;color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:3px" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
           ' <span style="font-size:11px;color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
           '<div style="font-size:12px;color:' + x.cad.color + ';white-space:nowrap">every ~' + x.cad.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + todayBtn + flagBtn + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + markDueCadBtn + todayBtn + flagBtn + '</div>' +
       '</div>';
     }
 
@@ -3696,6 +3710,7 @@
             '<div class="manage-card-icons">' +
               '<button class="icon-btn" onclick="togglePin(\'' + t.id + '\')" title="' + (isPinned ? 'Unpin' : 'Pin') + '" style="' + (isPinned ? '' : 'opacity:0.4') + '">&#128204;</button>' +
               '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
+              (overdue < 0 ? '<button class="icon-btn" onclick="markTaskDue(\'' + t.id + '\')" title="Mark as due">⏰</button>' : '') +
               '<button class="icon-btn" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' +
               '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
             '</div>' +
