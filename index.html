@@ -742,7 +742,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-20';
+  const APP_VERSION = '2026-06-20 v1';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -1908,6 +1908,7 @@
   
   function switchTab(tab) {
     currentTab = tab;
+    sessionStorage.setItem('activeTab', tab);
     const views = ['alina', 'manage', 'sprint', 'presets', 'stats', 'settings'];
     views.forEach(v => {
       const el = document.getElementById(v + 'View');
@@ -4033,7 +4034,7 @@
     const zoneEl = document.getElementById('zoneSelect');
     if (zoneEl) zoneEl.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
 
-    render();
+    switchTab(sessionStorage.getItem('activeTab') || 'alina');
     autoBackupCheck();
   }
   
