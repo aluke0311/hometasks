@@ -742,7 +742,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-06-20 v1';
+  const APP_VERSION = '2026-07-09 v1';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -754,7 +754,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {} };
   }
   
   async function loadState() {
@@ -809,6 +809,7 @@
           inProgress: parsed.inProgress || {},
           removedToday: parsed.removedToday || [],
           removedTodayDate: parsed.removedTodayDate || null,
+          yearStats: parsed.yearStats || {},
         };
       }
     } catch (e) {
@@ -1307,6 +1308,25 @@
   
   let _undoBuffer = null;
 
+  // Yearly aggregate counters for the year-in-review; one bucket per calendar
+  // year, created on first completion (records its start date for partial years).
+  function bumpYearStats(task, ts, delta) {
+    if (!state.yearStats) state.yearStats = {};
+    const d = new Date(ts);
+    const y = String(d.getFullYear());
+    if (!state.yearStats[y]) state.yearStats[y] = { since: todayStr(), count: 0, minutes: 0, byTask: {}, byRoom: {}, byMonth: {} };
+    const ys = state.yearStats[y];
+    const m = String(d.getMonth() + 1);
+    ys.count = Math.max(0, ys.count + delta);
+    ys.minutes = Math.max(0, ys.minutes + taskTime(task) * delta);
+    ys.byTask[task.id] = (ys.byTask[task.id] || 0) + delta;
+    if (ys.byTask[task.id] <= 0) delete ys.byTask[task.id];
+    ys.byRoom[task.room] = (ys.byRoom[task.room] || 0) + delta;
+    if (ys.byRoom[task.room] <= 0) delete ys.byRoom[task.room];
+    ys.byMonth[m] = (ys.byMonth[m] || 0) + delta;
+    if (ys.byMonth[m] <= 0) delete ys.byMonth[m];
+  }
+
   function completeTask(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
@@ -1323,6 +1343,7 @@
     if (!_alreadyToday) {
       state.completionHistory[id].push(Date.now());
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
+      bumpYearStats(task, Date.now(), 1);
     }
     _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
     // Timer running on this task: stop it and let the modal confirm the entry
@@ -1367,6 +1388,8 @@
         const d = new Date(ts);
         return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
       });
+      const task = getAllTasks().find(t => t.id === id);
+      if (task) bumpYearStats(task, Date.now(), -1);
     }
     saveNow();
     render();
@@ -1388,6 +1411,7 @@
       state.completionHistory[id].push(ts);
       state.completionHistory[id].sort((a,b) => a - b);
       if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
+      bumpYearStats(task, ts, 1);
     }
     if (state.starvation) state.starvation[id] = 0;
     if (state.snoozed) delete state.snoozed[id];
@@ -2502,6 +2526,12 @@
     return hand;
   }
 
+  // Stats → Room Pressure tap-through: build the room's Deep checklist and show it
+  function openRoomPressurePreset(roomId) {
+    generateRoomPreset(roomId, 'deep');
+    switchTab('presets');
+  }
+
   function loadRoomPreset(roomId, depth) {
     const key = 'room_' + roomId + '_' + depth;
     const ids = state.presetHands && state.presetHands[key];
@@ -3059,8 +3089,9 @@
   function statsByDay() {
     const allTasks = getAllTasks();
     const timeById = {};
-    allTasks.forEach(t => timeById[t.id] = t.time);
-    TASKS.forEach(t => { if (!(t.id in timeById)) timeById[t.id] = t.time; });
+    // Learned estimates (taskTime), matching Budget Insight, so all effort math agrees
+    allTasks.forEach(t => timeById[t.id] = taskTime(t));
+    TASKS.forEach(t => { if (!(t.id in timeById)) timeById[t.id] = taskTime(t); });
     const days = {};
     Object.entries(state.completionHistory || {}).forEach(([id, stamps]) => {
       (stamps || []).forEach(ts => {
@@ -3263,6 +3294,61 @@
       ? tracked.map(cadenceRow).join('')
       : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
 
+    // ── This Year: totals accrued by bumpYearStats since the feature shipped ──
+    const yearKey = String(today.getFullYear());
+    const ys = (state.yearStats || {})[yearKey];
+    const yearHtml = (function() {
+      if (!ys || !ys.count) return '';
+      const sinceNote = ys.since && ys.since.slice(0,4) === yearKey && ys.since.slice(5) !== '01-01'
+        ? ' (counting since ' + ys.since + ')' : '';
+      return '<div class="settings-card">' +
+        '<div class="settings-card-title">This Year</div>' +
+        '<div class="settings-stats-grid">' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + ys.count + '</div><div class="settings-stat-label">tasks in ' + yearKey + '</div></div>' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + fmtMinutes(Math.round(ys.minutes)) + '</div><div class="settings-stat-label">est. effort</div></div>' +
+        '</div>' +
+        '<div class="settings-card-desc" style="margin:8px 0 0">Feeds a year-in-review at the end of the year' + sinceNote + '.</div>' +
+      '</div>';
+    })();
+
+    // ── Room Pressure: median (days since done ÷ target) per room, worst first ──
+    // 1.0 = exactly due; matches what dealing sees (non-daily, in-season, alina/either)
+    const roomPressure = (function() {
+      const byRoom = {};
+      allTasks.forEach(t => {
+        if (t.oneOff || t.freq <= 1 || t.owner === 'bob' || !inSeason(t)) return;
+        const p = Math.max(0, 1 + daysOverdue(t) / t.freq);
+        if (!byRoom[t.room]) byRoom[t.room] = { pressures: [], overdue: 0 };
+        byRoom[t.room].pressures.push(p);
+        if (p >= 1) byRoom[t.room].overdue++;
+      });
+      const presetByLabel = {};
+      ROOM_PRESETS.forEach(r => presetByLabel[r.label] = r.id);
+      const rows = Object.entries(byRoom).map(([room, d]) => {
+        const s = d.pressures.sort((a,b) => a - b);
+        const mid = Math.floor(s.length / 2);
+        const median = s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+        const zone = Object.keys(ZONE_ROOMS).find(z => ZONE_ROOMS[z].includes(room)) || null;
+        return { room, median, overdue: d.overdue, total: d.pressures.length, zone, presetId: presetByLabel[room] || null };
+      }).sort((a,b) => b.median - a.median);
+      return rows.map(r => {
+        const color = r.median >= 1.5 ? 'var(--red)' : r.median >= 1 ? 'var(--amber)' : 'var(--green)';
+        const width = Math.round(Math.min(r.median / 2, 1) * 100);
+        const zoneChip = r.zone ? '<span style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:8px;padding:1px 6px">Z' + r.zone + '</span>' : '';
+        const tap = r.presetId ? ' onclick="openRoomPressurePreset(\'' + r.presetId + '\')" style="cursor:pointer"' : '';
+        return '<div' + tap + '>' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-top:8px">' +
+            '<div style="font-size:14px;color:var(--text);min-width:0">' + r.room + ' ' + zoneChip + '</div>' +
+            '<div style="font-size:12px;color:' + color + ';white-space:nowrap">' + r.median.toFixed(1) + '&times;' +
+              '<span style="color:var(--text3)"> &middot; ' + r.overdue + '/' + r.total + ' due</span></div>' +
+          '</div>' +
+          '<div style="height:6px;background:var(--bg3);border-radius:3px;margin-top:5px;overflow:hidden">' +
+            '<div style="height:100%;width:' + width + '%;background:' + color + ';border-radius:3px"></div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })();
+
     const html =
       '<div style="padding-bottom:32px">' +
       '<div class="settings-card">' +
@@ -3297,9 +3383,15 @@
           line('Weekends', bs.weekend, state.budgetWeekend, 'weekend') +
         '</div>';
       })() +
+      yearHtml +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Activity</div>' +
         heatHtml +
+      '</div>' +
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">Room Pressure</div>' +
+        '<div class="settings-card-desc">How overdue each room is overall &mdash; median of (days since done &divide; target) across its non-daily tasks. <b>1.0&times;</b> = exactly due. Tap a room to open its Deep checklist.</div>' +
+        roomPressure +
       '</div>' +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Completion Cadence</div>' +
@@ -3595,6 +3687,7 @@
       inProgress: parsed.inProgress || {},
       removedToday: parsed.removedToday || [],
       removedTodayDate: parsed.removedTodayDate || null,
+      yearStats: parsed.yearStats || {},
     };
     saveState();
     render();
