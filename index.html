@@ -3,6 +3,8 @@
   <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
+  <meta name="app-version" content="2026-08-03 v9">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -44,6 +46,10 @@
       --fs-sub:     13px;  /* secondary text, descriptions */
       --fs-meta:    12px;  /* room · time · freq */
       --fs-label:   11px;  /* uppercase tracked section labels */
+      /* D-2. A serif on headings only — the contrast between a serif title and a
+         sans body IS the effect; serif everywhere destroys it. System fonts only:
+         this app has zero external requests and that is worth protecting. */
+      --serif: Georgia, 'Times New Roman', serif;
       --radius: 10px; --radius-sm: 6px;
       --safe-top: env(safe-area-inset-top);
       --safe-bottom: env(safe-area-inset-bottom);
@@ -236,13 +242,63 @@
     .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
     .manage-dp-row { display: none; align-items: center; gap: 8px; padding: 0 12px 10px 50px; }
     .manage-dp-row.open { display: flex; }
+    /* ── D-2: serif headings ─────────────────────────────────────────────── */
+    .view-hero-title, .manage-title, .settings-card-title, .modal-title,
+    .settings-stat-num, .sprint-block-label, .empty b {
+      font-family: var(--serif); letter-spacing: -0.01em;
+    }
+
+    /* ── D-4: motion and feedback ────────────────────────────────────────── */
+    /* Numbers change in place all over this app — timers, counts, minutes left.
+       Proportional digits make the surrounding text jitter on every tick. */
+    body { font-variant-numeric: tabular-nums; }
+
+    button:active, .task-card:active, .sprint-card:active, .manage-card:active,
+    .settings-card button:active { transform: scale(0.97); }
+    button, .task-card, .sprint-card, .manage-card { transition: transform 0.09s ease-out; }
+
+    :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+
+    .tab-content-fade { animation: tabFade 0.18s ease-out both; }
+    @keyframes tabFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .tab.active .tab-icon { animation: tabPop 0.22s cubic-bezier(.32,.72,0,1) both; }
+    @keyframes tabPop { 0% { transform: scale(1); } 45% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+    @keyframes backdropIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes backdropOut { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes sheetIn  { from { transform: translateY(100%); } to { transform: none; } }
+    @keyframes sheetOut { from { transform: none; } to { transform: translateY(100%); } }
+
+    /* ── D-5: the completion moment ──────────────────────────────────────── */
+    /* Checking off is the reward and it happens ten-plus times a day. The card
+       used to just dim. Draw the tick, pop the circle, then settle. */
+    @keyframes checkPop { 0% { transform: scale(1); } 40% { transform: scale(1.28); } 100% { transform: scale(1); } }
+    @keyframes checkDraw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+    @keyframes cardSettle { 0% { opacity: 1; } 100% { opacity: 0.45; } }
+    .task-card.just-done .task-check { animation: checkPop 0.34s cubic-bezier(.32,.72,0,1) both; }
+    .task-card.just-done .task-check-inner { animation: checkDraw 0.2s ease-out 0.06s both; }
+    .task-card.just-done { animation: cardSettle 0.42s ease-out 0.16s both; }
+
+    /* Required, not optional: adding motion without honouring this setting is a
+       regression for anyone who has it turned on. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important; scroll-behavior: auto !important;
+      }
+      button:active, .task-card:active, .sprint-card:active, .manage-card:active { transform: none; }
+    }
+
     /* Modal — bottom sheet */
     /* Keyboard-safe sheets: --kb is the height the on-screen keyboard occludes,
        set from visualViewport below. Without it iOS puts the keyboard straight over
        the bottom of the sheet, hiding the Save button with no way to scroll to it. */
     :root { --kb: 0px; }
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
-    .modal-backdrop.open { display: flex; }
+    .modal-backdrop.open { display: flex; animation: backdropIn 0.2s ease-out both; }
+    .modal-backdrop.open > .modal { animation: sheetIn 0.28s cubic-bezier(.32,.72,0,1) both; }
+    .modal-backdrop.closing { animation: backdropOut 0.22s ease-in both; }
+    .modal-backdrop.closing > .modal { animation: sheetOut 0.22s cubic-bezier(.32,.72,0,1) both; }
     .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: calc(92vh - var(--kb)); display: flex; flex-direction: column; margin-bottom: var(--kb); }
     .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     .modal-title { font-size: var(--fs-title); font-weight: 600; }
@@ -342,6 +398,15 @@
     .tier-pills { display: flex; gap: 4px; }
     .tier-pill { padding: 6px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-meta); font-weight: 600; cursor: pointer; }
     .tier-pill:hover { background: var(--bg2); }
+    /* F-5: "I've got 10 minutes" — a moment of intent, not a settings change. */
+    .micro-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+    .micro-label { font-size: var(--fs-label); color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+    .micro-chip { flex: 1; font-size: var(--fs-meta); padding: 6px 0; border-radius: 20px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; }
+    .micro-chip.active { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
+    /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
+    .onthisday { margin: 16px 24px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--bg2); border: 0.5px solid var(--border); }
+    .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
+    .onthisday-body { font-size: var(--fs-sub); color: var(--text2); line-height: 1.45; }
   </style>
   </head>
   <body>
@@ -400,6 +465,7 @@
           <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">🔄 Catch up</button>
           <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">📋 By freq</button>
         </div>
+        <div class="micro-row" id="microRow"></div>
         <button class="oneoff-add-btn" onclick="openOneOffModal()">+ one-off task</button>
       </div>
       <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
@@ -842,12 +908,21 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v8';
+  const APP_VERSION = '2026-08-03 v9';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-03 v9', notes: [
+      'Milestones: the app now notices when you do something for the first time, rescue a task you had left for months, hit a round number, sweep a whole room, or beat your streak record.',
+      'Checking a task off now animates instead of just dimming.',
+      'Stats has a Year in Review card and a full year-in-pixels grid.',
+      'The cadence list is now "What you actually do", split into what you do less often than you said and what you do more often.',
+      'New 10 / 20 / 30 minute buttons deal a small hand when that is all the time you have.',
+      '"On this day" shows what you were doing a year ago, below today\'s hand.',
+      'Headings are set in a serif face, and the app tells you when a newer version is available.',
+    ]},
     { v: '2026-08-03 v8', notes: [
       'Time estimates now agree everywhere: presets, room presets and the Sprint all use your learned times, so a preset and the sprint you launch from it no longer quote different numbers.',
       'Text sizes come from one consistent scale instead of twelve ad-hoc values.',
@@ -891,7 +966,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now() };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -901,7 +976,7 @@
   const NULLABLE_SHAPE = {
     hand: 'array', guestHand: 'array', resetHand: 'array', goingOutHand: 'array',
     handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
-    lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number',
+    lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number', seenVersion: 'string',
   };
 
   // The single place a parsed blob becomes a valid state object — used by both the
@@ -1106,11 +1181,11 @@
     document.getElementById('timeModalTask').textContent = t.name;
     document.getElementById('timeModalHint').textContent = hint || 'Logged times sharpen the estimate used for budgeting (median of last 10, needs 3+).';
     document.getElementById('timeModalMinutes').value = minutes || '';
-    document.getElementById('timeModal').classList.add('open');
+    showSheet('timeModal');
   }
 
   function closeTimeModal() {
-    document.getElementById('timeModal').classList.remove('open');
+    hideSheet('timeModal');
     timeModalTaskId = null;
   }
 
@@ -1553,10 +1628,18 @@
       delete state.customTasks[id];
       state.hand = (state.hand || []).filter(h => h !== id);
     }
+    const milestone = task.oneOff ? null : checkMilestone(task, prev);
+    if (milestone) _undoBuffer.milestoneKey = milestone.key;
     saveNow();
     render();
+    // D-5: let the card play its completion beat before it settles to dimmed.
+    const cardEl = document.getElementById('card_' + id);
+    if (cardEl && cardEl.classList.contains('done')) {
+      cardEl.classList.add('just-done');
+      setTimeout(() => cardEl.classList.remove('just-done'), 700);
+    }
     if (task.oneOff) showToast('Done!');
-    else showUndoToast(id);
+    else showUndoToast(id, milestone);
     if (_timedMins !== null) openTimeModal(id, _timedMins, 'Done! Confirm the timed entry, adjust it, or discard.');
   }
 
@@ -1576,6 +1659,11 @@
         const d = new Date(ts);
         return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
       });
+      // Un-spend the milestone this completion earned, or a mis-tap permanently
+      // burns a once-ever key like "first time".
+      if (_undoBuffer && _undoBuffer.milestoneKey && state.milestones) {
+        delete state.milestones[_undoBuffer.milestoneKey];
+      }
       // Nothing else to undo: year totals are derived from this array on read, so
       // removing the entry is the whole correction. The old accumulator needed a
       // matching -1 here, and that pair could drift apart.
@@ -1930,9 +2018,62 @@
     }
     html += '</div>';
 
+    html += onThisDayHtml();
     html += '<div class="bottom-pad"></div>';
     document.getElementById('alinaTaskList').innerHTML = html;
+    renderMicroRow();
     if (quickLogOpen) renderQuickLogResults();
+  }
+
+  // ─── F-5: "I've got 10 minutes" ───────────────────────────────────────────
+  // A transient budget override, deliberately NOT persisted — it's a moment, not
+  // a setting. Redealing or tapping again returns to the normal hand.
+  let microBudget = null;
+  function renderMicroRow() {
+    const row = document.getElementById('microRow');
+    if (!row) return;
+    row.innerHTML = '<span class="micro-label">Got</span>' +
+      [10, 20, 30].map(m => '<button class="micro-chip' + (microBudget === m ? ' active' : '') +
+        '" onclick="setMicroHand(' + m + ')">' + m + ' min</button>').join('');
+  }
+
+  function setMicroHand(mins) {
+    if (microBudget === mins) { microBudget = null; state.hand = null; dealHand(); saveState(); render(); return; }
+    microBudget = mins;
+    const saved = { wd: state.budgetWeekday, we: state.budgetWeekend };
+    state.budgetWeekday = mins; state.budgetWeekend = mins;
+    state.hand = null; state.handDate = null;
+    dealHand();
+    state.budgetWeekday = saved.wd; state.budgetWeekend = saved.we;
+    state.hand = mergeStickyHand(state.hand || []);
+    saveState();
+    render();
+    showToast('Dealt a ' + mins + '-minute hand');
+  }
+
+  // ─── F-4: "On this day" ───────────────────────────────────────────────────
+  function onThisDayHtml() {
+    const hist = state.completionHistory || {};
+    const now = new Date();
+    const all = getAllTasks();
+    const hits = [];
+    Object.keys(hist).forEach(id => {
+      (hist[id] || []).forEach(ts => {
+        const d = new Date(ts);
+        const yearsAgo = now.getFullYear() - d.getFullYear();
+        if (yearsAgo < 1) return;
+        if (d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return;
+        const t = all.find(x => x.id === id);
+        if (t) hits.push({ name: t.name, yearsAgo });
+      });
+    });
+    if (!hits.length) return '';
+    const years = Math.min(...hits.map(h => h.yearsAgo));
+    const names = [...new Set(hits.filter(h => h.yearsAgo === years).map(h => h.name))].slice(0, 4);
+    return '<div class="onthisday">' +
+      '<div class="onthisday-label">' + (years === 1 ? 'A year ago today' : years + ' years ago today') + '</div>' +
+      '<div class="onthisday-body">' + names.join(', ') + '.</div>' +
+    '</div>';
   }
 
   let quickLogOpen = false;
@@ -2074,6 +2215,91 @@
   
   // ─── WHY THIS TASK? ────────────────────────────────────────────────────────
 
+  // ─── Sheet open/close (D-4) ───────────────────────────────────────────────
+  // Once animated, sheets must open and close ONLY through these two. Anything
+  // that toggles the class directly loses the exit animation and reads as "the
+  // animation randomly doesn't work".
+  function showSheet(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('closing');
+    el.classList.add('open');
+  }
+  function hideSheet(id) {
+    const el = document.getElementById(id);
+    if (!el || !el.classList.contains('open')) return;
+    el.classList.add('closing');
+    setTimeout(() => el.classList.remove('open', 'closing'), 220);
+  }
+
+  // ─── Fix 6: is this tab running a stale build? ────────────────────────────
+  async function checkForNewVersion() {
+    try {
+      const res = await fetch(location.href, { cache: 'no-store' });
+      if (!res.ok) return;
+      const head = (await res.text()).slice(0, 4000);
+      const m = head.match(/<meta name="app-version" content="([^"]+)"/);
+      if (m && m[1] !== APP_VERSION) {
+        showToast('Update available — tap to reload', () => {
+          // A plain reload() can re-serve the same cached copy from Pages' CDN.
+          location.replace(location.pathname + '?v=' + Date.now());
+        }, 'Reload');
+      }
+    } catch (e) { /* never block boot on a network hiccup */ }
+  }
+
+  // ─── F-3: milestones ──────────────────────────────────────────────────────
+  // At most ONE per completion, and each key fires once ever. That cap is what
+  // keeps this charming instead of turning into noise.
+  const MILESTONE_COUNTS = [10, 25, 50, 100, 250];
+  function currentStreak() {
+    const days = {};
+    Object.values(state.completionHistory || {}).forEach(list =>
+      (list || []).forEach(ts => { days[dayKeyOf(ts)] = true; }));
+    const now = new Date();
+    const keyAgo = n => dayKeyOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - n).getTime());
+    let streak = 0;
+    for (let i = days[keyAgo(0)] ? 0 : 1; i < 400; i++) {
+      if (days[keyAgo(i)]) streak++; else break;
+    }
+    return streak;
+  }
+
+  function checkMilestone(task, prevCompletion) {
+    if (!state.milestones) state.milestones = {};
+    const seen = state.milestones;
+    const hist = (state.completionHistory || {})[task.id] || [];
+    const n = hist.length;
+    const fire = (key, text) => (seen[key] ? null : { key, text });
+
+    let m = null;
+    // First match wins, most-special first.
+    if (n === 1) m = fire('first:' + task.id, '&#127881; First time you\'ve logged ' + task.name + '.');
+    if (!m && prevCompletion && (Date.now() - prevCompletion) / 86400000 >= 180) {
+      m = fire('rescued:' + task.id + ':' + new Date().getFullYear(),
+               '&#128153; Rescued — ' + task.name + ' hadn\'t been done in ' + Math.floor((Date.now() - prevCompletion) / 86400000) + ' days.');
+    }
+    if (!m && MILESTONE_COUNTS.includes(n)) m = fire('count:' + task.id + ':' + n, '&#127942; ' + n + 'th time you\'ve done ' + task.name + '.');
+    if (!m) {
+      // Room sweep: every in-season task in this room done at least once this season.
+      const season = new Date().getFullYear() + '-' + Math.floor(new Date().getMonth() / 3);
+      const roomTasks = getAllTasks().filter(t => t.room === task.room && !t.oneOff && inSeason(t));
+      const cutoff = Date.now() - 90 * 86400000;
+      if (roomTasks.length >= 3 && roomTasks.every(t => ((state.completionHistory || {})[t.id] || []).some(ts => ts >= cutoff))) {
+        m = fire('sweep:' + task.room + ':' + season, '&#129529; Room sweep — every task in ' + task.room + ' done this season.');
+      }
+    }
+    if (!m) {
+      const st = currentStreak();
+      if (st >= 5 && st > (state.bestStreak || 0)) {
+        state.bestStreak = st;
+        m = fire('streak:' + st, '&#128293; ' + st + '-day streak — a new record.');
+      }
+    }
+    if (m) seen[m.key] = Date.now();
+    return m;
+  }
+
   // ─── Task actions sheet (D-6) ──────────────────────────────────────────────
   // The card used to render up to eleven identical grey pills, wrapping onto three
   // rows. The cost wasn't taps, it was recognition: re-reading ten look-alike
@@ -2123,11 +2349,11 @@
 
     document.getElementById('taskActionsTitle').textContent = task.name;
     document.getElementById('taskActionsBody').innerHTML = html;
-    document.getElementById('taskActionsModal').classList.add('open');
+    showSheet('taskActionsModal');
   }
 
   function closeTaskActions() {
-    document.getElementById('taskActionsModal').classList.remove('open');
+    hideSheet('taskActionsModal');
     _taskActionsId = null;
   }
 
@@ -2169,11 +2395,11 @@
 
     document.getElementById('whyTitle').textContent = 'Why this task?';
     document.getElementById('whyBody').innerHTML = html;
-    document.getElementById('whyModal').classList.add('open');
+    showSheet('whyModal');
   }
 
   function closeWhyModal() {
-    document.getElementById('whyModal').classList.remove('open');
+    hideSheet('whyModal');
   }
 
   // ─── UI HELPERS ────────────────────────────────────────────────────────────
@@ -3501,6 +3727,91 @@
     heatHtml += '</div>' +
       '<div style="font-size:var(--fs-label);color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
 
+    // ── F-2: Year in Pixels — one cell per day of the calendar year ──────────
+    // Fixed-width cells with horizontal scroll, never 1fr columns: 1fr is
+    // circular against the cells' own width and the grid collapses.
+    function yearPixels(year) {
+      const counts = {};
+      Object.values(state.completionHistory || {}).forEach(list =>
+        (list || []).forEach(ts => {
+          const d = new Date(ts);
+          if (d.getFullYear() !== year) return;
+          const k = dayKeyOf(ts);
+          counts[k] = (counts[k] || 0) + 1;
+        }));
+      const jan1 = new Date(year, 0, 1);
+      const start = new Date(year, 0, 1 - jan1.getDay());   // back up to Sunday
+      const cols = [];
+      let cur = new Date(start);
+      while (cur.getFullYear() < year + 1 || cur.getMonth() === 0 && cur.getFullYear() === year) {
+        if (cur >= new Date(year + 1, 0, 1)) break;
+        const col = [];
+        for (let d = 0; d < 7; d++) {
+          const inYear = cur.getFullYear() === year;
+          col.push({ key: dayKeyOf(cur.getTime()), count: inYear ? (counts[dayKeyOf(cur.getTime())] || 0) : null });
+          cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+        }
+        cols.push(col);
+      }
+      let h = '<div style="display:flex;gap:3px;overflow-x:auto;padding-bottom:6px">';
+      cols.forEach(col => {
+        h += '<div style="display:flex;flex-direction:column;gap:3px;flex:0 0 auto">';
+        col.forEach(c => {
+          h += c.count === null
+            ? '<div style="width:11px;height:11px"></div>'
+            : '<div title="' + c.key + ': ' + c.count + '" style="width:11px;height:11px;border-radius:2px;' + cellColor(c.count) + '"></div>';
+        });
+        h += '</div>';
+      });
+      return h + '</div>';
+    }
+
+    // ── F-2: Year in Review, entirely derived from completionHistory ─────────
+    const reviewYear = today.getFullYear();
+    const yearReviewHtml = (function () {
+      const d = deriveYearStats(reviewYear);
+      if (!d.count) return '';
+      const all = getAllTasks();
+      const nameOf = id => (all.find(t => t.id === id) || {}).name || id;
+      const rooms = Object.entries(d.byRoom).sort((a, b) => b[1] - a[1]);
+      const topTask = Object.entries(d.byTask).sort((a, b) => b[1] - a[1])[0];
+      const snoozed = Object.entries(state.snoozed || {}).length;
+      const prev = deriveYearStats(reviewYear - 1);
+      const months = Object.entries(d.byMonth).map(([m, n]) => ({ m: +m, n }));
+      const maxMonth = Math.max(1, ...months.map(x => x.n));
+      const MON = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+      let bars = '<div style="display:flex;align-items:flex-end;gap:4px;height:52px;margin-top:4px">';
+      for (let m = 1; m <= 12; m++) {
+        const n = (d.byMonth[String(m)] || 0);
+        bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">' +
+          '<div title="' + n + '" style="width:100%;height:' + Math.round((n / maxMonth) * 40) + 'px;background:var(--green);opacity:' + (n ? 0.85 : 0.15) + ';border-radius:2px"></div>' +
+          '<span style="font-size:9px;color:var(--text3)">' + MON[m - 1] + '</span>' +
+        '</div>';
+      }
+      bars += '</div>';
+      const row = (label, value) => '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:0.5px solid var(--border)">' +
+        '<span style="font-size:var(--fs-sub);color:var(--text2)">' + label + '</span>' +
+        '<span style="font-size:var(--fs-sub);color:var(--text);font-weight:600;text-align:right">' + value + '</span></div>';
+      return '<div class="settings-card">' +
+        '<div class="settings-card-title">' + reviewYear + ' in review</div>' +
+        '<div class="settings-stats-grid">' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + d.count + '</div><div class="settings-stat-label">tasks done</div></div>' +
+          '<div class="settings-stat-box"><div class="settings-stat-num">' + fmtMinutes(Math.round(d.minutes)) + '</div><div class="settings-stat-label">time spent</div></div>' +
+        '</div>' +
+        bars +
+        '<div style="margin-top:12px">' +
+          (rooms.length ? row('Most attention', rooms[0][0] + ' &middot; ' + rooms[0][1] + '&times;') : '') +
+          (rooms.length > 1 ? row('Least attention', rooms[rooms.length - 1][0] + ' &middot; ' + rooms[rooms.length - 1][1] + '&times;') : '') +
+          (topTask ? row('Done most often', nameOf(topTask[0]) + ' &middot; ' + topTask[1] + '&times;') : '') +
+          row('Longest streak', (state.bestStreak || streak) + ' days') +
+          (snoozed ? row('Currently snoozed', snoozed + ' task' + (snoozed === 1 ? '' : 's')) : '') +
+          (prev.count ? row('vs ' + (reviewYear - 1), (d.count >= prev.count ? '+' : '') + (d.count - prev.count) + ' tasks') : '') +
+        '</div>' +
+        '<div style="margin-top:14px"><div class="sheet-group-label">' + reviewYear + ' in pixels</div>' + yearPixels(reviewYear) +
+        '<div style="font-size:var(--fs-label);color:var(--text3)">One square per day &middot; darker = more done</div></div>' +
+      '</div>';
+    })();
+
     // ── Cadence: every task with 3+ completions, worst ratio first ──
     const allTasks = getAllTasks();
     const tracked = allTasks
@@ -3538,9 +3849,30 @@
       '</div>';
     }
 
+    // F-1: the interesting thing is the DISAGREEMENT between what she told the app
+    // and what the history says. Lead with the count, and split the two cases —
+    // they're genuinely different feelings, and "ahead" was buried before.
+    const behind = tracked.filter(x => x.cad.ratio > 1.15);
+    const ahead  = tracked.filter(x => x.cad.ratio < 0.8);
+    const onPace = tracked.length - behind.length - ahead.length;
+    const disagreeing = behind.length + ahead.length;
     const chronicHtml = tracked.length
-      ? tracked.map(cadenceRow).join('')
-      : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
+      ? '<div style="font-size:var(--fs-body);color:var(--text);margin-bottom:10px">' +
+          (disagreeing
+            ? '<b>' + disagreeing + '</b> task' + (disagreeing === 1 ? '' : 's') + ' run' + (disagreeing === 1 ? 's' : '') + ' on a different schedule than you set.'
+            : 'Everything is running close to the schedule you set.') +
+          (onPace ? ' <span style="color:var(--text3)">' + onPace + ' on pace.</span>' : '') +
+        '</div>' +
+        (behind.length
+          ? '<div class="sheet-group-label" style="margin-top:14px">Behind &mdash; you do these less often than you said</div>' +
+            behind.map(cadenceRow).join('')
+          : '') +
+        (ahead.length
+          ? '<div class="sheet-group-label" style="margin-top:18px">Ahead &mdash; you do these more often than you said</div>' +
+            '<div class="settings-card-desc" style="margin:2px 0 6px">Either the target is too lax, or you could get some time back.</div>' +
+            ahead.map(cadenceRow).join('')
+          : '')
+      : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; this appears as history builds.</div>';
 
     // ── This Year: derived from completionHistory where history covers the whole
     // year, otherwise the stored bucket left over from the accumulator era ──
@@ -3637,14 +3969,15 @@
         '<div class="settings-card-title">Activity</div>' +
         heatHtml +
       '</div>' +
+      yearReviewHtml +
       '<div class="settings-card">' +
         '<div class="settings-card-title">Room Pressure</div>' +
         '<div class="settings-card-desc">How overdue each room is overall &mdash; median of (days since done &divide; target) across its non-daily tasks. <b>1.0&times;</b> = exactly due. Tap a room to open its Deep checklist.</div>' +
         roomPressure +
       '</div>' +
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Completion Cadence</div>' +
-        '<div class="settings-card-desc">How often each task really gets done (median interval, 3+ completions), worst-behind first. <span style="color:var(--red)">Red</span> = 1.5&times;+ behind target, <span style="color:var(--amber)">amber</span> = somewhat behind, <span style="color:var(--green)">green</span> = on pace, <span style="color:var(--blue)">blue</span> = more often than needed. Tap a name to edit its target.</div>' +
+        '<div class="settings-card-title">What you actually do</div>' +
+        '<div class="settings-card-desc">Your real median interval for every task with 3+ completions, against the target you set. Tap a name to edit its target, or adopt the real one in a tap.</div>' +
         chronicHtml +
       '</div>' +
       '</div>';
@@ -4120,23 +4453,23 @@
       document.getElementById('f_owner').value = 'either';
       document.getElementById('f_cat').checked = false;
     }
-    modal.classList.add('open');
+    showSheet('taskModal');
   }
   
   function closeModal() {
-    document.getElementById('taskModal').classList.remove('open');
+    hideSheet('taskModal');
     editingId = null;
   }
 
   function openOneOffModal() {
     document.getElementById('oneoffName').value = '';
     document.getElementById('oneoffTime').value = '';
-    document.getElementById('oneoffModal').classList.add('open');
+    showSheet('oneoffModal');
     setTimeout(() => document.getElementById('oneoffName').focus(), 50);
   }
 
   function closeOneOffModal() {
-    document.getElementById('oneoffModal').classList.remove('open');
+    hideSheet('oneoffModal');
   }
 
   function saveOneOff() {
@@ -4313,21 +4646,34 @@
   }
   
   let toastTimer;
-  function showToast(msg) {
+  let _toastAction = null;
+  function runToastAction() { if (_toastAction) { const f = _toastAction; _toastAction = null; f(); } }
+
+  function showToast(msg, action, actionLabel) {
     const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.remove('undoable');
+    _toastAction = action || null;
+    if (action) {
+      t.innerHTML = msg + ' <button class="toast-undo-btn" onclick="runToastAction()">' + (actionLabel || 'Undo') + '</button>';
+      t.classList.add('undoable');
+    } else {
+      t.textContent = msg;
+      t.classList.remove('undoable');
+    }
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+    toastTimer = setTimeout(() => t.classList.remove('show', 'undoable'), action ? 6000 : 1800);
   }
 
-  function showUndoToast(id) {
+  // A milestone replaces the plain "Done!" text but NEVER the Undo affordance —
+  // a mis-tap must always stay recoverable.
+  function showUndoToast(id, milestone) {
     const t = document.getElementById('toast');
-    t.innerHTML = 'Done! <button class="toast-undo-btn" onclick="undoComplete()">Undo</button>';
+    _toastAction = null;
+    t.innerHTML = (milestone ? milestone.text : 'Done!') +
+      ' <button class="toast-undo-btn" onclick="undoComplete()">Undo</button>';
     t.classList.add('show', 'undoable');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show', 'undoable'), 5000);
+    toastTimer = setTimeout(() => t.classList.remove('show', 'undoable'), milestone ? 7000 : 5000);
   }
   
   // ─── ASYNC INIT ────────────────────────────────────────────────────────────
@@ -4356,6 +4702,20 @@
 
     switchTab(sessionStorage.getItem('activeTab') || 'alina');
     autoBackupCheck();
+
+    // Fix 6: Bob and Alina never see the commits, so the only way a change is
+    // visible is from inside the app. Toast once per new version, then point at
+    // the full list in Settings.
+    if (state.seenVersion !== APP_VERSION) {
+      const first = (CHANGELOG[0] && CHANGELOG[0].v === APP_VERSION) ? CHANGELOG[0] : null;
+      state.seenVersion = APP_VERSION;
+      saveState();
+      if (first) {
+        setTimeout(() => showToast('Updated &mdash; ' + first.notes.length + ' change' +
+          (first.notes.length === 1 ? '' : 's'), () => switchTab('settings'), "What's new"), 900);
+      }
+    }
+    checkForNewVersion();
 
     // The on-screen keyboard shrinks visualViewport but not layout viewport, so
     // the difference is exactly how much of the sheet is being covered.
