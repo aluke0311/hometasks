@@ -74,41 +74,24 @@ entered; toggles look like toggles; derived or proxy values never masquerade as
 real data.
 
 **Watch-outs when editing** (these have bitten before):
-- Adding state? Update all three of `defaultState()`, `loadState()`, and
-  `applyImport` or import will silently drop the field.
-- Referencing a task id in a preset that renders via `getAllTasks()`
-  (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`,
-  `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`,
-  `EVENING_*`)? The id must exist in `TASKS` or it's silently dropped.
-  `completeTask` returns early for unknown ids, so a checklist item with a
-  phantom id can never be checked off. Run the dead-ref scan after preset edits.
 - Don't break: laundry slot logic, `_dealPreferTier`, the starvation cap
-  (`freq * 0.15`), pinned/in-progress carry-over.
+  (`freq * 0.15`), pinned/in-progress carry-over. All four are pinned by
+  `selftest.html` — run it.
+- Preset task ids must exist in `TASKS`, or the item silently vanishes and
+  `completeTask` returns early so it can never be checked off. `selftest.html`
+  case 3 covers every preset constant; no manual scan needed.
 
-Dead-reference scan (run from the repo root):
-
-```bash
-python3 - <<'PY'
-import re
-src=open("index.html").read(); lines=src.split("\n")
-taskIds={m.group(1) for i in range(482,696) for m in [re.search(r"id:'([^']+)'",lines[i])] if m}
-def block(n):
-    s=src.find("const "+n); i=s; d=0; st=False
-    while i<len(src):
-        c=src[i]
-        if c=='[': d+=1; st=True
-        elif c==']':
-            d-=1
-            if st and d==0: return src[s:i+1]
-        i+=1
-rk={"quick","deep","kitchen","dsBath","usBath","bedroom","livingRoom","diningRoom","sunroom","office","backRoom","laundry","hall","mudRoom","backPorch","cats"}
-for nm in ["ROOM_PRESETS","EXPRESS_RESET_SECTIONS","RETURN_HOME_SECTIONS","BEFORE_CLEANERS_SECTIONS","RECOVERY_SECTIONS","POST_ILLNESS_SECTIONS","EVENING_SHUTDOWN_FIXED","EVENING_TIDY_POOL"]:
-    b=block(nm) or ""
-    ids=[m.group(1) for m in re.finditer(r"'([a-z][a-z0-9_]+)'",b) if m.group(1) not in rk]
-    miss=sorted({x for x in ids if x not in taskIds})
-    print(nm,"->", miss or "OK")
-PY
-```
+**Retired watch-outs — do not reinstate:**
+- *"Adding state? Update all three of `defaultState()`, `loadState()` and
+  `applyImport`."* Obsolete since 2026-08-03. Both paths route through
+  `coerceState()`, which spreads over `defaultState()`, so **`defaultState()` is
+  now the only place to add a field.** One exception, and it is a check rather
+  than a default: a field whose default is `null` can't have its type inferred,
+  so add it to `NULLABLE_SHAPE` if you want it shape-guarded. Forgetting that
+  costs a missed type check, never a dropped field.
+- *The Python dead-reference scan.* Superseded by `selftest.html` case 3, which
+  covers more constants and can't drift out of sync with the line numbers it
+  used to hardcode. One gate, not two.
 
 ---
 

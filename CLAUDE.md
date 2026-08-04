@@ -145,14 +145,17 @@ Selecting a zone gives a `-2` score bonus to tasks in that zone.
 - `CLAUDE.md` — this file: working instructions + architecture summary for Claude
 - `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
 - `IMPROVEMENT_PLAN.md` — historical plan for the 9 features shipped in June 2026; **all 9 are now implemented** (auto-backup, undo/backdating, quick-log, Stats tab, "why?" breakdown, zone auto-rotation, vacation mode, seasonal months, per-task timer). Its line-number anchors are stale; keep only as a record of intent
+- `PLAN_2026-08.md` — the current working plan (August 2026 hardening + delight), written by auditing this app against the sibling wardrobe app. Part 3.5 holds review amendments; Part 4 is sequenced by judgment-density with an explicit handoff line
+- `selftest.html` — the test harness. Open it in the preview; it loads `index.html` into an isolated iframe and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked
 
 ## Known Issues / Watch-outs
 
 The June 2026 review bugs — dead preset task ids (`k_backsplash`, `dsb_exhaust`, `dsb_mop`, `bed_vacuum`), `completeEarlier` double-logging, `applyImport` field gaps, preset name/room drift, and the phantom "Front Porch" zone entry — were all **fixed on 2026-06-15**.
 
 Editing pitfalls that remain true (also encoded in the `app-update` skill):
-- **Adding state** requires a default in all three of `defaultState()`, `loadState()`, and `applyImport`, or import silently drops the field.
-- **Preset task ids** in lists that render via `getAllTasks()` (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_*`) must exist in `TASKS`, or they silently vanish; `completeTask` returns early for unknown ids, so a phantom checklist item can never be checked off.
+- **Preset task ids** in lists that render via `getAllTasks()` (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_*`) must exist in `TASKS`, or they silently vanish; `completeTask` returns early for unknown ids, so a phantom checklist item can never be checked off. `selftest.html` case 3 now pins this.
+
+**Retired 2026-08-03 — do not reinstate.** "Adding state requires a default in all three of `defaultState()`, `loadState()`, and `applyImport`" is no longer true. Both paths route through `coerceState()`, which spreads over `defaultState()`, so **`defaultState()` is the only place a new field must be added.** The one addendum is a check, not a default: a field defaulting to `null` can't have its type inferred, so list it in `NULLABLE_SHAPE` if it should be shape-guarded. Forgetting that costs a missed type check, never a dropped field.
 
 Minor known behaviors (by design / low priority):
 - Random Task ignores owner, so it can surface a Bob-only task to add to the hand.
