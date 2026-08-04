@@ -742,11 +742,10 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-07-09 v1';
+  const APP_VERSION = '2026-08-03 v1';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
-  let isSaving = false;
   
   function defaultState() {
     const now = Date.now();
@@ -819,28 +818,21 @@
   }
   
   
+  // The only function that writes to localStorage. Cancels any pending debounce
+  // so saveNow() and saveState() can never race to write the same state twice.
   function saveNow() {
+    if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       console.error('Storage save error:', e);
     }
   }
-  
-  async function saveState() {
+
+  function saveState() {
     // Debounce rapid saves: wait 300ms after last call
     if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
-    saveDebounceTimer = setTimeout(async () => {
-      if (isSaving) return;
-      isSaving = true;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.error('Storage save error:', e);
-      } finally {
-        isSaving = false;
-      }
-    }, 300);
+    saveDebounceTimer = setTimeout(saveNow, 300);
   }
   
   // ─── STATE (initialized async in init()) ───────────────────────────────────
@@ -4129,6 +4121,13 @@
 
     switchTab(sessionStorage.getItem('activeTab') || 'alina');
     autoBackupCheck();
+
+    // A backgrounded tab may never run another line of JS — iOS is aggressive
+    // about suspending them. Flush any pending debounced write before it goes.
+    window.addEventListener('pagehide', saveNow);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveNow();
+    });
   }
   
   init();
