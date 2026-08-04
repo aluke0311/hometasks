@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-03 v12">
+  <meta name="app-version" content="2026-08-03 v13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -687,14 +687,23 @@
     // ── ROBOT VACUUMS ──
     { id:'rob_run_ds',       name:'Run robot vacuum (downstairs)',        room:'Downstairs',    freq:1,   time:2,  owner:'either' },
     { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:4,   time:2,  owner:'either' },
-    { id:'rob_water',        name:'Refill robot water & empty dirty tank', room:'Robot',       freq:14,  time:5,  owner:'alina' },
+    // Two separate physical units — an upstairs robot (vacuum only) and a
+    // downstairs robot (vacuum + mop, docked). Maintenance is per-unit; only the
+    // downstairs one has a dock, so dock upkeep has no upstairs counterpart.
+    { id:'rob_water',        name:'Refill robot water & empty dirty tank (downstairs dock)', room:'Robot', freq:14,  time:5,  owner:'alina' },
+    // Distinct from the reservoir refill above: the dock's own water FILTER,
+    // changed much less often than the reservoirs are emptied/refilled.
+    { id:'rob_dock_filter',  name:'Clean dock water filter (downstairs)', room:'Robot',         freq:60,  time:5,  owner:'alina' },
     { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:4,   time:2,  owner:'either' },
     // The mop lives downstairs, so upstairs means carrying it up first — less
     // frequent than the downstairs mop, and a bit more time than a one-tap "run".
     { id:'rob_mop_us',       name:'Run robot mop (upstairs)',             room:'Upstairs',      freq:14,  time:5,  owner:'either' },
-    { id:'rob_filters',      name:'Clean robot filters',                  room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_sensors',      name:'Wipe robot sensors',                   room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_deep',         name:'Deep clean robot',                     room:'Robot',         freq:90,  time:20, owner:'alina' },
+    { id:'rob_filters_ds',   name:'Clean robot filters (downstairs)',     room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_filters_us',   name:'Clean robot filters (upstairs)',       room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_sensors_ds',   name:'Wipe robot sensors (downstairs)',      room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_sensors_us',   name:'Wipe robot sensors (upstairs)',        room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_deep_ds',      name:'Deep clean robot (downstairs)',        room:'Robot',         freq:90,  time:20, owner:'alina' },
+    { id:'rob_deep_us',      name:'Deep clean robot (upstairs)',          room:'Robot',         freq:90,  time:20, owner:'alina' },
   
     // ── KITCHEN ──
     { id:'k_recycling_out',  name:'Take out recycling',                  room:'Kitchen',       freq:3,   time:2,  owner:'either' },
@@ -916,12 +925,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v12';
+  const APP_VERSION = '2026-08-03 v13';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-03 v13', notes: [
+      'Robot maintenance is now split by unit: separate filter, sensor, and deep-clean tasks for the upstairs and downstairs robots, since they turned out to be two physical machines rather than one.',
+      'Added a task for cleaning the downstairs dock\'s water filter, which was never covered before (only refilling its reservoirs was).',
+    ]},
     { v: '2026-08-03 v12', notes: [
       'The upstairs cat feeder task now gets the same cat-care priority boost and Bob ownership as the rest of the litter/feeder chores.',
       'Added a robot mop run for upstairs (less often than downstairs, since the mop has to be carried up first).',
