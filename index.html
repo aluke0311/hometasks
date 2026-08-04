@@ -12,6 +12,10 @@
       --card: #ffffff; --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
       --text: #2c2c2a; --text2: #5f5e5a; --text3: #888780;
       --red: #e24b4a; --red-bg: #fcebeb;
+      /* Darker red for white text sitting ON the accent: white on --red is only
+         3.94:1, under the 4.5 floor for text this size. Same value in both themes,
+         since the pairing is white-on-red either way. */
+      --red-strong: #b3312f;
       --amber: #ba7517; --amber-bg: #faeeda;
       --green: #3b6d11; --green-bg: #eaf3de;
       --blue: #185fa5; --blue-bg: #e6f1fb;
@@ -198,6 +202,8 @@
     .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: 14px; }
     .bottom-pad { height: 32px; }
   
+    .save-error-banner { padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--red-strong); color: #fff; font-size: 13px; font-weight: 500; text-align: center; line-height: 1.35; }
+    .save-error-banner[hidden] { display: none; }
     .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.undoable { pointer-events: auto; }
@@ -264,6 +270,12 @@
   </head>
   <body>
   <div class="app">
+    <!-- Sticky, not a toast: a failed save means every later change is being lost, so
+         this must not time out. It clears itself only when a save succeeds. Sits in
+         the flow above the header rather than fixed over it, so it can't hide the app. -->
+    <div class="save-error-banner" id="saveErrorBanner" role="alert" hidden>
+      ⚠️ Changes aren’t saving — storage may be full. Back up from Settings, then reload.
+    </div>
     <div class="header">
       <div class="header-inner">
         <div class="header-logo">
@@ -742,7 +754,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v3';
+  const APP_VERSION = '2026-08-03 v4';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -753,7 +765,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now() };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -828,9 +840,21 @@
     if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setSaveFailed(false);
     } catch (e) {
+      // A quota error used to be console-only, so every later write failed
+      // invisibly and everything after that moment was lost with no signal at all.
       console.error('Storage save error:', e);
+      setSaveFailed(true);
     }
+  }
+
+  let saveFailed = false;
+  function setSaveFailed(failed) {
+    if (failed === saveFailed) return;
+    saveFailed = failed;
+    const el = document.getElementById('saveErrorBanner');
+    if (el) el.hidden = !failed;
   }
 
   function saveState() {
@@ -1304,23 +1328,61 @@
   
   let _undoBuffer = null;
 
-  // Yearly aggregate counters for the year-in-review; one bucket per calendar
-  // year, created on first completion (records its start date for partial years).
-  function bumpYearStats(task, ts, delta) {
-    if (!state.yearStats) state.yearStats = {};
-    const d = new Date(ts);
-    const y = String(d.getFullYear());
-    if (!state.yearStats[y]) state.yearStats[y] = { since: todayStr(), count: 0, minutes: 0, byTask: {}, byRoom: {}, byMonth: {} };
-    const ys = state.yearStats[y];
-    const m = String(d.getMonth() + 1);
-    ys.count = Math.max(0, ys.count + delta);
-    ys.minutes = Math.max(0, ys.minutes + taskTime(task) * delta);
-    ys.byTask[task.id] = (ys.byTask[task.id] || 0) + delta;
-    if (ys.byTask[task.id] <= 0) delete ys.byTask[task.id];
-    ys.byRoom[task.room] = (ys.byRoom[task.room] || 0) + delta;
-    if (ys.byRoom[task.room] <= 0) delete ys.byRoom[task.room];
-    ys.byMonth[m] = (ys.byMonth[m] || 0) + delta;
-    if (ys.byMonth[m] <= 0) delete ys.byMonth[m];
+  // Keep three years of history, bounded by TIME rather than by count. A count cap
+  // treats a daily and a twice-yearly task completely differently — 100 entries is
+  // three months for one and fifty years for the other — and it was the reason a
+  // year's totals could not be derived and had to be accumulated instead.
+  const HISTORY_RETENTION_DAYS = 1095;
+  function pruneHistory(id) {
+    const h = state.completionHistory && state.completionHistory[id];
+    if (!h || !h.length) return;
+    const cutoff = Date.now() - HISTORY_RETENTION_DAYS * 86400000;
+    let i = 0;                       // entries are kept sorted ascending
+    while (i < h.length && h[i] < cutoff) i++;
+    if (i > 0) h.splice(0, i);
+  }
+
+  // Derived on read, never stored. Minutes use the CURRENT taskTime(), so the number
+  // is internally consistent and improves as the estimates improve. The old stored
+  // accumulator blended estimates taken at moments that no longer exist anywhere,
+  // which meant it could never be recomputed and never be corrected.
+  function deriveYearStats(year) {
+    const byId = {};
+    getAllTasks().forEach(t => { byId[t.id] = t; });
+    const out = { since: year + '-01-01', count: 0, minutes: 0, byTask: {}, byRoom: {}, byMonth: {}, derived: true };
+    const hist = state.completionHistory || {};
+    Object.keys(hist).forEach(id => {
+      const task = byId[id];
+      (hist[id] || []).forEach(ts => {
+        const d = new Date(ts);
+        if (d.getFullYear() !== year) return;
+        out.count++;
+        out.byTask[id] = (out.byTask[id] || 0) + 1;
+        const m = String(d.getMonth() + 1);
+        out.byMonth[m] = (out.byMonth[m] || 0) + 1;
+        if (task) {
+          out.minutes += taskTime(task);
+          out.byRoom[task.room] = (out.byRoom[task.room] || 0) + 1;
+        }
+      });
+    });
+    return out;
+  }
+
+  // A year can only be derived if history covers the whole of it. Do NOT infer that
+  // from the data: a twice-yearly task still holds 2024 entries while a daily task's
+  // history was truncated last month, so "the earliest entry precedes the year" would
+  // certify a year and then silently undercount every frequent task in it. Key off
+  // derivedSince — the moment history stopped being capped by count — instead.
+  function yearIsDerivable(year) {
+    const since = state.derivedSince;
+    return since != null && since <= new Date(year, 0, 1).getTime();
+  }
+
+  function yearStatsFor(year) {
+    if (yearIsDerivable(year)) return deriveYearStats(year);
+    const stored = (state.yearStats || {})[String(year)];
+    return stored && stored.count ? Object.assign({}, stored, { derived: false }) : null;
   }
 
   function completeTask(id) {
@@ -1338,8 +1400,7 @@
     });
     if (!_alreadyToday) {
       state.completionHistory[id].push(Date.now());
-      if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
-      bumpYearStats(task, Date.now(), 1);
+      pruneHistory(id);
     }
     _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
     // Timer running on this task: stop it and let the modal confirm the entry
@@ -1384,8 +1445,9 @@
         const d = new Date(ts);
         return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
       });
-      const task = getAllTasks().find(t => t.id === id);
-      if (task) bumpYearStats(task, Date.now(), -1);
+      // Nothing else to undo: year totals are derived from this array on read, so
+      // removing the entry is the whole correction. The old accumulator needed a
+      // matching -1 here, and that pair could drift apart.
     }
     saveNow();
     render();
@@ -1406,8 +1468,7 @@
     if (!state.completionHistory[id].some(t => dayKeyOf(t) === targetDay)) {
       state.completionHistory[id].push(ts);
       state.completionHistory[id].sort((a,b) => a - b);
-      if (state.completionHistory[id].length > 100) state.completionHistory[id].shift();
-      bumpYearStats(task, ts, 1);
+      pruneHistory(id);
     }
     if (state.starvation) state.starvation[id] = 0;
     if (state.snoozed) delete state.snoozed[id];
@@ -3290,12 +3351,13 @@
       ? tracked.map(cadenceRow).join('')
       : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; cadence appears here as history builds.</div>';
 
-    // ── This Year: totals accrued by bumpYearStats since the feature shipped ──
+    // ── This Year: derived from completionHistory where history covers the whole
+    // year, otherwise the stored bucket left over from the accumulator era ──
     const yearKey = String(today.getFullYear());
-    const ys = (state.yearStats || {})[yearKey];
+    const ys = yearStatsFor(today.getFullYear());
     const yearHtml = (function() {
       if (!ys || !ys.count) return '';
-      const sinceNote = ys.since && ys.since.slice(0,4) === yearKey && ys.since.slice(5) !== '01-01'
+      const sinceNote = !ys.derived && ys.since && ys.since.slice(0,4) === yearKey && ys.since.slice(5) !== '01-01'
         ? ' (counting since ' + ys.since + ')' : '';
       return '<div class="settings-card">' +
         '<div class="settings-card-title">This Year</div>' +

@@ -565,6 +565,106 @@ test('a corrupt paste cannot poison state (guards Fix 2)', () => {
   }
 });
 
+test('deriveYearStats counts, minutes and per-room totals from history', () => {
+  const probe = probeTask();
+  const other = G('getAllTasks')().find(t => t.room !== probe.room &&
+    (t.owner === 'alina' || t.owner === 'either') && t.freq > 1);
+  const Y = new Date().getFullYear();
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [
+      new Date(Y, 0, 5).getTime(), new Date(Y, 0, 9).getTime(), new Date(Y, 4, 2).getTime(),
+      new Date(Y - 1, 6, 1).getTime()          // previous year — must not be counted
+    ];
+    st.completionHistory[other.id] = [new Date(Y, 4, 3).getTime()];
+    st.actualTimes = {};
+  }, () => {
+    const d = G('deriveYearStats')(Y);
+    eq(d.count, 4, 'count for ' + Y);
+    eq(d.byTask[probe.id], 3, 'per-task count');
+    eq(d.byRoom[probe.room], 3, 'per-room count');
+    eq(d.byRoom[other.room], 1, 'second room');
+    eq(d.byMonth['1'], 2, 'January');
+    eq(d.byMonth['5'], 2, 'May');
+    eq(d.minutes, probe.time * 3 + other.time, 'minutes from static estimates');
+    eq(G('deriveYearStats')(Y - 1).count, 1, 'previous year counted separately');
+  });
+});
+
+test('derived minutes improve when the time estimate does (the point of deriving)', () => {
+  const probe = probeTask();
+  const Y = new Date().getFullYear();
+  const build = st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [new Date(Y, 1, 1).getTime(), new Date(Y, 1, 2).getTime()];
+  };
+  const before = withState(build, () => G('deriveYearStats')(Y).minutes);
+  const after = withState(st => {
+    build(st);
+    // Three samples, so taskTime() switches from the static estimate to the median.
+    st.actualTimes = {}; st.actualTimes[probe.id] = [probe.time + 10, probe.time + 10, probe.time + 10];
+  }, () => G('deriveYearStats')(Y).minutes);
+  eq(before, probe.time * 2, 'before: static estimate');
+  eq(after, (probe.time + 10) * 2, 'after: learned median');
+  ok(after !== before, 'a stored accumulator could not have moved here');
+});
+
+test('a year is only derivable once history covers all of it', () => {
+  const Y = new Date().getFullYear();
+  withState(st => { st.derivedSince = new Date(Y, 5, 1).getTime(); }, () => {
+    eq(G('yearIsDerivable')(Y), false, 'derivedSince falls mid-year → not derivable');
+    eq(G('yearIsDerivable')(Y + 1), true, 'next year is fully covered');
+    eq(G('yearIsDerivable')(Y - 1), false, 'earlier year predates the stamp');
+  });
+  withState(st => { st.derivedSince = null; }, () => {
+    eq(G('yearIsDerivable')(Y), false, 'no stamp → never derivable');
+  });
+});
+
+test('history is pruned by age, not by count', () => {
+  const id = probeTask().id;
+  const now = Date.now();
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[id] = [
+      now - 1200 * DAY,   // older than the 3-year window
+      now - 1100 * DAY,   // older than the window
+      now - 200 * DAY,    // keep
+      now - 10 * DAY      // keep
+    ];
+  }, () => {
+    G('pruneHistory')(id);
+    const h = G('state').completionHistory[id];
+    eq(h.length, 2, 'two entries fell outside the retention window');
+    ok(h[0] >= Date.now() - 1095 * DAY, 'oldest surviving entry is inside the window');
+  });
+  // and a long run of recent entries is NOT truncated the way the old count cap did
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[id] = [];
+    for (let i = 300; i > 0; i--) st.completionHistory[id].push(now - i * DAY);
+  }, () => {
+    G('pruneHistory')(id);
+    eq(G('state').completionHistory[id].length, 300, '300 daily entries all inside 3 years');
+  });
+});
+
+test('a failed save raises a sticky banner, and a good save clears it', () => {
+  const el = W.document.getElementById('saveErrorBanner');
+  ok(el, 'banner element exists');
+  eq(el.hidden, true, 'hidden while saves succeed');
+  const real = W.localStorage.setItem;
+  try {
+    W.localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+    G('saveNow')();
+    eq(el.hidden, false, 'banner shown after a failed save');
+  } finally {
+    W.localStorage.setItem = real;
+  }
+  G('saveNow')();
+  eq(el.hidden, true, 'banner cleared once a save succeeds');
+});
+
 test('completeTask on an unknown id is a no-op', () => {
   withState(st => {}, () => {
     const before = snap();
