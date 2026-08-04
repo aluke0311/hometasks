@@ -33,6 +33,17 @@
       /* Text sitting ON a filled accent. Must be a token: in dark mode the accents
          are lightened, and white on a light accent fails. */
       --on-accent: #ffffff;
+      /* Type scale. Six steps; every size in the app maps onto one of them.
+         16px is deliberately NOT a step: .search-input, .filter-select,
+         .field-input, .field-select and .zone-select all use it because iOS
+         Safari zooms the page when you focus an input smaller than 16px. That
+         is load-bearing — it looks like an inconsistency, but do not "fix" it. */
+      --fs-display: 28px;  /* the one big number / hero title */
+      --fs-title:   20px;  /* view + card titles */
+      --fs-body:    15px;  /* task names, primary text */
+      --fs-sub:     13px;  /* secondary text, descriptions */
+      --fs-meta:    12px;  /* room · time · freq */
+      --fs-label:   11px;  /* uppercase tracked section labels */
       --radius: 10px; --radius-sm: 6px;
       --safe-top: env(safe-area-inset-top);
       --safe-bottom: env(safe-area-inset-bottom);
@@ -60,13 +71,25 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     input, select, textarea { -webkit-appearance: none; appearance: none; border-radius: var(--radius-sm); }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: var(--fs-body); line-height: 1.5; -webkit-text-size-adjust: 100%; }
     .app { max-width: 100%; min-height: 100vh; padding-bottom: calc(var(--nav-height) + var(--safe-bottom)); }
+    /* D-8: on a laptop the app was a stretched mobile layout. Cap the column AND
+       the fixed chrome, or the header and tab bar keep spanning the full window
+       while the content sits in a narrow strip. */
+    @media (min-width: 700px) {
+      .app { max-width: 640px; margin: 0 auto; box-shadow: 0 0 0 0.5px var(--border); }
+      /* .header is sticky INSIDE .app, so centring .app already places it. Only the
+         fixed nav needs help: with left:0, right:0 and a definite width, margin auto
+         centres it — no transform, which would fight the existing offsets. */
+      .bottom-nav { width: 640px; margin: 0 auto; }
+      .modal { max-width: 640px; border-radius: 16px; margin-bottom: max(var(--kb), 24px); }
+      .modal-backdrop { align-items: center; }
+    }
   
     .header { padding: env(safe-area-inset-top) 24px 0; border-bottom: 0.5px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 100; }
     .header-inner { display: flex; justify-content: space-between; align-items: center; height: 52px; }
     .header-logo { display: flex; align-items: center; gap: 8px; }
-    .header-logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--on-accent); font-size: 15px; flex-shrink: 0; }
+    .header-logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--on-accent); font-size: var(--fs-body); flex-shrink: 0; }
     .header-logo-text { font-size: 16px; font-weight: 500; color: var(--text); }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   
@@ -74,19 +97,19 @@
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: var(--card); border-top: 0.5px solid var(--border); display: flex; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
     .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; }
     .tab.active { color: var(--green); }
-    .tab-icon { font-size: 20px; line-height: 1; }
-    .tab-label { font-size: 10px; font-weight: 500; letter-spacing: 0.01em; }
+    .tab-icon { font-size: var(--fs-title); line-height: 1; }
+    .tab-label { font-size: var(--fs-label); font-weight: 500; letter-spacing: 0.01em; }
   
     /* Hero header (Alina view) */
     .view-hero { padding: 20px 24px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; }
     .view-hero-left { }
-    .view-hero-title { font-size: 28px; font-weight: 600; line-height: 1.2; }
-    .view-hero-subtitle { font-size: 14px; color: var(--text3); margin-top: 2px; }
+    .view-hero-title { font-size: var(--fs-display); font-weight: 600; line-height: 1.2; }
+    .view-hero-subtitle { font-size: var(--fs-sub); color: var(--text3); margin-top: 2px; }
   
     /* Stats row */
     .stats-row { padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
     .stats-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .stat-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+    .stat-badge { font-size: var(--fs-meta); padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
     /* min-width:0 is load-bearing: a flex item won't shrink below its content width
        by default, and the longest <option> ("Zone 3 — Sunroom, Office, DS Bath,
        Laundry") was setting that floor, pushing the control off the right edge. */
@@ -99,34 +122,34 @@
     .stats-progress-wrap { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
     .progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
     .mode-selector { display: flex; gap: 6px; margin-top: 8px; }
-    .mode-btn { flex: 1; font-size: 12px; padding: 5px 8px; border-radius: 12px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+    .mode-btn { flex: 1; font-size: var(--fs-meta); padding: 5px 8px; border-radius: 12px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
     .mode-btn.active { background: var(--green); color: var(--on-accent); border-color: transparent; }
 
     /* Settings page cards */
     .settings-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin: 16px 24px 0; }
-    .settings-card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-    .settings-card-desc { font-size: 13px; color: var(--text3); margin-bottom: 14px; }
+    .settings-card-title { font-size: var(--fs-body); font-weight: 600; margin-bottom: 4px; }
+    .settings-card-desc { font-size: var(--fs-sub); color: var(--text3); margin-bottom: 14px; }
     .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .settings-row:last-child { margin-bottom: 0; }
-    .settings-label { font-size: 13px; color: var(--text2); }
+    .settings-label { font-size: var(--fs-sub); color: var(--text2); }
     .settings-control { display: flex; align-items: center; gap: 8px; }
     .stepper-btn { width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .stepper-val { font-size: 14px; font-weight: 500; min-width: 24px; text-align: center; }
-    .settings-save-btn { font-size: 12px; padding: 4px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
-    .settings-summary { font-size: 12px; color: var(--text3); margin-top: 10px; }
+    .stepper-val { font-size: var(--fs-sub); font-weight: 500; min-width: 24px; text-align: center; }
+    .settings-save-btn { font-size: var(--fs-meta); padding: 4px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
+    .settings-summary { font-size: var(--fs-meta); color: var(--text3); margin-top: 10px; }
     .settings-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
     .settings-stat-box { background: var(--bg2); border-radius: var(--radius-sm); padding: 12px 14px; }
-    .settings-stat-num { font-size: 22px; font-weight: 600; }
-    .settings-stat-label { font-size: 12px; color: var(--text3); }
-    .zone-ref-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    .settings-stat-num { font-size: var(--fs-display); font-weight: 600; }
+    .settings-stat-label { font-size: var(--fs-meta); color: var(--text3); }
+    .zone-ref-table { width: 100%; border-collapse: collapse; font-size: var(--fs-meta); margin-top: 10px; }
     .zone-ref-table th { text-align: left; color: var(--text3); font-weight: 500; padding: 4px 0; border-bottom: 0.5px solid var(--border); }
     .zone-ref-table td { padding: 5px 0; border-bottom: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
     .zone-ref-table td:first-child { font-weight: 500; color: var(--text); width: 70px; white-space: nowrap; padding-right: 12px; }
   
     .section { padding: 0 24px; margin-top: 16px; }
-    .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; padding-left: 2px; display: flex; justify-content: space-between; align-items: center; }
-    .section-label-time { font-weight: 400; font-size: 11px; color: var(--text3); letter-spacing: 0; text-transform: none; }
-    .section-label-btn { background: none; border: none; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; }
+    .section-label { font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; padding-left: 2px; display: flex; justify-content: space-between; align-items: center; }
+    .section-label-time { font-weight: 400; font-size: var(--fs-label); color: var(--text3); letter-spacing: 0; text-transform: none; }
+    .section-label-btn { background: none; border: none; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; }
     .section-label-btn svg { transition: transform 0.2s; flex-shrink: 0; }
     .section-label-btn.open svg { transform: rotate(90deg); }
   
@@ -138,39 +161,39 @@
     .task-check-inner { width: 8px; height: 8px; border-right: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(45deg) translate(-1px, -2px); display: none; }
     .task-card.done .task-check-inner { display: block; }
     .task-body { flex: 1; min-width: 0; }
-    .task-name { font-size: 15px; font-weight: 500; color: var(--text); }
+    .task-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); }
     .task-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
-    .task-room { font-size: 12px; color: var(--text3); }
-    .task-dot { font-size: 10px; color: var(--border2); }
-    .task-time { font-size: 12px; color: var(--text3); }
-    .task-freq { font-size: 11px; color: var(--text3); background: var(--bg2); padding: 1px 6px; border-radius: 8px; }
-    .task-overdue { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 500; }
-    .task-notdue  { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
+    .task-room { font-size: var(--fs-meta); color: var(--text3); }
+    .task-dot { font-size: var(--fs-label); color: var(--border2); }
+    .task-time { font-size: var(--fs-meta); color: var(--text3); }
+    .task-freq { font-size: var(--fs-label); color: var(--text3); background: var(--bg2); padding: 1px 6px; border-radius: 8px; }
+    .task-overdue { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 500; }
+    .task-notdue  { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
   
-    .owner-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; font-weight: 500; }
+    .owner-badge { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; font-weight: 500; }
     .owner-alina { background: var(--purple-bg, #eeedfe); color: var(--purple, #534ab7); }
     .owner-bob   { background: var(--teal-bg, #e1f5ee);   color: var(--teal, #0f6e56); }
   
     .task-detail { padding: 0 12px 4px 48px; }
-    .task-lastdone { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
-    .edit-btn { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
+    .task-lastdone { font-size: var(--fs-meta); color: var(--text3); display: flex; align-items: center; gap: 6px; }
+    .edit-btn { font-size: var(--fs-label); padding: 2px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
     .edit-btn:hover { background: var(--bg2); }
     .date-picker-row { display: none; align-items: center; gap: 8px; margin-top: 4px; padding-bottom: 4px; }
     .date-picker-row.open { display: flex; }
-    .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 12px; padding: 3px 7px; border-radius: var(--radius-sm); }
-    .date-save-btn { font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
-    .task-snoozed { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
+    .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: var(--fs-meta); padding: 3px 7px; border-radius: var(--radius-sm); }
+    .date-save-btn { font-size: var(--fs-meta); padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
+    .task-snoozed { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
   
     .task-actions { display: flex; gap: 6px; padding: 0 12px 12px 48px; flex-wrap: wrap; }
-    .task-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 28px; }
+    .task-btn { font-size: var(--fs-meta); padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 28px; }
     .task-btn:active { background: var(--bg2); }
     .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
   
-    .more-btn { width: 100%; padding: 11px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text2); font-size: 13px; cursor: pointer; margin-bottom: 8px; transition: background 0.12s; }
+    .more-btn { width: 100%; padding: 11px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-sub); cursor: pointer; margin-bottom: 8px; transition: background 0.12s; }
     .more-btn:hover { background: var(--bg2); }
   
     .overflow-section { padding: 0 24px; margin-top: 8px; }
-    .overflow-toggle { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; padding: 4px 2px; margin-bottom: 8px; }
+    .overflow-toggle { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text3); font-size: var(--fs-meta); cursor: pointer; padding: 4px 2px; margin-bottom: 8px; }
     .overflow-toggle svg { transition: transform 0.2s; }
     .overflow-toggle.open svg { transform: rotate(90deg); }
   
@@ -178,21 +201,21 @@
     /* All Tasks (manage) tab */
     .manage-header { padding: 16px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border); }
     .manage-header-left { }
-    .manage-title { font-size: 18px; font-weight: 600; }
-    .manage-subtitle { font-size: 13px; color: var(--text3); margin-top: 2px; }
-    .add-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: none; background: var(--green); color: var(--on-accent); cursor: pointer; font-weight: 500; }
+    .manage-title { font-size: var(--fs-title); font-weight: 600; }
+    .manage-subtitle { font-size: var(--fs-sub); color: var(--text3); margin-top: 2px; }
+    .add-btn { font-size: var(--fs-sub); padding: 7px 16px; border-radius: var(--radius-sm); border: none; background: var(--green); color: var(--on-accent); cursor: pointer; font-weight: 500; }
     .manage-toolbar { padding: 10px 24px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
     .search-input { flex: 1; min-width: 100px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 8px 10px; border-radius: var(--radius-sm); }
     .filter-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 7px 8px; border-radius: var(--radius-sm); }
     .tasks-table { width: 100%; border-collapse: collapse; }
-    .tasks-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
-    .tasks-table td { padding: 10px 24px; border-bottom: 0.5px solid var(--border); font-size: 13px; color: var(--text2); vertical-align: middle; }
-    .tasks-table td:first-child { color: var(--text); font-size: 14px; }
+    .tasks-table th { text-align: left; font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+    .tasks-table td { padding: 10px 24px; border-bottom: 0.5px solid var(--border); font-size: var(--fs-sub); color: var(--text2); vertical-align: middle; }
+    .tasks-table td:first-child { color: var(--text); font-size: var(--fs-sub); }
     .tasks-table tr:hover td { background: var(--bg2); }
-    .status-due { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 600; }
-    .status-ok { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
+    .status-due { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 600; }
+    .status-ok { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
     .manage-row-actions { display: flex; gap: 4px; }
-    .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: var(--fs-sub); display: flex; align-items: center; justify-content: center; }
     .icon-btn.danger { color: var(--red); border-color: var(--red); }
     /* Mobile manage cards */
     .manage-list { padding: 0 16px; margin-top: 8px; }
@@ -204,12 +227,12 @@
     .mc-check-inner { width: 8px; height: 8px; border-right: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(45deg) translate(-1px,-2px); display: none; }
     .manage-card.mc-done .mc-check-inner { display: block; }
     .manage-card-body { flex: 1; min-width: 0; }
-    .manage-card-name { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.3; }
-    .manage-card-meta { font-size: 12px; color: var(--text3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .manage-card-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); line-height: 1.3; }
+    .manage-card-meta { font-size: var(--fs-meta); color: var(--text3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .manage-card-icons { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
     .manage-card-foot { display: flex; align-items: center; gap: 8px; padding: 6px 12px 10px 50px; }
-    .manage-card-last { font-size: 12px; color: var(--text3); flex: 1; }
-    .manage-hand-btn { font-size: 12px; padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
+    .manage-card-last { font-size: var(--fs-meta); color: var(--text3); flex: 1; }
+    .manage-hand-btn { font-size: var(--fs-meta); padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
     .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
     .manage-dp-row { display: none; align-items: center; gap: 8px; padding: 0 12px 10px 50px; }
     .manage-dp-row.open { display: flex; }
@@ -222,56 +245,56 @@
     .modal-backdrop.open { display: flex; }
     .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: calc(92vh - var(--kb)); display: flex; flex-direction: column; margin-bottom: var(--kb); }
     .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-    .modal-title { font-size: 17px; font-weight: 600; }
-    .modal-close { background: none; border: none; font-size: 20px; color: var(--text2); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+    .modal-title { font-size: var(--fs-title); font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: var(--fs-title); color: var(--text2); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
     .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
-    .field-label { font-size: 13px; color: var(--text3); margin-bottom: 5px; }
+    .field-label { font-size: var(--fs-sub); color: var(--text3); margin-bottom: 5px; }
     .field-input { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .field-select { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
-    .field-check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text2); }
+    .field-check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-body); color: var(--text2); }
     .modal-footer { padding: 12px 20px 16px; border-top: 0.5px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
     /* Task actions sheet (D-6). The card shows at most two contextual buttons; the
        rare actions live here, where they get room to be legible instead of
        competing as ten identical grey pills on every card. */
     .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .sheet-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; text-align: center; }
+    .sheet-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: var(--fs-sub); font-weight: 500; cursor: pointer; text-align: center; }
     .sheet-btn.wide { grid-column: 1 / -1; }
     .sheet-btn.danger { color: var(--red); border-color: var(--red); }
     .sheet-btn.on { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
     /* No margin: .modal-body is a flex column with gap:14px and would double up. */
     .sheet-group { }
-    .sheet-group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 7px; }
+    .sheet-group-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 7px; }
     .sheet-chips { display: flex; gap: 8px; }
-    .sheet-chips > button { flex: 1; padding: 11px 0; font-size: 13px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .sheet-chips > button { flex: 1; padding: 11px 0; font-size: var(--fs-sub); border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .sheet-chips > button.go { border-color: var(--green); color: var(--green); }
     /* NOT .more-btn — that class already exists for the full-width dashed
        "+ Give me more" button and would make this stretch to fill the row. */
     .task-btn.task-more { font-weight: 700; letter-spacing: 0.06em; padding-left: 14px; padding-right: 14px; }
-    .modal-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .modal-btn { font-size: var(--fs-sub); padding: 7px 16px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .modal-btn.primary { background: var(--blue); color: var(--on-accent); border-color: var(--blue); }
-    .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: 14px; }
+    .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: var(--fs-sub); }
     .bottom-pad { height: 32px; }
   
-    .save-error-banner { padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--red-strong); color: #fff; /* literal, not --on-accent: --red-strong stays dark in both themes */ font-size: 13px; font-weight: 500; text-align: center; line-height: 1.35; }
+    .save-error-banner { padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--red-strong); color: #fff; /* literal, not --on-accent: --red-strong stays dark in both themes */ font-size: var(--fs-sub); font-weight: 500; text-align: center; line-height: 1.35; }
     .save-error-banner[hidden] { display: none; }
-    .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
+    .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: var(--fs-sub); opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.undoable { pointer-events: auto; }
-    .toast-undo-btn { background: none; border: none; color: var(--amber); font-size: 13px; font-weight: 600; margin-left: 10px; cursor: pointer; padding: 0; }
+    .toast-undo-btn { background: none; border: none; color: var(--amber); font-size: var(--fs-sub); font-weight: 600; margin-left: 10px; cursor: pointer; padding: 0; }
   
     /* Loading overlay */
-    .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: 14px; }
+    .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: var(--fs-sub); }
   
     /* Sprint tab */
     .sprint-block { margin: 16px 24px 0; }
     .sprint-block-header { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 12px; }
     /* Was var(--bg3) — a background token used as a text colour, which rendered the
        step number at 1.25:1 in dark and ~1.1:1 in light. Invisible in both themes. */
-    .sprint-block-num { font-size: 22px; font-weight: 700; color: var(--text3); line-height: 1.1; flex-shrink: 0; min-width: 20px; }
+    .sprint-block-num { font-size: var(--fs-display); font-weight: 700; color: var(--text3); line-height: 1.1; flex-shrink: 0; min-width: 20px; }
     .sprint-block-meta { flex: 1; }
     .sprint-block-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-    .sprint-block-label { font-size: 17px; font-weight: 600; color: var(--text); }
+    .sprint-block-label { font-size: var(--fs-title); font-weight: 600; color: var(--text); }
     .sprint-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; display: flex; align-items: flex-start; padding: 10px 12px; gap: 10px; cursor: pointer; transition: opacity 0.15s; }
     .sprint-card.done { opacity: 0.4; }
     .sprint-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-top: 1px; }
@@ -280,44 +303,44 @@
     .sprint-card.done .sprint-check-inner { display: block; }
     .sprint-card-body { flex: 1; min-width: 0; }
     .sprint-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-    .sprint-card-name { font-size: 14px; color: var(--text); }
-    .sprint-card-time { font-size: 12px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
+    .sprint-card-name { font-size: var(--fs-sub); color: var(--text); }
+    .sprint-card-time { font-size: var(--fs-meta); color: var(--text3); white-space: nowrap; flex-shrink: 0; }
     .sprint-progress { padding: 12px 24px; background: var(--bg2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
-    .sprint-progress-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+    .sprint-progress-label { font-size: var(--fs-meta); color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
     .sprint-progress-stats { display: flex; align-items: center; gap: 10px; flex: 1; }
     .sprint-progress-bar-wrap { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
     .sprint-progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
-    .sprint-progress-text { font-size: 13px; font-weight: 500; color: var(--text2); white-space: nowrap; }
-    .sprint-time-left { font-size: 12px; color: var(--text3); white-space: nowrap; }
-    .sprint-block-time { font-size: 13px; color: var(--text3); white-space: nowrap; }
+    .sprint-progress-text { font-size: var(--fs-sub); font-weight: 500; color: var(--text2); white-space: nowrap; }
+    .sprint-time-left { font-size: var(--fs-meta); color: var(--text3); white-space: nowrap; }
+    .sprint-block-time { font-size: var(--fs-sub); color: var(--text3); white-space: nowrap; }
     .sprint-block-divider { height: 1px; background: var(--border); margin: 16px 24px 0; }
   
-    .sprint-block-hint { font-size: 11px; color: var(--text3); margin-top: 1px; }
-    .sprint-done-badge { font-size: 11px; font-weight: 500; color: var(--green); background: var(--green-bg); padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
+    .sprint-block-hint { font-size: var(--fs-label); color: var(--text3); margin-top: 1px; }
+    .sprint-done-badge { font-size: var(--fs-label); font-weight: 500; color: var(--green); background: var(--green-bg); padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
   
     /* Pin indicator */
-    .pin-badge { font-size: 11px; color: var(--amber); margin-left: 2px; }
+    .pin-badge { font-size: var(--fs-label); color: var(--amber); margin-left: 2px; }
     .task-btn.pin-btn { color: var(--amber); border-color: var(--amber); }
     .task-btn.pin-btn.pinned { background: var(--amber-bg); }
     .task-btn.remove-btn { color: var(--red); border-color: var(--red); }
-    .sprint-pin { font-size: 11px; color: var(--amber); margin-left: 4px; }
+    .sprint-pin { font-size: var(--fs-label); color: var(--amber); margin-left: 4px; }
 
     /* One-off badge */
-    .oneoff-badge { font-size: 11px; font-weight: 500; color: var(--blue); background: var(--blue-bg); padding: 1px 6px; border-radius: 10px; margin-left: 5px; }
-    .oneoff-add-btn { background: none; border: 0.5px dashed var(--border2); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; color: var(--text3); cursor: pointer; width: 100%; margin-top: 4px; text-align: center; }
+    .oneoff-badge { font-size: var(--fs-label); font-weight: 500; color: var(--blue); background: var(--blue-bg); padding: 1px 6px; border-radius: 10px; margin-left: 5px; }
+    .oneoff-add-btn { background: none; border: 0.5px dashed var(--border2); border-radius: var(--radius-sm); padding: 6px 12px; font-size: var(--fs-meta); color: var(--text3); cursor: pointer; width: 100%; margin-top: 4px; text-align: center; }
     .oneoff-add-btn:hover { background: var(--bg2); color: var(--text2); border-color: var(--blue); }
   
     /* Redeal button */
-    .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; color: var(--text2); cursor: pointer; }
+    .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: var(--fs-meta); color: var(--text2); cursor: pointer; }
     .redeal-btn:hover { background: var(--bg2); }
     .redeal-group { display: flex; align-items: center; gap: 6px; }
     .redeal-tiers { display: flex; gap: 3px; }
-    .tier-pill-sm { padding: 4px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .tier-pill-sm { padding: 4px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-label); font-weight: 600; cursor: pointer; }
     .tier-pill-sm:hover { background: var(--bg2); }
     .more-btn-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .more-btn-row .more-btn { flex: 1; margin-bottom: 0; }
     .tier-pills { display: flex; gap: 4px; }
-    .tier-pill { padding: 6px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; }
+    .tier-pill { padding: 6px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-meta); font-weight: 600; cursor: pointer; }
     .tier-pill:hover { background: var(--bg2); }
   </style>
   </head>
@@ -466,8 +489,8 @@
         <button class="modal-close" onclick="closeTimeModal()">&#10005;</button>
       </div>
       <div class="modal-body">
-        <div id="timeModalTask" style="font-size:15px;font-weight:500"></div>
-        <div id="timeModalHint" style="font-size:12px;color:var(--text3)"></div>
+        <div id="timeModalTask" style="font-size:var(--fs-body);font-weight:500"></div>
+        <div id="timeModalHint" style="font-size:var(--fs-meta);color:var(--text3)"></div>
         <div>
           <div class="field-label">Minutes</div>
           <input class="field-input" id="timeModalMinutes" type="number" min="1" max="600" placeholder="e.g. 15">
@@ -819,12 +842,17 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v7';
+  const APP_VERSION = '2026-08-03 v8';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-03 v8', notes: [
+      'Time estimates now agree everywhere: presets, room presets and the Sprint all use your learned times, so a preset and the sprint you launch from it no longer quote different numbers.',
+      'Text sizes come from one consistent scale instead of twelve ad-hoc values.',
+      'On a laptop the app sits in a centred column instead of stretching across the whole window.',
+    ]},
     { v: '2026-08-03 v7', notes: [
       'The app no longer zooms when you double-tap or focus a field.',
       'Pop-up sheets now sit above the on-screen keyboard instead of hiding behind it.',
@@ -1015,6 +1043,11 @@
   }
 
   // Learned time estimate: median of recorded actuals (3+ samples), else the static estimate
+  // The single source for "how long will this take". Every display and every
+  // budget calculation goes through here, so a preset and the sprint you launch
+  // from it can never quote different numbers for the same tasks. Raw task.time
+  // is correct in exactly two places: the editor field, which edits the static
+  // estimate, and the learned-time hint, which deliberately compares the two.
   function taskTime(task) {
     const a = (state.actualTimes || {})[task.id];
     if (!a || a.length < 3) return task.time;
@@ -1805,7 +1838,7 @@
       html += '<div class="section" style="margin-top:12px">' +
         '<div style="background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:var(--radius);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">' +
           '<div><div style="font-weight:600;color:var(--amber)">&#9208; Vacation mode</div>' +
-          '<div style="font-size:12px;color:var(--text3)">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
+          '<div style="font-size:var(--fs-meta);color:var(--text3)">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
           '<button class="add-btn" style="background:var(--amber);flex-shrink:0" onclick="resumeApp()">I\'m back</button>' +
         '</div></div>';
     }
@@ -1919,11 +1952,11 @@
     const el = document.getElementById('quickLogResults');
     if (!el) return;
     const q = quickLogQuery.trim().toLowerCase();
-    if (q.length < 2) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 2px">Type to search all tasks &mdash; logging here doesn\'t touch today\'s hand.</div>'; return; }
+    if (q.length < 2) { el.innerHTML = '<div style="font-size:var(--fs-meta);color:var(--text3);padding:4px 2px">Type to search all tasks &mdash; logging here doesn\'t touch today\'s hand.</div>'; return; }
     const matches = getAllTasks()
       .filter(t => !t.oneOff && (t.name.toLowerCase().includes(q) || t.room.toLowerCase().includes(q)))
       .slice(0, 6);
-    if (!matches.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 2px">No tasks match.</div>'; return; }
+    if (!matches.length) { el.innerHTML = '<div style="font-size:var(--fs-meta);color:var(--text3);padding:4px 2px">No tasks match.</div>'; return; }
     el.innerHTML = matches.map(t => {
       const done = wasCompletedToday(t);
       return '<div class="sprint-card' + (done ? ' done' : '') + '" onclick="quickLogComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
@@ -1973,14 +2006,14 @@
     const inProgressBadge = !isDone && isInProgress ? '<span class="task-snoozed">&#9203; in progress</span>' : '';
 
     const cad = task.oneOff ? null : cadenceInfo(task);
-    const cadHtml = cad ? '<span style="font-size:11px;color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>' : '';
+    const cadHtml = cad ? '<span style="font-size:var(--fs-label);color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>' : '';
   
     const ownerHtml = task.owner === 'bob' ? '<span class="owner-badge owner-bob">Bob</span>' : '';
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
     const pinBadge = isPinned && !task.oneOff ? '<span class="pin-badge">&#128204;</span>' : '';
     const oneOffBadge = task.oneOff ? '<span class="oneoff-badge">once</span>' : '';
     const timerRunning = activeTimer && activeTimer.id === task.id;
-    const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
+    const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:var(--fs-meta);font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
 
     // D-6: at most two contextual buttons, chosen by state, then "⋯". Everything
@@ -2114,9 +2147,9 @@
     function row(label, value, note, skip) {
       if (skip) return '';
       return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border)">' +
-        '<div><div style="font-size:14px;color:var(--text)">' + label + '</div>' +
-        (note ? '<div style="font-size:12px;color:var(--text3)">' + note + '</div>' : '') + '</div>' +
-        '<div style="font-size:15px;font-weight:600;white-space:nowrap;color:' + (value < 0 ? 'var(--green)' : 'var(--text2)') + '">' + fmt(value) + '</div>' +
+        '<div><div style="font-size:var(--fs-sub);color:var(--text)">' + label + '</div>' +
+        (note ? '<div style="font-size:var(--fs-meta);color:var(--text3)">' + note + '</div>' : '') + '</div>' +
+        '<div style="font-size:var(--fs-body);font-weight:600;white-space:nowrap;color:' + (value < 0 ? 'var(--green)' : 'var(--text2)') + '">' + fmt(value) + '</div>' +
       '</div>';
     }
 
@@ -2124,14 +2157,14 @@
                         p.overdueDays >= 0 ? 'due today' :
                         'not due for ' + Math.ceil(-p.overdueDays) + 'd (raises score)';
     let html =
-      '<div style="font-size:13px;color:var(--text3);margin-bottom:4px">Lower score = dealt sooner. ' + task.name + ' scores:</div>' +
+      '<div style="font-size:var(--fs-sub);color:var(--text3);margin-bottom:4px">Lower score = dealt sooner. ' + task.name + ' scores:</div>' +
       row('Base score', p.base, 'frequency: ' + freqLabel(task.freq), false) +
       row('Overdue', p.overdue, overdueNote + ' &middot; capped at &minus;' + (task.freq * 0.8), p.overdue === 0) +
       row('Starvation', p.starvation, p.starvationDays + ' day' + (p.starvationDays === 1 ? '' : 's') + ' due but not dealt &middot; capped at &minus;' + (Math.round(task.freq * 0.15 * 10) / 10), p.starvation === 0) +
       row('Zone focus', p.zone, task.room + ' is in the active zone', p.zone === 0) +
       row('Cat task', p.cat, 'priority tiebreaker', p.cat === 0) +
       row('Flagged', p.flagged, 'flagged tasks always surface first', p.flagged === 0) +
-      (p.jitter ? '<div style="font-size:12px;color:var(--text3);padding:8px 0;border-bottom:0.5px solid var(--border)">&plusmn;1 random shuffle for variety (applied to long-interval tasks each deal)</div>' : '') +
+      (p.jitter ? '<div style="font-size:var(--fs-meta);color:var(--text3);padding:8px 0;border-bottom:0.5px solid var(--border)">&plusmn;1 random shuffle for variety (applied to long-interval tasks each deal)</div>' : '') +
       '<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700"><span>Total</span><span>' + (Math.round(p.total * 10) / 10) + '</span></div>';
 
     document.getElementById('whyTitle').textContent = 'Why this task?';
@@ -2324,8 +2357,8 @@
         '<span class="sprint-progress-text">' + doneCount + ' / ' + hand.length + '</span>' +
       '</div>' +
       '<span class="sprint-time-left">~' + fmtMinutes(leftMin) + ' left</span>' +
-      '<button onclick="copySprint()" style="font-size:11px;padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">📋 Copy</button>' +
-      '<button onclick="toggleSprintCompleted()" style="font-size:11px;padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:' + (sprintHideCompleted ? 'var(--green-bg)' : 'transparent') + ';color:' + (sprintHideCompleted ? 'var(--green)' : 'var(--text3)') + ';cursor:pointer;white-space:nowrap;flex-shrink:0">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
+      '<button onclick="copySprint()" style="font-size:var(--fs-label);padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">📋 Copy</button>' +
+      '<button onclick="toggleSprintCompleted()" style="font-size:var(--fs-label);padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:' + (sprintHideCompleted ? 'var(--green-bg)' : 'transparent') + ';color:' + (sprintHideCompleted ? 'var(--green)' : 'var(--text3)') + ';cursor:pointer;white-space:nowrap;flex-shrink:0">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
     '</div>';
   
     sprintBlocks.forEach((block, blockIdx) => {
@@ -2353,19 +2386,19 @@
         const sRunning = activeTimer && activeTimer.id === t.id;
         const sInProgress = !!(state.inProgress && state.inProgress[t.id]);
         const sProgressBtn = !isDone
-          ? '<button onclick="event.stopPropagation();toggleInProgress(\'' + t.id + '\')" title="' + (sInProgress ? 'Clear in progress' : 'Mark in progress') + '" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid ' + (sInProgress ? 'var(--amber)' : 'var(--border2)') + ';border-radius:6px;color:' + (sInProgress ? 'var(--amber)' : 'var(--text3)') + ';background:' + (sInProgress ? 'var(--amber-bg)' : 'transparent') + ';cursor:pointer;flex-shrink:0">&#9203;</button>'
+          ? '<button onclick="event.stopPropagation();toggleInProgress(\'' + t.id + '\')" title="' + (sInProgress ? 'Clear in progress' : 'Mark in progress') + '" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid ' + (sInProgress ? 'var(--amber)' : 'var(--border2)') + ';border-radius:6px;color:' + (sInProgress ? 'var(--amber)' : 'var(--text3)') + ';background:' + (sInProgress ? 'var(--amber-bg)' : 'transparent') + ';cursor:pointer;flex-shrink:0">&#9203;</button>'
           : '';
         const sTimerBtn = !isDone
-          ? '<button onclick="event.stopPropagation();toggleTimer(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid ' + (sRunning ? 'var(--red)' : 'var(--border2)') + ';border-radius:6px;color:' + (sRunning ? 'var(--red)' : 'var(--text3)') + ';background:transparent;cursor:pointer;flex-shrink:0">⏱</button>'
+          ? '<button onclick="event.stopPropagation();toggleTimer(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid ' + (sRunning ? 'var(--red)' : 'var(--border2)') + ';border-radius:6px;color:' + (sRunning ? 'var(--red)' : 'var(--text3)') + ';background:transparent;cursor:pointer;flex-shrink:0">⏱</button>'
           : '';
         const sRemoveBtn = !isDone && !sPinned
-          ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:11px;border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
+          ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
           : '';
         html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
-              '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + (sInProgress ? ' <span style="font-size:10px;color:var(--amber);background:var(--amber-bg);padding:1px 5px;border-radius:8px">&#9203; in progress</span>' : '') + '</span>' +
+              '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + (sInProgress ? ' <span style="font-size:var(--fs-label);color:var(--amber);background:var(--amber-bg);padding:1px 5px;border-radius:8px">&#9203; in progress</span>' : '') + '</span>' +
               (sRunning
                 ? '<span class="sprint-card-time" id="timerElapsed_' + t.id + '" style="color:var(--green);font-weight:600">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
                 : '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>') +
@@ -2932,7 +2965,7 @@
         return t && wasCompletedToday(t);
       }).length;
       html +=
-        '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+        '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
           section.label + ' <span style="font-weight:400">(' + doneCount + '/' + section.ids.length + ')</span>' +
         '</div>';
       html += renderPresetChecklist(section.ids, allTasks);
@@ -2944,7 +2977,7 @@
     const allTasks = getAllTasks();
     return sections.flatMap(s => s.ids).reduce((sum, id) => {
       const t = allTasks.find(t => t.id === id);
-      return sum + (t ? t.time : 0);
+      return sum + (t ? taskTime(t) : 0);
     }, 0);
   }
   
@@ -2957,16 +2990,16 @@
       const isDone = wasCompletedToday(t);
       const realTask = allRealTasks.find(x => x.id === id);
       const taskDue = realTask && !isDone && isDue(realTask);
-      const dueHtml = taskDue ? ' <span class="task-overdue" style="font-size:10px;padding:1px 5px">due</span>' : '';
+      const dueHtml = taskDue ? ' <span class="task-overdue" style="font-size:var(--fs-label);padding:1px 5px">due</span>' : '';
       html +=
         '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')" style="margin:0 0 6px">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
               '<span class="sprint-card-name">' + t.name + dueHtml + '</span>' +
-              '<span class="sprint-card-time">' + fmtMinutes(t.time) + '</span>' +
+              '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>' +
             '</div>' +
-            '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + t.room + '</div>' +
+            '<div style="font-size:var(--fs-label);color:var(--text3);margin-top:1px">' + t.room + '</div>' +
           '</div>' +
         '</div>';
     });
@@ -2978,13 +3011,13 @@
     const ph = state.presetHands || {};
 
     function categoryHeader(label) {
-      return '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:24px 0 4px">' + label + '</div>';
+      return '<div style="font-size:var(--fs-label);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:24px 0 4px">' + label + '</div>';
     }
 
     function loadBtns(loadAll, loadDue) {
       return '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-        '<button onclick="' + loadAll + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Load all →</button>' +
-        '<button onclick="' + loadDue + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Load due only →</button>' +
+        '<button onclick="' + loadAll + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Load all →</button>' +
+        '<button onclick="' + loadDue + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Load due only →</button>' +
       '</div>';
     }
 
@@ -2999,28 +3032,28 @@
       '<div style="display:flex;gap:6px;margin-bottom:12px">';
     ['all','A','B','C'].forEach(tier => {
       const active = randomTier === tier;
-      html += '<button onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()" style="flex:1;padding:6px 4px;font-size:12px;font-weight:' + (active?'700':'400') + ';border-radius:8px;border:1px solid ' + (active?'var(--green)':'var(--border)') + ';background:' + (active?'var(--green)':'var(--bg2)') + ';color:' + (active?'var(--on-accent)':'var(--text)') + ';cursor:pointer">' + tierLabels[tier] + '</button>';
+      html += '<button onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()" style="flex:1;padding:6px 4px;font-size:var(--fs-meta);font-weight:' + (active?'700':'400') + ';border-radius:8px;border:1px solid ' + (active?'var(--green)':'var(--border)') + ';background:' + (active?'var(--green)':'var(--bg2)') + ';color:' + (active?'var(--on-accent)':'var(--text)') + ';cursor:pointer">' + tierLabels[tier] + '</button>';
     });
     html += '</div>';
     if (randomTier !== 'all') {
-      html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + tierDescs[randomTier] + '</div>';
+      html += '<div style="font-size:var(--fs-label);color:var(--text3);margin-bottom:10px">' + tierDescs[randomTier] + '</div>';
     }
     if (randomPick) {
       const alreadyInHand = (state.hand || []).includes(randomPick.id);
       html +=
         '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
-          '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">' + randomPick.name + '</div>' +
-          '<div style="font-size:12px;color:var(--text3)">' +
+          '<div style="font-size:var(--fs-body);font-weight:600;color:var(--text);margin-bottom:4px">' + randomPick.name + '</div>' +
+          '<div style="font-size:var(--fs-meta);color:var(--text3)">' +
             (randomPick.room ? randomPick.room + ' · ' : '') +
             'Tier ' + getTaskTier(randomPick) + ' · ' +
-            fmtMinutes(randomPick.time) +
+            fmtMinutes(taskTime(randomPick)) +
           '</div>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
-          '<button onclick="pickRandomTask()" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Pick another</button>' +
+          '<button onclick="pickRandomTask()" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Pick another</button>' +
           (alreadyInHand
-            ? '<button style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;color:var(--text3);cursor:default">Already in today</button>'
-            : '<button onclick="addRandomPickToHand()" style="flex:1;padding:10px;background:var(--green);border:none;border-radius:10px;font-size:14px;cursor:pointer;color:var(--on-accent);font-weight:600">Add to today →</button>') +
+            ? '<button style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);color:var(--text3);cursor:default">Already in today</button>'
+            : '<button onclick="addRandomPickToHand()" style="flex:1;padding:10px;background:var(--green);border:none;border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--on-accent);font-weight:600">Add to today →</button>') +
         '</div>';
     } else {
       html += '<button class="add-btn" style="width:100%" onclick="pickRandomTask()">Pick random task</button>';
@@ -3086,7 +3119,7 @@
           return t && wasCompletedToday(t);
         }).length;
         html +=
-          '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
             section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, FULL_RESET_TASKS);
@@ -3103,17 +3136,17 @@
         '<div class="settings-card-title">Guest Prep</div>' +
         '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
         '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
             '<input type="radio" name="guestMode" value="emergency"' + (guestMode==='emergency'?' checked':'') + ' onchange="guestMode=\'emergency\';renderPresets()"> Emergency (~15 min)' +
           '</label>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
             '<input type="radio" name="guestMode" value="day"' + (guestMode==='day'?' checked':'') + ' onchange="guestMode=\'day\';renderPresets()"> Day guests' +
           '</label>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
             '<input type="radio" name="guestMode" value="overnight"' + (guestMode==='overnight'?' checked':'') + ' onchange="guestMode=\'overnight\';renderPresets()"> Overnight' +
           '</label>' +
         '</div>' +
-        (guestMode === 'emergency' ? '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Visible-impact tasks only — counters, living room, dining room, DS bathroom, entryway.</div>' : '') +
+        (guestMode === 'emergency' ? '<div style="font-size:var(--fs-meta);color:var(--text3);margin-bottom:10px">Visible-impact tasks only — counters, living room, dining room, DS bathroom, entryway.</div>' : '') +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (guestActive ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep</button>';
     if (guestActive) {
       const combined = [...allTasks, ...FULL_RESET_TASKS];
@@ -3140,7 +3173,7 @@
           return t && wasCompletedToday(t);
         }).length;
         html +=
-          '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
             section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, GOING_OUT_TASKS);
@@ -3190,8 +3223,8 @@
     if (recActive) {
       html +=
         '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadRecoveryPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Phase 1 only →</button>' +
-          '<button onclick="loadRecoveryPhase(3)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">All phases →</button>' +
+          '<button onclick="loadRecoveryPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Phase 1 only →</button>' +
+          '<button onclick="loadRecoveryPhase(3)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">All phases →</button>' +
         '</div>';
       html += renderNewPresetChecklist(RECOVERY_SECTIONS);
     }
@@ -3208,8 +3241,8 @@
     if (piActive) {
       html +=
         '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadPostIllnessPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Sanitize only →</button>' +
-          '<button onclick="loadPostIllnessPhase(2)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;color:var(--text)">Full plan →</button>' +
+          '<button onclick="loadPostIllnessPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Sanitize only →</button>' +
+          '<button onclick="loadPostIllnessPhase(2)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Full plan →</button>' +
         '</div>';
       html += renderNewPresetChecklist(POST_ILLNESS_SECTIONS);
     }
@@ -3226,7 +3259,7 @@
       '<div class="settings-card" style="margin-top:4px">' +
         '<div class="settings-card-title">Evening Shutdown</div>' +
         '<div class="settings-card-desc">Dishes, counters, cat water + tonight\'s tidy room (picks whichever is most overdue). ~15–20 min.</div>' +
-        (selectedTidyTask ? '<div style="font-size:12px;color:var(--amber);margin-bottom:10px">Tonight\'s tidy: ' + selectedTidyTask.room + '</div>' : '') +
+        (selectedTidyTask ? '<div style="font-size:var(--fs-meta);color:var(--amber);margin-bottom:10px">Tonight\'s tidy: ' + selectedTidyTask.room + '</div>' : '') +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (esActive ? '14px' : '0') + '" onclick="generateEveningShutdown()">Generate Evening Shutdown</button>';
     if (esActive) {
       html += loadBtns("loadNewPreset('eveningShutdown')", "loadNewPresetDueOnly('eveningShutdown')");
@@ -3247,7 +3280,7 @@
         '<div class="settings-card-desc">Spring-cleaning checklist: every in-season deep task (windows, baseboards, ceiling fans, behind furniture, appliances, grout…). Generate it, then chip away — or "Load due only" for just what\'s actually due now.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (sdActive ? '14px' : '0') + '" onclick="generateSeasonalDeepClean()">Generate ' + monthName + ' Deep Clean</button>';
     if (sdActive) {
-      html += '<div style="font-size:12px;color:var(--amber);margin-bottom:10px">' + ph.seasonalDeep.length + ' tasks · ~' + fmtMinutes(sdTime) + ' total</div>';
+      html += '<div style="font-size:var(--fs-meta);color:var(--amber);margin-bottom:10px">' + ph.seasonalDeep.length + ' tasks · ~' + fmtMinutes(sdTime) + ' total</div>';
       html += loadBtns("loadNewPreset('seasonalDeep')", "loadNewPresetDueOnly('seasonalDeep')");
       html += renderNewPresetChecklist(sdSections);
     }
@@ -3262,27 +3295,27 @@
       const qActive = ph[qKey] && ph[qKey].length;
       const dActive = ph[dKey] && ph[dKey].length;
       const anyActive = qActive || dActive;
-      const qTime = room.quick.reduce((s, id) => s + (allTasks.find(t => t.id === id)?.time || 0), 0);
-      const dTime = room.deep.reduce((s, id) => s + (allTasks.find(t => t.id === id)?.time || 0), 0);
+      const qTime = room.quick.reduce((s, id) => { const t = allTasks.find(x => x.id === id); return s + (t ? taskTime(t) : 0); }, 0);
+      const dTime = room.deep.reduce((s, id) => { const t = allTasks.find(x => x.id === id); return s + (t ? taskTime(t) : 0); }, 0);
 
       html +=
         '<div class="settings-card" style="margin-top:8px">' +
           '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">' +
             '<div class="settings-card-title" style="margin:0">' + room.label + '</div>' +
-            '<div style="font-size:11px;color:var(--text3)">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
+            '<div style="font-size:var(--fs-label);color:var(--text3)">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
           '</div>' +
           '<div style="display:flex;gap:8px;margin-bottom:' + (anyActive ? '14px' : '0') + '">' +
-            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)">Quick</button>' +
-            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'deep\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)">Deep</button>' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Quick</button>' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'deep\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Deep</button>' +
           '</div>';
 
       if (qActive) {
-        html += '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Quick</div>';
+        html += '<div style="font-size:var(--fs-label);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Quick</div>';
         html += loadBtns("loadRoomPreset('" + room.id + "','quick')", "loadRoomPresetDueOnly('" + room.id + "','quick')");
         html += renderPresetChecklist(ph[qKey], allTasks);
       }
       if (dActive) {
-        html += '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:' + (qActive ? '14px' : '0') + ' 0 6px">Deep</div>';
+        html += '<div style="font-size:var(--fs-label);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:' + (qActive ? '14px' : '0') + ' 0 6px">Deep</div>';
         html += loadBtns("loadRoomPreset('" + room.id + "','deep')", "loadRoomPresetDueOnly('" + room.id + "','deep')");
         html += renderPresetChecklist(ph[dKey], allTasks);
       }
@@ -3466,7 +3499,7 @@
       heatHtml += '</div>';
     });
     heatHtml += '</div>' +
-      '<div style="font-size:11px;color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
+      '<div style="font-size:var(--fs-label);color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
 
     // ── Cadence: every task with 3+ completions, worst ratio first ──
     const allTasks = getAllTasks();
@@ -3497,9 +3530,9 @@
         : '';
       return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
-          '<div style="min-width:0"><span style="font-size:14px;color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:3px" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
-          ' <span style="font-size:11px;color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
-          '<div style="font-size:12px;color:' + x.cad.color + ';white-space:nowrap">every ~' + x.cad.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
+          '<div style="min-width:0"><span style="font-size:var(--fs-sub);color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:3px" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
+          ' <span style="font-size:var(--fs-label);color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
+          '<div style="font-size:var(--fs-meta);color:' + x.cad.color + ';white-space:nowrap">every ~' + x.cad.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + markDueCadBtn + todayBtn + flagBtn + '</div>' +
       '</div>';
@@ -3550,12 +3583,12 @@
       return rows.map(r => {
         const color = r.median >= 1.5 ? 'var(--red)' : r.median >= 1 ? 'var(--amber)' : 'var(--green)';
         const width = Math.round(Math.min(r.median / 2, 1) * 100);
-        const zoneChip = r.zone ? '<span style="font-size:10px;color:var(--text2);background:var(--bg3);border-radius:8px;padding:1px 6px">Z' + r.zone + '</span>' : '';
+        const zoneChip = r.zone ? '<span style="font-size:var(--fs-label);color:var(--text2);background:var(--bg3);border-radius:8px;padding:1px 6px">Z' + r.zone + '</span>' : '';
         const tap = r.presetId ? ' onclick="openRoomPressurePreset(\'' + r.presetId + '\')" style="cursor:pointer"' : '';
         return '<div' + tap + '>' +
           '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-top:8px">' +
-            '<div style="font-size:14px;color:var(--text);min-width:0">' + r.room + ' ' + zoneChip + '</div>' +
-            '<div style="font-size:12px;color:' + color + ';white-space:nowrap">' + r.median.toFixed(1) + '&times;' +
+            '<div style="font-size:var(--fs-sub);color:var(--text);min-width:0">' + r.room + ' ' + zoneChip + '</div>' +
+            '<div style="font-size:var(--fs-meta);color:' + color + ';white-space:nowrap">' + r.median.toFixed(1) + '&times;' +
               '<span style="color:var(--text3)"> &middot; ' + r.overdue + '/' + r.total + ' due</span></div>' +
           '</div>' +
           '<div style="height:6px;background:var(--bg3);border-radius:3px;margin-top:5px;overflow:hidden">' +
@@ -3579,16 +3612,16 @@
       (function() {
         const bs = budgetSuggestion();
         function line(label, a, current, type) {
-          if (a.median === null) return '<div style="font-size:13px;color:var(--text3);padding:6px 0">' + label + ': not enough history yet.</div>';
+          if (a.median === null) return '<div style="font-size:var(--fs-sub);color:var(--text3);padding:6px 0">' + label + ': not enough history yet.</div>';
           let html = '<div style="padding:6px 0;border-bottom:0.5px solid var(--border)">' +
-            '<div style="font-size:13px;color:var(--text2)">' + label + ': you actually do <b>~' + a.median + 'm</b>/day of non-daily work (median of ' + a.days + ' active days) vs a <b>' + current + 'm</b> budget.</div>';
+            '<div style="font-size:var(--fs-sub);color:var(--text2)">' + label + ': you actually do <b>~' + a.median + 'm</b>/day of non-daily work (median of ' + a.days + ' active days) vs a <b>' + current + 'm</b> budget.</div>';
           if (a.target !== null) {
             html += '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
-              '<span style="font-size:13px;color:var(--amber)">Suggest ' + (a.target > current ? 'raising' : 'lowering') + ' to ' + a.target + 'm</span>' +
+              '<span style="font-size:var(--fs-sub);color:var(--amber)">Suggest ' + (a.target > current ? 'raising' : 'lowering') + ' to ' + a.target + 'm</span>' +
               '<button class="settings-save-btn" onclick="applyBudget(\'' + type + '\',' + a.target + ')">Apply</button>' +
             '</div>';
           } else {
-            html += '<div style="font-size:12px;color:var(--green);margin-top:2px">Budget matches your real pace 👍</div>';
+            html += '<div style="font-size:var(--fs-meta);color:var(--green);margin-top:2px">Budget matches your real pace 👍</div>';
           }
           return html + '</div>';
         }
@@ -3627,7 +3660,7 @@
     const dailyCount = all.filter(t => t.freq === 1).length;
     const alinaCount = all.filter(t => t.owner === 'alina' || t.owner === 'either').length;
     const bobCount = all.filter(t => t.owner === 'bob').length;
-    const dailyMin = all.filter(t => t.freq === 1 && (t.owner === 'alina' || t.owner === 'either')).reduce((s,t) => s + t.time, 0);
+    const dailyMin = all.filter(t => t.freq === 1 && (t.owner === 'alina' || t.owner === 'either')).reduce((s,t) => s + taskTime(t), 0);
   
     const ZONE_TABLE = [
       ['Zone 1', 'Dining Room, Mud Room, Back Porch'],
@@ -3688,7 +3721,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">How Scoring Works</div>' +
         '<div class="settings-card-desc">Lower score = higher priority.</div>' +
-        '<ul style="font-size:13px;color:var(--text2);line-height:1.8;padding-left:16px">' +
+        '<ul style="font-size:var(--fs-sub);color:var(--text2);line-height:1.8;padding-left:16px">' +
           '<li><b>Base score</b> = frequency in days (lower freq = higher priority)</li>' +
           '<li><b>Cat tasks</b>: −0.5 tiebreaker boost</li>' +
           '<li><b>Zone match</b>: −2 when room is in active zone</li>' +
@@ -3709,8 +3742,8 @@
           log.forEach(day => {
             if (day.tasks.length === 0) return;
             logHtml += '<div style="margin-bottom:10px">' +
-              '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px">' + day.label + ' <span style="font-weight:400;color:var(--text3)">· ' + day.tasks.length + ' done</span></div>' +
-              '<div style="font-size:13px;color:var(--text2);line-height:1.7">' + day.tasks.join(' · ') + '</div>' +
+              '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text2);margin-bottom:4px">' + day.label + ' <span style="font-weight:400;color:var(--text3)">· ' + day.tasks.length + ' done</span></div>' +
+              '<div style="font-size:var(--fs-sub);color:var(--text2);line-height:1.7">' + day.tasks.join(' · ') + '</div>' +
             '</div>';
           });
         }
@@ -3723,7 +3756,7 @@
         '<div class="settings-card-title">Vacation Mode</div>' +
         '<div class="settings-card-desc">Pause while you\'re away: no new hands are dealt and starvation stops accruing. When you resume, every task\'s last-done date shifts forward by the time away, so you don\'t come home to a wall of fake-overdue tasks.</div>' +
         (state.paused
-          ? '<div style="font-size:13px;color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
+          ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
             '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
           : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
       '</div>' +
@@ -3732,7 +3765,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Reload app</div>' +
         '<div class="settings-card-desc">Reloads the page to pick up the latest version. Your data is saved — nothing is lost. (This is not the same as redealing today\'s hand.)</div>' +
-        '<div style="font-size:13px;color:var(--text2);margin-bottom:10px">Version: <b>' + APP_VERSION + '</b></div>' +
+        '<div style="font-size:var(--fs-sub);color:var(--text2);margin-bottom:10px">Version: <b>' + APP_VERSION + '</b></div>' +
         '<button class="add-btn" style="width:100%" onclick="location.reload()">&#8635; Reload app</button>' +
       '</div>' +
 
@@ -3742,11 +3775,11 @@
         '<div class="settings-card-desc">Recent updates to the app, newest first.</div>' +
         CHANGELOG.slice(0, changelogExpanded ? CHANGELOG.length : 3).map(entry =>
           '<div style="margin-bottom:12px">' +
-            '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-weight:600;margin-bottom:5px">' +
+            '<div style="font-size:var(--fs-label);text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-weight:600;margin-bottom:5px">' +
               entry.v + (entry.v === APP_VERSION ? ' &middot; you\'re on this' : '') +
             '</div>' +
             '<ul style="margin:0;padding-left:18px">' +
-              entry.notes.map(n => '<div style="font-size:13px;color:var(--text2);line-height:1.45;margin-bottom:3px;list-style:none;position:relative">' +
+              entry.notes.map(n => '<div style="font-size:var(--fs-sub);color:var(--text2);line-height:1.45;margin-bottom:3px;list-style:none;position:relative">' +
                 '<span style="position:absolute;left:-13px;color:var(--text3)">&bull;</span>' + n + '</div>').join('') +
             '</ul>' +
           '</div>'
@@ -3762,7 +3795,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Backup</div>' +
         '<div class="settings-card-desc">A backup file downloads automatically once a week so your history is never only in this browser. Save it somewhere safe (or let Downloads collect them).</div>' +
-        '<div style="font-size:13px;color:var(--text2);margin-bottom:10px">Last backup: <b>' + (state.lastBackupDate ? new Date(state.lastBackupDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never') + '</b></div>' +
+        '<div style="font-size:var(--fs-sub);color:var(--text2);margin-bottom:10px">Last backup: <b>' + (state.lastBackupDate ? new Date(state.lastBackupDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never') + '</b></div>' +
         '<button class="add-btn" style="width:100%" onclick="downloadBackup(false)">Back up now</button>' +
       '</div>' +
 
@@ -3770,17 +3803,17 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Export / Import</div>' +
         '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
-        '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Export</div>' +
+        '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:8px">Export</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:10px" onclick="exportData()">Copy data to clipboard</button>' +
-        '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:13px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
+        '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
         '<div style="height:16px;border-top:0.5px solid var(--border);margin:16px -24px 0;padding-top:16px;margin-bottom:0"></div>' +
-        '<div style="font-size:13px;font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
-        '<div style="font-size:12px;color:var(--red);margin-bottom:8px">⚠️ Overwrites all current data.</div>' +
-        '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">From an auto-backup file in Downloads:</div>' +
+        '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
+        '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">⚠️ Overwrites all current data.</div>' +
+        '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">From an auto-backup file in Downloads:</div>' +
         '<input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">' +
         '<button class="add-btn" style="width:100%;margin-bottom:14px" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
-        '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">Or paste exported data:</div>' +
-        '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:13px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
+        '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">Or paste exported data:</div>' +
+        '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
         '<button class="add-btn" style="width:100%;background:var(--red)" onclick="importData()">Import &amp; restore</button>' +
       '</div>' +
   
@@ -4004,7 +4037,7 @@
               '<div class="mc-check-inner"></div>' +
             '</button>' +
             '<div class="manage-card-body">' +
-              '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:11px;color:var(--blue)">custom</span>' : '') + '</div>' +
+              '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:var(--fs-label);color:var(--blue)">custom</span>' : '') + '</div>' +
               '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + timeHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
             '</div>' +
             '<div class="manage-card-icons">' +
@@ -4052,7 +4085,7 @@
     el.innerHTML = labels.map((lab, i) => {
       const m = i + 1;
       const on = editingMonths.has(m);
-      return '<button type="button" onclick="toggleMonthChip(' + m + ')" style="padding:5px 8px;font-size:12px;border-radius:8px;cursor:pointer;border:1px solid ' + (on ? 'var(--green)' : 'var(--border2)') + ';background:' + (on ? 'var(--green)' : 'var(--bg2)') + ';color:' + (on ? 'var(--on-accent)' : 'var(--text2)') + '">' + lab + '</button>';
+      return '<button type="button" onclick="toggleMonthChip(' + m + ')" style="padding:5px 8px;font-size:var(--fs-meta);border-radius:8px;cursor:pointer;border:1px solid ' + (on ? 'var(--green)' : 'var(--border2)') + ';background:' + (on ? 'var(--green)' : 'var(--bg2)') + ';color:' + (on ? 'var(--on-accent)' : 'var(--text2)') + '">' + lab + '</button>';
     }).join('');
   }
 
