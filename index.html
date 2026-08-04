@@ -2,7 +2,7 @@
   <html lang="en">
   <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -214,9 +214,13 @@
     .manage-dp-row { display: none; align-items: center; gap: 8px; padding: 0 12px 10px 50px; }
     .manage-dp-row.open { display: flex; }
     /* Modal — bottom sheet */
+    /* Keyboard-safe sheets: --kb is the height the on-screen keyboard occludes,
+       set from visualViewport below. Without it iOS puts the keyboard straight over
+       the bottom of the sheet, hiding the Save button with no way to scroll to it. */
+    :root { --kb: 0px; }
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
     .modal-backdrop.open { display: flex; }
-    .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: 92vh; display: flex; flex-direction: column; }
+    .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: calc(92vh - var(--kb)); display: flex; flex-direction: column; margin-bottom: var(--kb); }
     .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     .modal-title { font-size: 17px; font-weight: 600; }
     .modal-close { background: none; border: none; font-size: 20px; color: var(--text2); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
@@ -815,12 +819,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v6';
+  const APP_VERSION = '2026-08-03 v7';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-03 v7', notes: [
+      'The app no longer zooms when you double-tap or focus a field.',
+      'Pop-up sheets now sit above the on-screen keyboard instead of hiding behind it.',
+    ]},
     { v: '2026-08-03 v6', notes: [
       'Dark mode is properly readable: the accent colours were never lightened for dark backgrounds, so the active tab indicator, owner badges and coloured text were all washed out or invisible.',
       'Muted labels, overdue badges and the Sprint step numbers now meet contrast standards in both themes.',
@@ -4315,6 +4323,18 @@
 
     switchTab(sessionStorage.getItem('activeTab') || 'alina');
     autoBackupCheck();
+
+    // The on-screen keyboard shrinks visualViewport but not layout viewport, so
+    // the difference is exactly how much of the sheet is being covered.
+    if (window.visualViewport) {
+      const syncKb = () => {
+        const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+        document.documentElement.style.setProperty('--kb', kb + 'px');
+      };
+      window.visualViewport.addEventListener('resize', syncKb);
+      window.visualViewport.addEventListener('scroll', syncKb);
+      syncKb();
+    }
 
     // A backgrounded tab may never run another line of JS — iOS is aggressive
     // about suspending them. Flush any pending debounced write before it goes.
