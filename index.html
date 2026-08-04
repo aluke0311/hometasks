@@ -742,7 +742,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v1';
+  const APP_VERSION = '2026-08-03 v2';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -1608,9 +1608,9 @@
   }
   
   function renderAlina() {
-    // Sync zone selector (auto label shows this week's zone)
+    // Sync zone selector (auto label shows the current zone)
     const autoOpt = document.getElementById('zoneAutoOption');
-    if (autoOpt) autoOpt.textContent = 'Auto — Zone ' + autoZone() + ' this week';
+    if (autoOpt) autoOpt.textContent = 'Auto — Zone ' + autoZone();
     const zoneSel = document.getElementById('zoneSelect');
     if (zoneSel) zoneSel.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
 
