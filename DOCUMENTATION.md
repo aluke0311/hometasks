@@ -47,7 +47,7 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 |------|-------|
 | CSS | 9–265 |
 | Body markup (views, nav, modals) | 266–480 |
-| `TASKS` array (177 entries) | 483–703 |
+| `TASKS` array (185 entries) | 654–889 |
 | `DEFAULT_MONTHS`, `ZONE_ROOMS` | 711–745 |
 | Storage layer (`loadState`/`saveState`/`defaultState`) | 746–840 |
 | Core logic (due, season, zone, scoring) | 842–1047 |
