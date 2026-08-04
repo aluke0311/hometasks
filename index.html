@@ -742,7 +742,7 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v2';
+  const APP_VERSION = '2026-08-03 v3';
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -756,6 +756,56 @@
     return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {} };
   }
   
+  // Fields whose default is null, so their type can't be inferred from
+  // defaultState(). Listing one here only adds a shape CHECK — a new nullable
+  // field still gets its default automatically without being listed, it just
+  // won't be type-guarded until it is.
+  const NULLABLE_SHAPE = {
+    hand: 'array', guestHand: 'array', resetHand: 'array', goingOutHand: 'array',
+    handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
+    lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number',
+  };
+
+  // The single place a parsed blob becomes a valid state object — used by both the
+  // load path and the import path. defaultState() is the ONLY field list to keep up
+  // to date: anything defined there is defaulted here automatically, on both paths.
+  function coerceState(parsed) {
+    const d = defaultState();
+    // The spread is belt-and-braces: the guard below also replaces any missing
+    // field with its default, so defaults survive even if this line is edited.
+    const merged = { ...d, ...parsed };
+
+    // Type guard. applyImport accepts pasted text, so this is untrusted input: a
+    // field of the wrong type would otherwise reach the renderer and throw on the
+    // load path, where there is no way back except a backup.
+    Object.keys(d).forEach(k => {
+      const want = d[k], got = merged[k];
+      if (got === null || got === undefined) { merged[k] = want; return; }
+      if (want === null) {
+        const shape = NULLABLE_SHAPE[k];
+        if (!shape) return;                                   // unlisted: leave as-is
+        if (shape === 'array') { if (!Array.isArray(got)) merged[k] = null; return; }
+        if (typeof got !== shape) merged[k] = null;
+        return;
+      }
+      if (Array.isArray(want) !== Array.isArray(got)) { merged[k] = want; return; }
+      if (typeof got !== typeof want) merged[k] = want;
+    });
+
+    // Backfill: a base task added since the user's last visit has no completion
+    // timestamp; without this daysOverdue() would read ~20,000 days overdue.
+    // Seed it as "due now" (last done exactly freq days ago), like defaultState().
+    const _now = Date.now();
+    TASKS.forEach(t => {
+      if (merged.completions[t.id] == null) merged.completions[t.id] = _now - t.freq * 86400000;
+    });
+
+    // Genuine migration, not a default: the old 'survival' mode became 'maintenance'.
+    if (merged.mode === 'survival') merged.mode = 'maintenance';
+
+    return merged;
+  }
+
   async function loadState() {
     try {
       // Try v8 first
@@ -764,53 +814,7 @@
       if (!raw) {
         raw = localStorage.getItem(STORAGE_KEY_V7);
       }
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        // Migrate: cap → budgetWeekday/budgetWeekend
-        let budgetWeekday = 45, budgetWeekend = 90;
-        if (parsed.budgetWeekday != null) budgetWeekday = parsed.budgetWeekday;
-        if (parsed.budgetWeekend != null) budgetWeekend = parsed.budgetWeekend;
-        // Backfill: a base task added since the user's last visit has no completion
-        // timestamp; without this daysOverdue() would read ~20,000 days overdue.
-        // Seed it as "due now" (last done exactly freq days ago), like defaultState().
-        const completions = parsed.completions || {};
-        const _now = Date.now();
-        TASKS.forEach(t => { if (completions[t.id] == null) completions[t.id] = _now - t.freq * 86400000; });
-        return {
-          completions,
-  
-          budgetWeekday,
-          budgetWeekend,
-          zone: parsed.zone != null ? parsed.zone : 0,
-          hand: parsed.hand || null,
-          handDate: parsed.handDate || null,
-          customTasks: parsed.customTasks || {},
-          deletedIds: parsed.deletedIds || [],
-          pinnedIds: parsed.pinnedIds || [],
-          starvation: parsed.starvation || {},
-          starvationDate: parsed.starvationDate || null,
-          guestHand: parsed.guestHand || null,
-          resetHand: parsed.resetHand || null,
-          goingOutHand: parsed.goingOutHand || null,
-          snoozed: parsed.snoozed || {},
-          flaggedIds: parsed.flaggedIds || [],
-          completionHistory: parsed.completionHistory || {},
-          mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
-          tierCLastDate: parsed.tierCLastDate || null,
-          presetHands: parsed.presetHands || {},
-          lastBackupDate: parsed.lastBackupDate || null,
-          zoneMode: parsed.zoneMode || 'auto',
-          paused: !!parsed.paused,
-          pausedAt: parsed.pausedAt || null,
-          taskMonths: parsed.taskMonths || {},
-          seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
-          actualTimes: parsed.actualTimes || {},
-          inProgress: parsed.inProgress || {},
-          removedToday: parsed.removedToday || [],
-          removedTodayDate: parsed.removedTodayDate || null,
-          yearStats: parsed.yearStats || {},
-        };
-      }
+      if (raw) return coerceState(JSON.parse(raw));
     } catch (e) {
       console.log('No existing state found, using defaults');
     }
@@ -3645,42 +3649,7 @@
       showToast('Invalid data — check and try again'); return false;
     }
     if (!confirm('Replace all current data with the imported data?')) return false;
-    const _impNow = Date.now();
-    const impCompletions = parsed.completions || {};
-    TASKS.forEach(t => { if (impCompletions[t.id] == null) impCompletions[t.id] = _impNow - t.freq * 86400000; });
-    state = {
-      completions:   impCompletions,
-      budgetWeekday: parsed.budgetWeekday != null ? parsed.budgetWeekday : 45,
-      budgetWeekend: parsed.budgetWeekend != null ? parsed.budgetWeekend : 90,
-      zone:          parsed.zone          != null ? parsed.zone          : 0,
-      hand:          parsed.hand          || null,
-      handDate:      parsed.handDate      || null,
-      customTasks:   parsed.customTasks   || {},
-      deletedIds:    parsed.deletedIds    || [],
-      pinnedIds:     parsed.pinnedIds     || [],
-      starvation:    parsed.starvation    || {},
-      starvationDate: parsed.starvationDate || null,
-      guestHand:     parsed.guestHand     || null,
-      resetHand:     parsed.resetHand     || null,
-      goingOutHand:  parsed.goingOutHand  || null,
-      snoozed:       parsed.snoozed       || {},
-      flaggedIds:    parsed.flaggedIds    || [],
-      completionHistory: parsed.completionHistory || {},
-      presetHands:   parsed.presetHands   || {},
-      mode: (parsed.mode === 'survival' ? 'maintenance' : parsed.mode) || 'maintenance',
-      tierCLastDate: parsed.tierCLastDate || null,
-      lastBackupDate: parsed.lastBackupDate || null,
-      zoneMode: parsed.zoneMode || 'auto',
-      paused: !!parsed.paused,
-      pausedAt: parsed.pausedAt || null,
-      taskMonths: parsed.taskMonths || {},
-      seasonalDefaultsApplied: !!parsed.seasonalDefaultsApplied,
-      actualTimes: parsed.actualTimes || {},
-      inProgress: parsed.inProgress || {},
-      removedToday: parsed.removedToday || [],
-      removedTodayDate: parsed.removedTodayDate || null,
-      yearStats: parsed.yearStats || {},
-    };
+    state = coerceState(parsed);
     saveState();
     render();
     showToast('Data restored!');
