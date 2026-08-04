@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Home Tasks — self-test</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         margin: 0; padding: 24px; line-height: 1.5; max-width: 900px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
+  #summary { font-size: 17px; font-weight: 600; padding: 12px 16px; border-radius: 8px;
+             margin-bottom: 20px; background: #eee; }
+  #summary.pass { background: #eaf3de; color: #3b6d11; }
+  #summary.fail { background: #fcebeb; color: #b3312f; }
+  .group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+           color: #888; margin: 22px 0 8px; font-weight: 600; }
+  .case { padding: 7px 12px; border-left: 3px solid transparent; font-size: 13px;
+          display: flex; gap: 10px; align-items: baseline; }
+  .case.ok   { border-left-color: #3b6d11; }
+  .case.bad  { border-left-color: #e24b4a; background: #fcebeb; }
+  .case .id  { font-variant-numeric: tabular-nums; color: #888; min-width: 34px; }
+  .case .msg { color: #b3312f; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .note { font-size: 12px; color: #777; margin-top: 24px; padding-top: 12px;
+          border-top: 1px solid #ddd; }
+  /* Parked off-screen, NOT display:none — a display:none subtree has no layout, so
+     every getBoundingClientRect() would return 0 and layout assertions would pass
+     on zeros. Keep it rendered but out of sight. */
+  #frame { position: absolute; left: -10000px; top: 0; width: 390px; height: 844px; border: 0; }
+</style>
+</head>
+<body>
+
+<h1>Home Tasks — self-test</h1>
+<div class="sub">Loads <code>index.html</code> fresh (no-store) into an isolated iframe and asserts against its live functions.</div>
+<div id="summary">Running…</div>
+<div id="results"></div>
+<div class="note">
+  The app inside the frame runs against <b>memory-backed storage</b>, not your real
+  <code>hometasks_v8</code> key — case 2 proves it. Nothing here can touch live data.
+</div>
+<iframe id="frame"></iframe>
+
+<script>
+// ─── Bridge injected into the app document ─────────────────────────────────
+// Runs before the app's own <script>, which sits at the end of <body>.
+const BRIDGE = `<script>
+(function () {
+  function makeStore() {
+    const mem = Object.create(null);
+    return {
+      getItem: k => (k in mem ? mem[k] : null),
+      setItem: (k, v) => { mem[k] = String(v); },
+      removeItem: k => { delete mem[k]; },
+      clear: () => { for (const k in mem) delete mem[k]; },
+      key: i => { const ks = Object.keys(mem); return i < ks.length ? ks[i] : null; },
+      get length() { return Object.keys(mem).length; }
+    };
+  }
+  // The harness is same-origin, so without this the app would read and write the
+  // REAL hometasks_v8 key: init() runs autoBackupCheck(), every mutation saves,
+  // and a test fixture would land in live data. Swap storage before the app loads.
+  Object.defineProperty(window, 'localStorage',   { value: makeStore(), configurable: true });
+  Object.defineProperty(window, 'sessionStorage', { value: makeStore(), configurable: true });
+  // App globals are top-level const/let in a classic script, so they live in the
+  // shared global lexical environment rather than on window. An eval running
+  // inside this document is the only way the parent frame can reach them.
+  window.__get = expr => eval(expr);
+  window.__set = (lhs, val) => {
+    window.__inbound = val;
+    try { eval(lhs + ' = window.__inbound'); } finally { delete window.__inbound; }
+  };
+  window.confirm = () => true;   // applyImport asks for confirmation
+  window.alert = () => {};
+  window.__bridged = true;
+})();
+<\/script>`;
+
+const results = [];
+let currentGroup = '';
+
+function group(name) { currentGroup = name; }
+function record(id, name, err) {
+  results.push({ id, name, group: currentGroup, err });
+}
+
+// ─── Assertions ────────────────────────────────────────────────────────────
+function ok(cond, msg) { if (!cond) throw new Error(msg || 'expected truthy'); }
+function eq(a, b, msg) {
+  if (a !== b) throw new Error((msg ? msg + ': ' : '') + 'expected ' + JSON.stringify(b) + ', got ' + JSON.stringify(a));
+}
+function near(a, b, eps, msg) {
+  if (!(Math.abs(a - b) <= eps)) throw new Error((msg ? msg + ': ' : '') + 'expected ~' + b + ' (±' + eps + '), got ' + a);
+}
+function deepEq(a, b, msg) {
+  const sa = JSON.stringify(a), sb = JSON.stringify(b);
+  if (sa !== sb) throw new Error((msg ? msg + ': ' : '') + 'objects differ\n  A: ' + sa.slice(0, 300) + '\n  B: ' + sb.slice(0, 300));
+}
+
+// ─── Harness ───────────────────────────────────────────────────────────────
+const DAY = 86400000;
+let W, G, S, src;
+
+function fresh() { return G('defaultState')(); }
+function snap()  { return JSON.parse(JSON.stringify(G('state'))); }
+
+// Every case that touches state runs through this: build a fixture from a fresh
+// default state, run, and restore the frame's real state in a finally.
+function withState(build, fn) {
+  const saved = snap();
+  try {
+    const st = fresh();
+    build(st);
+    S('state', st);
+    return fn(st);
+  } finally {
+    S('state', saved);
+  }
+}
+
+async function boot(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  // A 404 must never be silent — that is how a suite scores nothing and reports green.
+  if (!res.ok) throw new Error('fetch ' + url + ' failed: HTTP ' + res.status);
+  src = await res.text();
+
+  const injected = src.replace(/<head>/i, '<head>' + BRIDGE);
+  if (injected === src) throw new Error('bridge injection failed: no <head> in ' + url);
+
+  const frame = document.getElementById('frame');
+  await new Promise((resolve, reject) => {
+    frame.addEventListener('load', resolve, { once: true });
+    setTimeout(() => reject(new Error('iframe load timed out')), 15000);
+    frame.srcdoc = injected;
+  });
+
+  W = frame.contentWindow;
+  if (!W.__bridged) throw new Error('bridge did not run inside the frame');
+  G = expr => W.__get(expr);
+  S = (lhs, val) => W.__set(lhs, val);
+
+  // init() is async (it awaits loadState), so wait for it to have dealt a hand.
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    try { if (G('state') && G('state').handDate) break; } catch (e) {}
+    await new Promise(r => setTimeout(r, 30));
+  }
+  if (!G('state') || !G('state').handDate) throw new Error('app did not finish init() inside the frame');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CASES
+// ═══════════════════════════════════════════════════════════════════════════
+const cases = [];
+function test(name, fn) { cases.push({ name, group: currentGroup, fn }); }
+
+// ─── Harness integrity ─────────────────────────────────────────────────────
+group('Harness integrity');
+
+test('the frame is running the code we just fetched, not a cached copy', () => {
+  const live = G('scoreTask').toString();
+  ok(src.indexOf(live) !== -1, 'scoreTask source not found in the fetched text — the frame is stale');
+  const live2 = G('dealHand').toString();
+  ok(src.indexOf(live2) !== -1, 'dealHand source not found in the fetched text — the frame is stale');
+});
+
+test('the frame cannot see or write real localStorage', () => {
+  ok(W.localStorage !== window.localStorage, 'frame shares the parent Storage object');
+  const probe = '__selftest_probe_' + Date.now();
+  W.localStorage.setItem(probe, 'x');
+  eq(window.localStorage.getItem(probe), null, 'a write inside the frame reached real storage');
+  eq(W.localStorage.getItem('hometasks_v8') === REAL_STATE_AT_START, false, 'frame is reading the real key');
+});
+
+// ─── Preset integrity ──────────────────────────────────────────────────────
+group('Preset integrity');
+
+function collectPresetIds() {
+  const out = [];
+  const push = (where, id) => out.push({ where, id });
+  const sections = ['EXPRESS_RESET_SECTIONS','WEEKLY_RESET_SECTIONS','RETURN_HOME_SECTIONS',
+                    'BEFORE_CLEANERS_SECTIONS','RECOVERY_SECTIONS','POST_ILLNESS_SECTIONS'];
+  sections.forEach(name => {
+    (G(name) || []).forEach(sec => (sec.ids || []).forEach(id => push(name, id)));
+  });
+  ['EVENING_SHUTDOWN_FIXED','EVENING_TIDY_POOL'].forEach(name => {
+    (G(name) || []).forEach(id => push(name, id));
+  });
+  (G('ROOM_PRESETS') || []).forEach(r => {
+    (r.quick || []).forEach(id => push('ROOM_PRESETS.' + r.id + '.quick', id));
+    (r.deep  || []).forEach(id => push('ROOM_PRESETS.' + r.id + '.deep',  id));
+  });
+  // These two define their own task objects, but the checklist still routes
+  // check-off through completeTask(id), which returns early on an unknown id.
+  ['FULL_RESET_TASKS','GOING_OUT_TASKS'].forEach(name => {
+    (G(name) || []).forEach(t => push(name, t.id));
+  });
+  return out;
+}
+
+test('every preset task id resolves in TASKS', () => {
+  const known = new Set(G('TASKS').map(t => t.id));
+  const dead = collectPresetIds().filter(r => !known.has(r.id));
+  ok(dead.length === 0, 'dead preset ids: ' + dead.map(r => r.where + '→' + r.id).join(', '));
+});
+
+test('every ROOM_PRESETS label names a room that exists in TASKS', () => {
+  const rooms = new Set(G('TASKS').map(t => t.room));
+  const bad = (G('ROOM_PRESETS') || []).filter(r => !rooms.has(r.label)).map(r => r.label);
+  ok(bad.length === 0, 'labels with no matching task room: ' + bad.join(', '));
+});
+
+// ─── Scoring ───────────────────────────────────────────────────────────────
+group('Scoring');
+
+// A plain object is enough: scoreTaskParts only reads id, freq, room and cat,
+// and looks the rest up in state. No need to register the task.
+const T = (over) => Object.assign({ id: 'zz_probe', name: 'Probe', room: 'Kitchen', freq: 10, time: 5, owner: 'either', cat: false }, over || {});
+
+test('score components take their exact documented values', () => {
+  // freq 10, last done 15 days ago → 5 days overdue → ratio 0.5, weight 0.5 → -2.5
+  // starvation 4 → -min(4*0.3, 10*0.15) = -1.2
+  withState(st => {
+    st.completions['zz_probe'] = Date.now() - 15 * DAY;
+    st.starvation['zz_probe'] = 4;
+    st.mode = 'maintenance';
+  }, () => {
+    const p = G('scoreTaskParts')(T(), 0);
+    eq(p.base, 10, 'base');
+    eq(p.cat, 0, 'cat');
+    eq(p.zone, 0, 'zone');
+    near(p.overdue, -2.5, 0.01, 'overdue');
+    near(p.starvation, -1.2, 0.001, 'starvation');
+    eq(p.flagged, 0, 'flagged');
+    near(p.total, 6.3, 0.02, 'total');
+  });
+});
+
+test('starvation reduction is capped at freq * 0.15', () => {
+  withState(st => {
+    st.completions['zz_probe'] = Date.now();
+    st.starvation['zz_probe'] = 999;
+  }, () => {
+    const p = G('scoreTaskParts')(T({ freq: 7 }), 0);
+    near(p.starvation, -1.05, 0.001, '7 * 0.15');
+    const p2 = G('scoreTaskParts')(T({ freq: 180 }), 0);
+    near(p2.starvation, -27, 0.001, '180 * 0.15');
+  });
+});
+
+test('overdue penalty is capped at freq * 0.8', () => {
+  withState(st => { st.completions['zz_probe'] = Date.now() - 1000 * DAY; }, () => {
+    const p = G('scoreTaskParts')(T({ freq: 10 }), 0);
+    near(p.overdue, -8, 0.001, '10 * 0.8');
+  });
+});
+
+test('overdue weight is 0.5 in keep-up and 0.8 in catch-up', () => {
+  const build = st => { st.completions['zz_probe'] = Date.now() - 15 * DAY; };
+  const keep = withState(st => { build(st); st.mode = 'maintenance'; }, () => G('scoreTaskParts')(T(), 0).overdue);
+  const cat  = withState(st => { build(st); st.mode = 'catchup';     }, () => G('scoreTaskParts')(T(), 0).overdue);
+  near(keep, -2.5, 0.01, 'keep-up');
+  near(cat,  -4.0, 0.01, 'catch-up');
+});
+
+test('a flagged task scores 50 lower than the same task unflagged', () => {
+  withState(st => { st.completions['zz_probe'] = Date.now() - 15 * DAY; }, () => {
+    const plain = G('scoreTaskParts')(T(), 0).total;
+    S('state.flaggedIds', ['zz_probe']);
+    const flagged = G('scoreTaskParts')(T(), 0).total;
+    near(flagged - plain, -50, 0.001);
+  });
+});
+
+test('zone bonus applies in-zone only, and never to zone-less rooms', () => {
+  withState(st => { st.completions['zz_probe'] = Date.now(); }, () => {
+    eq(G('scoreTaskParts')(T({ room: 'Kitchen' }), 2).zone, -2, 'Kitchen in zone 2');
+    eq(G('scoreTaskParts')(T({ room: 'Kitchen' }), 4).zone, 0, 'Kitchen in zone 4');
+    ['Whole House', 'Robot', 'Downstairs', 'Upstairs'].forEach(room => {
+      for (let z = 1; z <= 5; z++) {
+        eq(G('scoreTaskParts')(T({ room }), z).zone, 0, room + ' in zone ' + z);
+      }
+    });
+  });
+});
+
+// ─── Dealing ───────────────────────────────────────────────────────────────
+group('Dealing');
+
+const LOAD_IDS = ['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels'];
+const PROCESS_IDS = ['l_start','l_dryer','l_fold','l_put_away'];
+
+// Pick a probe task by its properties rather than hardcoding an id. Hardcoding
+// cost a vacuous case once already: bed_sheets is owner 'bob', so it never enters
+// the dealing pool, and the case only passed because the fixture had accidentally
+// marked it completed-today.
+function probeTask(opts) {
+  const o = opts || {};
+  const t = G('getAllTasks')().find(t =>
+    (t.owner === 'alina' || t.owner === 'either') &&
+    t.freq >= (o.minFreq || 5) && t.freq <= (o.maxFreq || 30) &&
+    !t.oneOff &&
+    LOAD_IDS.indexOf(t.id) === -1 && PROCESS_IDS.indexOf(t.id) === -1 && t.id !== 'c_fountain' &&
+    G('inSeason')(t)
+  );
+  if (!t) throw new Error('no suitable probe task found in TASKS');
+  return t;
+}
+
+// Deal a hand from a controlled fixture and hand back the resulting task objects.
+function deal(build) {
+  return withState(st => {
+    st.hand = null; st.handDate = null;
+    st.pinnedIds = []; st.flaggedIds = []; st.inProgress = {};
+    st.removedToday = []; st.snoozed = {};
+    if (build) build(st);
+  }, () => {
+    G('dealHand')();
+    const all = G('getAllTasks')();
+    return {
+      ids: G('state').hand.slice(),
+      tasks: G('state').hand.map(id => all.find(t => t.id === id)).filter(Boolean),
+      state: snap()
+    };
+  });
+}
+
+test('the dealt hand stays within budget, bar one boundary task', () => {
+  const budget = 45;
+  const r = deal(st => { st.budgetWeekday = budget; st.budgetWeekend = budget; });
+  const alwaysIds = new Set(['c_fountain', ...LOAD_IDS]);
+  const counted = r.tasks.filter(t => t.freq > 1 && !alwaysIds.has(t.id));
+  const times = counted.map(t => G('taskTime')(t));
+  const total = times.reduce((a, b) => a + b, 0);
+  const biggest = times.length ? Math.max(...times) : 0;
+  // dealHand lets the FIRST selection overshoot ("&& selected.length > 0"), so the
+  // honest invariant is that dropping one task brings the hand back under budget.
+  ok(total - biggest <= budget, 'budget ' + budget + ', dealt ' + total + 'm across ' + counted.length + ' tasks (largest ' + biggest + 'm)');
+});
+
+test('at most one laundry load task per hand', () => {
+  const r = deal();
+  const loads = r.ids.filter(id => LOAD_IDS.indexOf(id) !== -1);
+  ok(loads.length <= 1, 'got ' + loads.length + ' load tasks: ' + loads.join(', '));
+});
+
+test('laundry process steps are suppressed when no load is assigned', () => {
+  const r = deal(st => {
+    // Nothing to wash. Two days ago, not today: every load task is freq 7 or 14 so
+    // this leaves none due, and dealHand adds anything completed TODAY back into
+    // the hand, which would otherwise defeat the precondition.
+    LOAD_IDS.forEach(id => { st.completions[id] = Date.now() - 2 * DAY; });
+  });
+  const loads = r.ids.filter(id => LOAD_IDS.indexOf(id) !== -1);
+  eq(loads.length, 0, 'precondition: no load assigned');
+  const process = r.ids.filter(id => PROCESS_IDS.indexOf(id) !== -1);
+  ok(process.length === 0, 'process steps leaked in: ' + process.join(', '));
+});
+
+test('a flagged not-yet-due task is dealt in by-freq mode', () => {
+  // By Freq sorts on raw frequency, which ignores the -50 flag bonus entirely,
+  // so flagged handling has to be special-cased. This is that guard.
+  const probe = probeTask();
+  const id = probe.id;
+  const r = withState(st => {
+    st.hand = null; st.handDate = null;
+    st.pinnedIds = []; st.inProgress = {}; st.removedToday = []; st.snoozed = {};
+    st.mode = 'byfreq';
+    // Recently done, so not due — and crucially not completed TODAY either, which
+    // would put it in the hand anyway and let this case pass without the flag
+    // logic doing anything at all.
+    st.completions[id] = Date.now() - 1 * DAY;
+    st.flaggedIds = [id];
+  }, () => {
+    ok(!G('isDue')(probe), 'precondition: probe must not be due');
+    G('dealHand')();
+    return G('state').hand.slice();
+  });
+  ok(r.indexOf(id) !== -1, 'flagged not-yet-due task ' + id + ' missing from a by-freq hand');
+});
+
+test('heavy tasks (>15m) are capped at 2 per hand', () => {
+  // The real task list can't exercise this: the overdue penalty is capped at
+  // freq * 0.8, so a task can never score below freq * 0.2, and every heavy task
+  // in TASKS is a high-freq deep clean that sorts behind ~100 light ones. Without
+  // a purpose-built pool this case passes on a hand containing ONE heavy task,
+  // which proves nothing. So: five cheap-to-schedule heavy tasks that dominate.
+  const r = deal(st => {
+    st.budgetWeekday = 600; st.budgetWeekend = 600;
+    st.customTasks = {};
+    for (let i = 1; i <= 5; i++) {
+      const id = 'zz_heavy' + i;
+      st.customTasks[id] = { id, name: 'Heavy probe ' + i, room: 'Whole House',
+                             freq: 2, time: 30, owner: 'either', cat: false };
+      st.completions[id] = Date.now() - 10 * DAY;   // very overdue → top of the pool
+    }
+  });
+  const probes = r.ids.filter(id => id.indexOf('zz_heavy') === 0);
+  ok(probes.length >= 1, 'precondition: the heavy probes must reach the pool at all');
+  const alwaysIds = new Set(['c_fountain', ...LOAD_IDS]);
+  const heavy = r.tasks.filter(t => t.freq > 1 && !alwaysIds.has(t.id) && G('taskTime')(t) > 15);
+  ok(heavy.length <= 2, 'got ' + heavy.length + ' heavy tasks: ' + heavy.map(t => t.id).join(', '));
+});
+
+test('in-progress tasks are carried into a newly dealt hand', () => {
+  const id = probeTask().id;
+  const r = withState(st => {
+    st.hand = null; st.handDate = null;
+    st.pinnedIds = []; st.flaggedIds = []; st.removedToday = []; st.snoozed = {};
+    // Recently done: neither due nor completed-today, so both ordinary routes into
+    // the hand are shut and only the carry-over can put it there.
+    st.completions[id] = Date.now() - 1 * DAY;
+    st.inProgress = {}; st.inProgress[id] = Date.now();
+  }, () => { G('dealHand')(); return G('state').hand.slice(); });
+  ok(r.indexOf(id) !== -1, 'in-progress task was dropped from the new hand');
+});
+
+test('out-of-season tasks are excluded from the pool and accrue no starvation', () => {
+  const id = 'bp_sweep';
+  const thisMonth = new Date().getMonth() + 1;
+  const otherMonth = thisMonth === 1 ? 2 : 1;
+  const r = withState(st => {
+    st.hand = null; st.handDate = null;
+    st.pinnedIds = []; st.flaggedIds = []; st.inProgress = {};
+    st.removedToday = []; st.snoozed = {};
+    st.completions[id] = Date.now() - 999 * DAY;   // wildly overdue
+    st.taskMonths = {}; st.taskMonths[id] = [otherMonth];
+    st.starvation = {}; st.starvation[id] = 0;
+    st.starvationDate = null;                       // force a starvation tick
+  }, () => {
+    G('dealHand')();
+    return { hand: G('state').hand.slice(), starv: G('state').starvation[id] || 0 };
+  });
+  ok(r.hand.indexOf(id) === -1, 'out-of-season task was dealt');
+  eq(r.starv, 0, 'out-of-season task accrued starvation');
+});
+
+// ─── State and time ────────────────────────────────────────────────────────
+group('State & time');
+
+test('taskTime uses the static estimate under 3 samples and the median at 3+', () => {
+  const t = T({ id: 'zz_time', time: 10 });
+  const run = samples => withState(st => { st.actualTimes = {}; st.actualTimes['zz_time'] = samples; },
+                                   () => G('taskTime')(t));
+  eq(run([]), 10, 'no samples');
+  eq(run([30]), 10, '1 sample');
+  eq(run([30, 30]), 10, '2 samples');
+  eq(run([20, 30, 40]), 30, '3 samples → middle');
+  eq(run([40, 20, 30]), 30, 'unsorted 3 samples');
+  eq(run([10, 20, 30, 40]), 25, '4 samples → mean of middle two');
+  eq(run([10, 20, 31, 40]), 26, 'even count rounds');
+});
+
+test('vacation resume shifts completions forward and leaves history alone', () => {
+  const id = 'bed_sheets';
+  const pausedAt = Date.now() - 10 * DAY;
+  const doneAt = pausedAt - 5 * DAY;
+  const history = [doneAt];
+  const r = withState(st => {
+    st.paused = true;
+    st.pausedAt = pausedAt;
+    st.completions[id] = doneAt;
+    st.completionHistory = {}; st.completionHistory[id] = history.slice();
+  }, () => {
+    G('resumeApp')();
+    return { comp: G('state').completions[id], hist: G('state').completionHistory[id].slice(),
+             paused: G('state').paused, handDate: G('state').handDate };
+  });
+  near(r.comp, doneAt + 10 * DAY, 5000, 'completion shifted by the pause duration');
+  deepEq(r.hist, history, 'completionHistory must not be shifted');
+  eq(r.paused, false, 'paused cleared');
+  // resumeApp nulls the hand and then calls render(), which deals a fresh one
+  // synchronously — so the observable end state is a hand dated today, not null.
+  eq(r.handDate, G('todayStr')(), 'a fresh hand was dealt for today');
+});
+
+test('loadState backfills a missing task to exactly due, not 20,000 days overdue', () => {
+  const saved = snap();
+  try {
+    const probe = G('TASKS')[0];
+    const blob = JSON.parse(JSON.stringify(saved));
+    delete blob.completions[probe.id];
+    W.localStorage.setItem('hometasks_v8', JSON.stringify(blob));
+    return G('loadState')().then(loaded => {
+      const expected = Date.now() - probe.freq * DAY;
+      near(loaded.completions[probe.id], expected, 10000, 'backfilled ' + probe.id);
+      // i.e. it reads as due now, not absurdly overdue
+      S('state', loaded);
+      near(G('daysOverdue')(probe), 0, 0.01, 'reads as exactly due');
+    });
+  } finally {
+    S('state', saved);
+  }
+});
+
+test('a field missing from stored JSON gets its default, and unknown fields survive', () => {
+  const saved = snap();
+  try {
+    const blob = JSON.parse(JSON.stringify(saved));
+    delete blob.taskMonths;
+    delete blob.zoneMode;
+    delete blob.actualTimes;
+    blob.somethingFromAFutureVersion = { keep: 'me' };
+    W.localStorage.setItem('hometasks_v8', JSON.stringify(blob));
+    return G('loadState')().then(loaded => {
+      deepEq(loaded.taskMonths, {}, 'taskMonths defaulted');
+      eq(loaded.zoneMode, 'auto', 'zoneMode defaulted');
+      deepEq(loaded.actualTimes, {}, 'actualTimes defaulted');
+      deepEq(loaded.somethingFromAFutureVersion, { keep: 'me' }, 'unknown field dropped on load');
+    });
+  } finally {
+    S('state', saved);
+  }
+});
+
+test('a populated state survives an export → import round-trip', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    st.pinnedIds = ['bed_sheets'];
+    st.flaggedIds = ['k_stove'];
+    st.actualTimes = { bed_sheets: [12, 14, 16] };
+    st.completionHistory = { bed_sheets: [Date.now() - DAY, Date.now()] };
+    st.taskMonths = { bp_sweep: [4, 5, 6] };
+    st.budgetWeekday = 55;
+    st.zoneMode = 'manual';
+    st.zone = 3;
+    st.yearStats = { '2026': { since: '2026-01-01', count: 4, minutes: 40, byTask: {}, byRoom: {}, byMonth: {} } };
+    S('state', st);
+    const exported = JSON.stringify(G('state'));
+    G('applyImport')(exported);
+    const after = snap();
+    // applyImport ends in render(), which deals a hand and ticks starvation, so
+    // those four fields are legitimately different afterwards. Everything else
+    // must round-trip byte-for-byte.
+    const volatile = new Set(['hand', 'handDate', 'starvation', 'starvationDate',
+                              'removedToday', 'removedTodayDate']);
+    const checked = Object.keys(st).filter(k => !volatile.has(k));
+    ok(checked.length > 20, 'sanity: expected to check most of the state, got ' + checked.length + ' fields');
+    checked.forEach(k => {
+      deepEq(after[k], st[k], 'field "' + k + '" did not survive the round-trip');
+    });
+  } finally {
+    S('state', saved);
+  }
+});
+
+test('a corrupt paste cannot poison state (guards Fix 2)', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    S('state', st);
+    // The Settings import accepts pasted text, so this is untrusted input.
+    const junk = JSON.stringify({ completions: {}, pinnedIds: 'not-an-array',
+                                  snoozed: null, flaggedIds: 42, customTasks: [] });
+    G('applyImport')(junk);
+    const after = G('state');
+    ok(Array.isArray(after.pinnedIds), 'pinnedIds is ' + JSON.stringify(after.pinnedIds) + ', not an array');
+    ok(Array.isArray(after.flaggedIds), 'flaggedIds is ' + JSON.stringify(after.flaggedIds) + ', not an array');
+    ok(after.snoozed && typeof after.snoozed === 'object', 'snoozed is ' + JSON.stringify(after.snoozed));
+    // and the app must still be able to render
+    G('render')();
+  } finally {
+    S('state', saved);
+  }
+});
+
+test('completeTask on an unknown id is a no-op', () => {
+  withState(st => {}, () => {
+    const before = snap();
+    G('completeTask')('zz_does_not_exist');
+    deepEq(snap(), before, 'state changed');
+  });
+});
+
+// ─── Version hygiene ───────────────────────────────────────────────────────
+group('Version hygiene');
+
+test('APP_VERSION matches the documented YYYY-MM-DD vN format', () => {
+  const v = G('APP_VERSION');
+  ok(/^\d{4}-\d{2}-\d{2} v\d+$/.test(v), 'APP_VERSION is ' + JSON.stringify(v));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RUN
+// ═══════════════════════════════════════════════════════════════════════════
+let REAL_STATE_AT_START = null;
+
+// Runs the whole suite against an arbitrary source file and returns the results
+// instead of rendering them. This is what makes mutation-checking repeatable:
+// point it at a deliberately broken copy of index.html and confirm the cases
+// that guard the broken thing actually go red. See runMutants() below.
+async function runAgainst(url) {
+  results.length = 0;
+  REAL_STATE_AT_START = window.localStorage.getItem('hometasks_v8');
+  try {
+    await boot(url);
+  } catch (e) {
+    return [{ name: 'HARNESS: ' + url, group: 'Harness integrity', err: e.message || String(e) }];
+  }
+
+  for (const c of cases) {
+    try {
+      const out = c.fn();
+      if (out && typeof out.then === 'function') await out;
+      record(c.id, c.name, null);
+    } catch (e) {
+      record(c.id, c.name, e.message || String(e));
+    }
+    results[results.length - 1].group = c.group;
+  }
+
+  // The harness's own guarantee, checked last: the real key is byte-identical.
+  const realNow = window.localStorage.getItem('hometasks_v8');
+  results.push({ name: 'real localStorage is untouched by the whole run', group: 'Harness integrity',
+                 err: realNow === REAL_STATE_AT_START ? null : 'hometasks_v8 CHANGED during the test run' });
+
+  return results.slice();
+}
+window.runAgainst = runAgainst;
+
+async function run() {
+  const url = new URLSearchParams(location.search).get('src') || 'index.html';
+  const out = await runAgainst(url);
+  if (out.length === 1 && out[0].name.indexOf('HARNESS: ') === 0) {
+    const sum = document.getElementById('summary');
+    sum.className = 'fail';
+    sum.textContent = 'Harness failed to start: ' + out[0].err;
+    return;
+  }
+  render();
+}
+
+function render() {
+  const el = document.getElementById('results');
+  const failed = results.filter(r => r.err);
+  const sum = document.getElementById('summary');
+  sum.className = failed.length ? 'fail' : 'pass';
+  sum.textContent = (results.length - failed.length) + '/' + results.length + ' passed'
+                  + (failed.length ? '  —  ' + failed.length + ' FAILED' : '');
+
+  let html = '', seen = '';
+  results.forEach((r, i) => {
+    if (r.group !== seen) { html += '<div class="group">' + r.group + '</div>'; seen = r.group; }
+    html += '<div class="case ' + (r.err ? 'bad' : 'ok') + '">'
+          + '<span class="id">' + (r.err ? '✗' : '✓') + ' ' + (i + 1) + '</span>'
+          + '<span>' + r.name + (r.err ? '<br><span class="msg">' + String(r.err).replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</span>' : '') + '</span>'
+          + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+run();
+</script>
+</body>
+</html>
