@@ -81,7 +81,7 @@ Selected via three pill buttons in the Today tab header. Switching a mode clears
 
 Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key fields:
 - `completions` — `{taskId: timestamp}` of last completion. `loadState` and `applyImport` backfill any base task missing an entry to `now − freq` days, so a newly added base task reads as due-now instead of ~20,000 days overdue
-- `completionHistory` — `{taskId: timestamp[]}` last 100 completion timestamps per task
+- `completionHistory` — `{taskId: timestamp[]}` completion timestamps, pruned by **age (3 years)** rather than count; `pruneHistory()` does this. The old 100-entry cap is what forced year totals to be accumulated instead of derived
 - `starvation` — `{taskId: count}` of consecutive days due but not dealt
 - `hand` / `handDate` — today's task list
 - `budgetWeekday` / `budgetWeekend` — time budget in minutes for non-daily tasks (default 45/90)
@@ -98,6 +98,9 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `paused` / `pausedAt` — vacation mode; while paused no dealing or starvation ticks, on resume pre-pause completion timestamps shift forward by the pause duration
 - `taskMonths` — `{taskId: [1..12]}` seasonal windows; out-of-season tasks are excluded from dealing pools and starvation. `seasonalDefaultsApplied` guards the one-time defaults migration (porch tasks Mar–Nov, window-cleaning Apr–Oct)
 - `actualTimes` — `{taskId: minutes[]}` (last 10); fed by the timer (stop or check-off opens a confirm/adjust modal) or manual entry (⏲ icon in Manage); `taskTime()` returns the median of 3+ samples (else static `time`) and drives budget filling and time displays
+- `derivedSince` — timestamp stamped on first load after 2026-08-04. A year is only derived (`yearIsDerivable`) if this precedes its start; earlier years fall back to the stored `yearStats` bucket. **Don't infer derivability from the data** — a twice-yearly task's old entries would certify a year whose daily tasks were truncated
+- `milestones` — `{key: timestamp}` seen-set; each milestone key fires once ever. `bestStreak` backs the streak rung. Undo un-spends both
+- `seenVersion` — last `APP_VERSION` whose what's-new toast has been shown
 - `inProgress` — `{taskId: timestamp}` started-but-unfinished tasks (e.g. cat fountain in the dishwasher); carried into every new hand by `dealHand` until completed; cleared on complete/snooze/remove, restored by undo
 
 ### UI Tabs
@@ -145,8 +148,8 @@ Selecting a zone gives a `-2` score bonus to tasks in that zone.
 - `CLAUDE.md` — this file: working instructions + architecture summary for Claude
 - `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
 - `IMPROVEMENT_PLAN.md` — historical plan for the 9 features shipped in June 2026; **all 9 are now implemented** (auto-backup, undo/backdating, quick-log, Stats tab, "why?" breakdown, zone auto-rotation, vacation mode, seasonal months, per-task timer). Its line-number anchors are stale; keep only as a record of intent
-- `PLAN_2026-08.md` — the current working plan (August 2026 hardening + delight), written by auditing this app against the sibling wardrobe app. Part 3.5 holds review amendments; Part 4 is sequenced by judgment-density with an explicit handoff line
-- `selftest.html` — the test harness. Open it in the preview; it loads `index.html` into an isolated iframe and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked
+- `PLAN_2026-08.md` — the August 2026 hardening + delight plan, **now fully implemented** except Fix 7 (needs a measurement on her live data), F-6 and F-7 (both "ask first"). Part 3.5 holds review amendments, Part 4 the judgment-density sequencing, Part 6 the outcome and what's left
+- `selftest.html` — the test harness, 40 cases. Open it in the preview; it loads `index.html` into an isolated iframe (memory-backed storage, so it can never touch live data) and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked. Add `?cb=1` when re-running after an edit — the harness page itself is browser-cached
 
 ## Known Issues / Watch-outs
 
@@ -157,9 +160,15 @@ Editing pitfalls that remain true (also encoded in the `app-update` skill):
 
 **Retired 2026-08-03 — do not reinstate.** "Adding state requires a default in all three of `defaultState()`, `loadState()`, and `applyImport`" is no longer true. Both paths route through `coerceState()`, which spreads over `defaultState()`, so **`defaultState()` is the only place a new field must be added.** The one addendum is a check, not a default: a field defaulting to `null` can't have its type inferred, so list it in `NULLABLE_SHAPE` if it should be shape-guarded. Forgetting that costs a missed type check, never a dropped field.
 
+**Design rules adopted 2026-08-04 (from the plan's Part 3):**
+- **No hardcoded colours in new UI.** Every literal routes through a token so both themes work. Use `var(--on-accent)` for text sitting on a filled accent — never literal white. `--amber-on-inverted` exists for the toast, whose surface is `var(--text)` and therefore flips the opposite way to every other surface.
+- **New UI uses classes, not inline styles.** The existing inline styles can be retired opportunistically; what matters is that the count stops growing.
+- **`taskTime()` is the single source for "how long will this take."** Raw `task.time` is correct only in the editor field and the learned-time hint.
+- **16px on inputs is load-bearing** — iOS Safari zooms the page on focus below it. It is deliberately not part of the type scale.
+- **Sheets open and close only via `showSheet()` / `hideSheet()`.** Toggling the `open` class directly loses the exit animation.
+
 Minor known behaviors (by design / low priority):
 - Random Task ignores owner, so it can surface a Bob-only task to add to the hand.
-- Stats "est. effort" uses static `time` while Budget Insight uses learned `taskTime()`.
 - The `freq > 60` jitter reshuffles the overflow list on each render (cosmetic; the cached hand is unaffected).
 - Seasonal Deep Clean keys off Tier C (`freq > 60`), so it includes a few light upkeep items (soap refills, descales) alongside true deep-clean tasks, and it still lists DS-bath deep tasks even though that bath is rarely used. Both are by design — skip them or use "Load due only".
 
