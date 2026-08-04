@@ -102,6 +102,7 @@ const DAY = 86400000;
 let W, G, S, src;
 
 function fresh() { return G('defaultState')(); }
+function switchTabQuiet(tab) { G('switchTab')(tab); }
 function snap()  { return JSON.parse(JSON.stringify(G('state'))); }
 
 // Every case that touches state runs through this: build a fixture from a fresh
@@ -778,6 +779,100 @@ test('undo un-spends the milestone the completion earned', () => {
     ok(spent.length === 1, 'expected exactly one milestone spent, got ' + JSON.stringify(spent));
     G('undoComplete')();
     deepEq(Object.keys(G('state').milestones), [], 'undo left the milestone key spent — a mis-tap would burn it forever');
+  } finally { S('state', saved); }
+});
+
+test('switchTab scrolls to the top of the view', () => {
+  const saved = snap();
+  try {
+    const calls = [];
+    const realScrollTo = W.scrollTo;
+    W.scrollTo = (opts) => calls.push(opts);
+    G('switchTab')('stats');
+    ok(calls.length >= 1, 'switchTab did not call scrollTo');
+    eq(calls[calls.length - 1].top, 0, 'did not scroll to top');
+    W.scrollTo = realScrollTo;
+  } finally { S('state', saved); }
+});
+
+test('idsAllDoneToday is false for empty, null, or partially-done lists', () => {
+  const probe = probeTask();
+  withState(st => { st.completions[probe.id] = Date.now(); }, () => {
+    eq(G('idsAllDoneToday')(null), false, 'null ids');
+    eq(G('idsAllDoneToday')([]), false, 'empty ids');
+    const other = probeTask({ minFreq: 1, maxFreq: 400 });
+    eq(G('idsAllDoneToday')([probe.id, other.id]), false, 'only one of two done');
+  });
+});
+
+test('a generated preset checklist is NOT auto-closed on the render that created it', () => {
+  // Guards the flicker case: if every task in a preset was ALREADY done today
+  // before it's even generated (she'd done everything, then generated the
+  // checklist anyway), it must still be visible for at least one render — or
+  // generating it would look like the button did nothing, since it would vanish
+  // on the very same render call that created it.
+  const saved = snap();
+  try {
+    const st = fresh();
+    // getNewPresetAllIds isn't exposed directly; read the ids EXPRESS_RESET_SECTIONS
+    // would produce and mark every one done today before generating.
+    const ids = G('EXPRESS_RESET_SECTIONS').flatMap(sec => sec.ids);
+    ids.forEach(id => { st.completions[id] = Date.now(); });
+    S('state', st);
+    switchTabQuiet('presets');
+    ok(G('idsAllDoneToday')(ids), 'precondition: every task already done before generating');
+    G('generateNewPreset')('expressReset');   // this call's own internal render is render #1
+    ok(!!(G('state').presetHands.expressReset && G('state').presetHands.expressReset.length),
+       'checklist vanished on its own generating render — this is the flicker bug');
+  } finally { S('state', saved); switchTabQuiet('alina'); }
+});
+
+test('a preset auto-closes once fully done AFTER it has been seen open', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    S('state', st);
+    switchTabQuiet('presets');
+    G('generateNewPreset')('expressReset');          // render #1: now "seen"
+    const ids = G('state').presetHands.expressReset.slice();
+    ids.forEach(id => { G('state').completions[id] = Date.now(); G('state').completionHistory[id] = [Date.now()]; });
+    G('render')();                                    // render #2: seen + done -> closes
+    eq(G('state').presetHands.expressReset, null, 'did not auto-close after being seen and completed');
+  } finally { S('state', saved); switchTabQuiet('alina'); }
+});
+
+test('a partially-completed preset is left open, not auto-closed', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    S('state', st);
+    switchTabQuiet('presets');
+    G('generateNewPreset')('expressReset');
+    const ids = G('state').presetHands.expressReset.slice();
+    G('state').completions[ids[0]] = Date.now();
+    G('state').completionHistory[ids[0]] = [Date.now()];   // only the first task done
+    G('render')();
+    ok(!!(G('state').presetHands.expressReset && G('state').presetHands.expressReset.length),
+       'a partially-done checklist was auto-closed — she would lose her place');
+  } finally { S('state', saved); switchTabQuiet('alina'); }
+});
+
+test('clearNewPreset and clearLegacyPreset dismiss without loading the hand', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    S('state', st);
+    G('generateNewPreset')('expressReset');
+    ok(!!(G('state').presetHands.expressReset || []).length, 'precondition: generated');
+    const handBefore = (G('state').hand || []).slice();
+    G('clearNewPreset')('expressReset');
+    eq(G('state').presetHands.expressReset, null, 'clearNewPreset did not close it');
+    deepEq((G('state').hand || []), handBefore, 'clearNewPreset should not touch the dealt hand');
+
+    G('generateResetHand')();
+    ok(!!(G('state').resetHand || []).length, 'precondition: legacy generated');
+    G('clearLegacyPreset')('reset');
+    eq(G('state').resetHand, null, 'clearLegacyPreset did not close it');
   } finally { S('state', saved); }
 });
 
