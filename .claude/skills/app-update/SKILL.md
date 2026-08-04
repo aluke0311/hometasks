@@ -1,6 +1,6 @@
 ---
 name: app-update
-description: Workflow for changing the Home Tasks app (index.html) and for closing out a work session. Use when making any edit to the app — fixing a bug, adding a task or preset, changing scoring/dealing/UI — and especially when the user says "close out", "wrap up", "close out the session", or otherwise signals the session is done and the docs should be reconciled. On close-out it updates CLAUDE.md, DOCUMENTATION.md, and IMPROVEMENT_PLAN.md from that session's changes and learnings.
+description: Workflow for changing the Home Tasks app (index.html) and for closing out a work session. Use when making any edit to the app — fixing a bug, adding a task or preset, changing scoring/dealing/UI — and especially when the user says "close out", "wrap up", "close out the session", or otherwise signals the session is done and the docs should be reconciled. On close-out it updates CLAUDE.md, DOCUMENTATION.md, and IMPROVEMENT_PLAN.md, plus the skills and the project memory files, from that session's changes and learnings.
 ---
 
 # Home Tasks — Update & Close-Out Workflow
@@ -27,17 +27,28 @@ change).
 
 2. **Make the edit** matching the surrounding code style.
 
-3. **Bump `APP_VERSION`** to today's date (`const APP_VERSION = 'YYYY-MM-DD';`)
-   whenever you touch `index.html`, so a Reload in Settings can be confirmed to
-   have taken. (Standing user instruction.)
+3. **Bump `APP_VERSION`** whenever you touch `index.html`, so a Reload in
+   Settings can be confirmed to have taken. (Standing user instruction.)
+   - Format is `'YYYY-MM-DD vN'` — e.g. `const APP_VERSION = '2026-08-03 v2';`
+   - **Read the committed value, not the working tree:**
+     `git show HEAD:index.html | grep APP_VERSION`. An earlier session may have
+     already bumped it today; reading the working tree lets two different builds
+     ship the same `vN` and the same-day scheme collides silently.
+   - Same date already committed → increment `vN`. New date → start at `v1`.
 
 4. **Verify in the preview** before committing — never ask the user to check
    manually:
    - `preview_start` with the `hometasks` config (python http.server on 7821).
-   - Navigate to `/index.html`, then `preview_eval` to exercise the change and
-     `preview_console_logs level:error` to confirm no errors.
-   - For data/preset changes, a quick Python scan of `index.html` to confirm
-     referenced task ids still resolve (see the dead-ref check below).
+   - Navigate to `/index.html`, exercise the change, and check the console for
+     errors.
+   - For data/preset changes, run the dead-ref check below.
+   - **For any UI change, render the screen at 390px and look at it** — in both
+     light and dark mode. A clean console is not evidence the layout is right;
+     reading CSS ranks findings by grep count, and grep count is not visual
+     weight. Screenshot it and read the screenshot.
+   - Once `selftest.html` exists: any change to scoring, dealing, state shape,
+     or presets requires it green before commit. Pure CSS/copy/task-text changes
+     are exempt.
 
 5. **Commit + push automatically** — no confirmation needed (standing user
    instruction). Branch first only if not on `main` would be unusual here; this
@@ -53,7 +64,14 @@ change).
 
 7. **Commit message convention:** a title plus a body, both in a single fenced
    code block, no manual line breaks in the body (let it wrap). End the message
-   with the `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` trailer.
+   with a `Co-Authored-By:` trailer naming the model that made the change.
+
+**Mobile defaults — apply without asking** (phone-first app; these are settled,
+not proposals): viewport meta locks zoom (`maximum-scale=1, user-scalable=no`);
+any bottom sheet with a text input sits above the keyboard via a `visualViewport`
+listener setting a `--kb` variable; never auto-fill a field the user hasn't
+entered; toggles look like toggles; derived or proxy values never masquerade as
+real data.
 
 **Watch-outs when editing** (these have bitten before):
 - Adding state? Update all three of `defaultState()`, `loadState()`, and
@@ -123,14 +141,48 @@ session. Do this:
    work shipped or new planned work was agreed — mark items done or add them.
    It's a historical record; don't rewrite finished history.
 
-5. **Don't touch `index.html`** in a pure close-out (no `APP_VERSION` bump),
+5. **Update this skill and any other skill the session outdated.** Anything
+   learned about *how to work on this app* belongs here, not only in the prose
+   docs. Look for:
+   - A watch-out that a structural change has made obsolete — **delete it.** A
+     warning that no longer describes a real hazard is worse than no warning,
+     because it trains the reader to skim the list.
+   - A new hazard, gate, or convention discovered this session — add it to the
+     Mode A watch-outs or the verify step.
+   - A procedure the session found to be wrong or stale (a changed file layout,
+     a superseded manual scan, a drifted format string) — correct it against
+     what the code actually does now, not what it used to.
+
+6. **Update memory.** Session-level learnings die with the session unless
+   written down. Check
+   `~/.claude/projects/-Users-alinaluke-Documents-Claude-Code-hometasks/memory/`
+   and:
+   - Add a memory for any durable preference, correction, or project decision
+     the session produced — especially decisions made so they need not be
+     re-litigated, and the reasoning behind them.
+   - **Update an existing file rather than creating a near-duplicate**, and
+     delete any memory this session proved wrong.
+   - Add the one-line pointer to `MEMORY.md` for anything new.
+   - Don't record what the repo already captures (code structure, git history,
+     anything in CLAUDE.md) — memory is for what isn't derivable from the files.
+
+   The split: **skill = how to do the work; memory = how she wants it done and
+   what's already been decided.** When something could go in either, prefer the
+   skill — it loads with the task rather than by recall.
+
+7. **Don't touch `index.html`** in a pure close-out (no `APP_VERSION` bump),
    unless code changes are still pending — finish those via Mode A first.
 
-6. **Commit + push the docs** in one commit. Docs-only → `✅ No export needed`.
-   Use the standard commit convention and the Co-Authored-By trailer.
+8. **Commit + push the docs** in one commit (the skill file goes in the same
+   commit; memory lives outside the repo and isn't committed). Docs-only →
+   `✅ No export needed`. Use the standard commit convention and trailer.
 
-7. **Report** a short summary of what the docs now reflect.
+9. **Report** a short summary of what the docs now reflect, and state explicitly
+   what was written to skills and to memory — she can't see either from the
+   commit alone.
 
 The goal: after close-out, CLAUDE.md and DOCUMENTATION.md describe the app
-exactly as it now behaves, with the Known Issues list matching reality, so the
-next session starts from accurate docs.
+exactly as it now behaves, the skill describes how to change it safely, memory
+holds the decisions that shouldn't be re-argued, and the Known Issues list
+matches reality — so the next session starts from accurate ground and nothing
+learned this session has to be rediscovered.
