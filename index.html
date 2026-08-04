@@ -59,10 +59,17 @@
   
     /* Stats row */
     .stats-row { padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
-    .stats-row-top { display: flex; align-items: center; gap: 10px; }
-    .stat-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; }
-    .stats-zone { margin-left: auto; }
-    .zone-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 3px 8px; border-radius: var(--radius-sm); max-width: 180px; }
+    .stats-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .stat-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+    /* min-width:0 is load-bearing: a flex item won't shrink below its content width
+       by default, and the longest <option> ("Zone 3 — Sunroom, Office, DS Bath,
+       Laundry") was setting that floor, pushing the control off the right edge. */
+    .stats-zone { margin-left: auto; min-width: 0; }
+    /* No fixed width: a <select> sizes to its WIDEST option ("Zone 3 — Sunroom,
+       Office, DS Bath, Laundry"), so it reserves far more room than the selected
+       label needs. Let it size naturally and wrap to its own line when tight.
+       font-size 16px is load-bearing — anything smaller makes iOS zoom on focus. */
+    .zone-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 3px 8px; border-radius: var(--radius-sm); max-width: 100%; min-width: 0; text-overflow: ellipsis; }
     .stats-progress-wrap { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
     .progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
     .mode-selector { display: flex; gap: 6px; margin-top: 8px; }
@@ -126,9 +133,6 @@
     .date-picker-row.open { display: flex; }
     .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 12px; padding: 3px 7px; border-radius: var(--radius-sm); }
     .date-save-btn { font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
-    .snooze-picker-row { display: none; align-items: center; gap: 6px; margin-top: 4px; padding-bottom: 4px; }
-    .snooze-picker-row.open { display: flex; }
-    .snooze-day-btn { font-size: 12px; padding: 3px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--amber); background: transparent; color: var(--amber); cursor: pointer; }
     .task-snoozed { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
   
     .task-actions { display: flex; gap: 6px; padding: 0 12px 12px 48px; flex-wrap: wrap; }
@@ -197,6 +201,23 @@
     .field-select { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
     .field-check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text2); }
     .modal-footer { padding: 12px 20px 16px; border-top: 0.5px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
+    /* Task actions sheet (D-6). The card shows at most two contextual buttons; the
+       rare actions live here, where they get room to be legible instead of
+       competing as ten identical grey pills on every card. */
+    .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sheet-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; text-align: center; }
+    .sheet-btn.wide { grid-column: 1 / -1; }
+    .sheet-btn.danger { color: var(--red); border-color: var(--red); }
+    .sheet-btn.on { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
+    /* No margin: .modal-body is a flex column with gap:14px and would double up. */
+    .sheet-group { }
+    .sheet-group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 7px; }
+    .sheet-chips { display: flex; gap: 8px; }
+    .sheet-chips > button { flex: 1; padding: 11px 0; font-size: 13px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .sheet-chips > button.go { border-color: var(--green); color: var(--green); }
+    /* NOT .more-btn — that class already exists for the full-width dashed
+       "+ Give me more" button and would make this stretch to fill the row. */
+    .task-btn.task-more { font-weight: 700; letter-spacing: 0.06em; padding-left: 14px; padding-right: 14px; }
     .modal-btn { font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .modal-btn.primary { background: var(--blue); color: white; border-color: var(--blue); }
     .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: 14px; }
@@ -436,6 +457,18 @@
         <button class="modal-close" onclick="closeWhyModal()">&#10005;</button>
       </div>
       <div class="modal-body" id="whyBody"></div>
+    </div>
+  </div>
+
+  <!-- Task actions sheet (the card's "⋯") -->
+  <div class="modal-backdrop" id="taskActionsModal" onclick="if(event.target===this)closeTaskActions()">
+    <div class="modal">
+      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div class="modal-header">
+        <span class="modal-title" id="taskActionsTitle"></span>
+        <button class="modal-close" onclick="closeTaskActions()">&#10005;</button>
+      </div>
+      <div class="modal-body" id="taskActionsBody"></div>
     </div>
   </div>
 
@@ -754,7 +787,32 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v4';
+  const APP_VERSION = '2026-08-03 v5';
+
+  // What changed, newest first. Add an entry with every deploy that Alina or Bob
+  // would notice — they never see the commits, so this is the only place a change
+  // is visible from inside the app. Keep each line one plain sentence.
+  const CHANGELOG = [
+    { v: '2026-08-03 v5', notes: [
+      'Task cards are much quieter. The two actions that matter for a task right now stay on the card; everything else moved behind the ⋯ button.',
+      'Settings now has this list, so you can see what changed.',
+      'The zone selector sits on its own row and is no longer cut off.',
+    ]},
+    { v: '2026-08-03 v4', notes: [
+      'Year totals are now worked out from your actual history rather than a running tally, so they stay correct as time estimates improve.',
+      'Completion history is kept for three years instead of the last 100 entries per task.',
+      'A red banner now appears if changes ever stop saving, instead of failing silently.',
+    ]},
+    { v: '2026-08-03 v3', notes: [
+      'Restoring a backup with a damaged file can no longer break the app.',
+    ]},
+    { v: '2026-08-03 v2', notes: [
+      'The zone selector no longer runs off the edge of the screen.',
+    ]},
+    { v: '2026-08-03 v1', notes: [
+      'Fixed a bug where a change made just before closing the app could be lost.',
+    ]},
+  ];
   const STORAGE_KEY = 'hometasks_v8';
   const STORAGE_KEY_V7 = 'hometasks_v7';
   let saveDebounceTimer = null;
@@ -1881,25 +1939,33 @@
     const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
     const pinBadge = isPinned && !task.oneOff ? '<span class="pin-badge">&#128204;</span>' : '';
     const oneOffBadge = task.oneOff ? '<span class="oneoff-badge">once</span>' : '';
-    const swapBtn = canSwap && !isDone && !isPinned && !task.oneOff ? '<button class="task-btn swap-btn" onclick="event.stopPropagation();swapTask(\'' + task.id + '\')">swap</button>' : '';
-    const undoBtn = isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();uncompleteTask(\'' + task.id + '\')">undo</button>' : '';
-    const pinBtn = !isDone && !task.oneOff ? '<button class="task-btn pin-btn' + (isPinned ? ' pinned' : '') + '" onclick="event.stopPropagation();togglePin(\'' + task.id + '\')">' + (isPinned ? 'unpin' : 'pin') + '</button>' : '';
-    const removeBtn = !isDone ? '<button class="task-btn remove-btn" onclick="event.stopPropagation();removeFromHand(\'' + task.id + '\')">remove</button>' : '';
-    const snoozeBtn = !isDone && !isPinned && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'sp_' + task.id + '\')">snooze</button>' : '';
-    const earlierBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();toggleSnoozePicker(\'ep_' + task.id + '\')">did earlier</button>' : '';
-    const whyBtn = !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();showWhy(\'' + task.id + '\')" title="Why was this dealt?">why?</button>' : '';
     const timerRunning = activeTimer && activeTimer.id === task.id;
-    const timerBtn = !isDone ? (timerRunning
-      ? '<button class="task-btn" style="color:var(--green);border-color:var(--green)" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">stop ⏱</button>'
-      : '<button class="task-btn" onclick="event.stopPropagation();toggleTimer(\'' + task.id + '\')">⏱ time it</button>') : '';
     const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:12px;font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
-    const startedBtn = !isDone && !task.oneOff ? '<button class="task-btn" style="' + (isInProgress ? 'color:var(--amber);border-color:var(--amber);background:var(--amber-bg)' : '') + '" onclick="event.stopPropagation();toggleInProgress(\'' + task.id + '\')">' + (isInProgress ? 'in progress ✓' : 'started') + '</button>' : '';
     const isFlagged = (state.flaggedIds || []).includes(task.id);
-    const flagBtn = !isDone && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + task.id + '\')" title="' + (isFlagged ? 'unflag' : 'flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' : '';
-    const markDueBtn = !isDone && !isDue(task) && !task.oneOff ? '<button class="task-btn" onclick="event.stopPropagation();markTaskDue(\'' + task.id + '\')" title="Mark as due (enters dealing pool without flag priority)">mark due</button>' : '';
+
+    // D-6: at most two contextual buttons, chosen by state, then "⋯". Everything
+    // rare moved into the actions sheet — see openTaskActions().
+    const stop = 'event.stopPropagation();';
+    let cardBtns = '';
+    if (isDone) {
+      if (!task.oneOff) cardBtns += '<button class="task-btn" onclick="' + stop + 'uncompleteTask(\'' + task.id + '\')">undo</button>';
+    } else {
+      // Slot 1 — where this task is in its own lifecycle.
+      if (timerRunning) {
+        cardBtns += '<button class="task-btn" style="color:var(--green);border-color:var(--green)" onclick="' + stop + 'toggleTimer(\'' + task.id + '\')">stop ⏱</button>';
+      } else if (isInProgress) {
+        cardBtns += '<button class="task-btn" onclick="' + stop + 'toggleTimer(\'' + task.id + '\')">⏱ time it</button>';
+      } else if (!task.oneOff) {
+        cardBtns += '<button class="task-btn" onclick="' + stop + 'toggleInProgress(\'' + task.id + '\')">started</button>';
+      }
+      // Slot 2 — only when the task isn't due, where it's the one thing you'd want.
+      if (!isDue(task) && !task.oneOff) {
+        cardBtns += '<button class="task-btn" onclick="' + stop + 'markTaskDue(\'' + task.id + '\')" title="Mark as due (enters dealing pool without flag priority)">mark due</button>';
+      }
+    }
+    const moreBtn = '<button class="task-btn task-more" onclick="' + stop + 'openTaskActions(\'' + task.id + '\',' + (canSwap ? 'true' : 'false') + ')" title="More actions" aria-label="More actions">&middot;&middot;&middot;</button>';
 
     const dpId = 'dp_' + task.id;
-    const spId = 'sp_' + task.id;
 
     return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
       '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
@@ -1927,25 +1993,77 @@
           '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onclick="event.stopPropagation()">' +
           '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">Save</button>' +
         '</div>' : '') +
-        '<div class="snooze-picker-row" id="' + spId + '">' +
-          '<span style="font-size:12px;color:var(--text3)">Snooze:</span>' +
-          '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',1)">1d</button>' +
-          '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',2)">2d</button>' +
-          '<button class="snooze-day-btn" onclick="event.stopPropagation();snoozeTask(\'' + task.id + '\',3)">3d</button>' +
-        '</div>' +
-        '<div class="snooze-picker-row" id="ep_' + task.id + '">' +
-          '<span style="font-size:12px;color:var(--text3)">Done:</span>' +
-          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',1)">yesterday</button>' +
-          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',2)">2d ago</button>' +
-          '<button class="snooze-day-btn" style="border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();completeEarlier(\'' + task.id + '\',3)">3d ago</button>' +
-        '</div>' +
       '</div>' +
-      '<div class="task-actions">' + swapBtn + startedBtn + pinBtn + snoozeBtn + earlierBtn + timerBtn + removeBtn + whyBtn + markDueBtn + flagBtn + undoBtn + '</div>' +
+      '<div class="task-actions">' + cardBtns + moreBtn + '</div>' +
     '</div>';
   }
   
   
   // ─── WHY THIS TASK? ────────────────────────────────────────────────────────
+
+  // ─── Task actions sheet (D-6) ──────────────────────────────────────────────
+  // The card used to render up to eleven identical grey pills, wrapping onto three
+  // rows. The cost wasn't taps, it was recognition: re-reading ten look-alike
+  // buttons to find one, every time. The card now shows at most two contextual
+  // buttons and everything rare lives here.
+  let changelogExpanded = false;
+  function toggleChangelog() { changelogExpanded = !changelogExpanded; render(); }
+
+  let _taskActionsId = null;
+
+  function openTaskActions(id, canSwap) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    _taskActionsId = id;
+    const isDone = wasCompletedToday(task);
+    const isPinned = !!(state.pinnedIds && state.pinnedIds.includes(id));
+    const isFlagged = (state.flaggedIds || []).includes(id);
+    const isInProgress = !!(state.inProgress && state.inProgress[id]);
+    const timerRunning = activeTimer && activeTimer.id === id;
+    const q = "'" + id + "'";
+    const btn = (label, onclick, cls) =>
+      '<button class="sheet-btn' + (cls ? ' ' + cls : '') + '" onclick="' + onclick + '">' + label + '</button>';
+
+    let html = '<div class="sheet-actions">';
+    // The timer only appears here when the card isn't already showing it.
+    if (!isDone && !timerRunning && !isInProgress) html += btn('⏱ Time it', 'taskAction(toggleTimer,' + q + ')');
+    if (!isDone && !task.oneOff) html += btn(isPinned ? '📌 Unpin' : '📌 Pin', 'taskAction(togglePin,' + q + ')', isPinned ? 'on' : '');
+    if (!isDone && !task.oneOff) html += btn(isFlagged ? '🚩 Unflag' : '🚩 Flag', 'taskAction(' + (isFlagged ? 'unflagTask' : 'flagTask') + ',' + q + ')', isFlagged ? 'on' : '');
+    if (!isDone && !isDue(task) && !task.oneOff) html += btn('Mark due', 'taskAction(markTaskDue,' + q + ')');
+    if (canSwap && !isDone && !isPinned && !task.oneOff) html += btn('🔀 Swap', 'taskAction(swapTask,' + q + ')');
+    if (!task.oneOff) html += btn('Why this task?', 'closeTaskActions();showWhy(' + q + ')');
+    if (!isDone) html += btn('Remove from today', 'taskAction(removeFromHand,' + q + ')', 'danger wide');
+    html += '</div>';
+
+    if (!isDone && !isPinned && !task.oneOff) {
+      html += '<div class="sheet-group"><div class="sheet-group-label">Snooze</div><div class="sheet-chips">' +
+        [1,2,3].map(d => '<button onclick="taskAction(snoozeTask,' + q + ',' + d + ')">' + d + ' day' + (d>1?'s':'') + '</button>').join('') +
+      '</div></div>';
+    }
+    if (!isDone && !task.oneOff) {
+      // "Yesterday" is on the card as a one-tap action; the rarer offsets live here.
+      html += '<div class="sheet-group"><div class="sheet-group-label">Actually did it</div><div class="sheet-chips">' +
+        [1,2,3].map(d => '<button class="go" onclick="taskAction(completeEarlier,' + q + ',' + d + ')">' +
+          (d === 1 ? 'Yesterday' : d + 'd ago') + '</button>').join('') +
+      '</div></div>';
+    }
+
+    document.getElementById('taskActionsTitle').textContent = task.name;
+    document.getElementById('taskActionsBody').innerHTML = html;
+    document.getElementById('taskActionsModal').classList.add('open');
+  }
+
+  function closeTaskActions() {
+    document.getElementById('taskActionsModal').classList.remove('open');
+    _taskActionsId = null;
+  }
+
+  // Every sheet action closes the sheet first, so the underlying re-render isn't
+  // happening behind an open overlay.
+  function taskAction(fn, id, arg) {
+    closeTaskActions();
+    if (arg === undefined) fn(id); else fn(id, arg);
+  }
 
   function showWhy(id) {
     const task = getAllTasks().find(t => t.id === id);
@@ -3578,6 +3696,28 @@
         '<button class="add-btn" style="width:100%" onclick="location.reload()">&#8635; Reload app</button>' +
       '</div>' +
 
+      // Card: What's new — the only place a change is visible from inside the app
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">What\'s new</div>' +
+        '<div class="settings-card-desc">Recent updates to the app, newest first.</div>' +
+        CHANGELOG.slice(0, changelogExpanded ? CHANGELOG.length : 3).map(entry =>
+          '<div style="margin-bottom:12px">' +
+            '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-weight:600;margin-bottom:5px">' +
+              entry.v + (entry.v === APP_VERSION ? ' &middot; you\'re on this' : '') +
+            '</div>' +
+            '<ul style="margin:0;padding-left:18px">' +
+              entry.notes.map(n => '<div style="font-size:13px;color:var(--text2);line-height:1.45;margin-bottom:3px;list-style:none;position:relative">' +
+                '<span style="position:absolute;left:-13px;color:var(--text3)">&bull;</span>' + n + '</div>').join('') +
+            '</ul>' +
+          '</div>'
+        ).join('') +
+        (CHANGELOG.length > 3
+          ? '<button class="add-btn" style="width:100%;background:transparent;color:var(--text2);border:0.5px solid var(--border2)" onclick="toggleChangelog()">' +
+              (changelogExpanded ? 'Show less' : 'Show all ' + CHANGELOG.length + ' updates') +
+            '</button>'
+          : '') +
+      '</div>' +
+
       // Card 6: Backup
       '<div class="settings-card">' +
         '<div class="settings-card-title">Backup</div>' +
@@ -4079,15 +4219,6 @@
       saveDate(taskId);
       r.classList.remove('open');
     });
-    document.querySelectorAll('.snooze-picker-row.open').forEach(r => r.classList.remove('open'));
-    if (!isOpen) row.classList.add('open');
-  }
-  
-  function toggleSnoozePicker(spId) {
-    const row = document.getElementById(spId);
-    if (!row) return;
-    const isOpen = row.classList.contains('open');
-    document.querySelectorAll('.snooze-picker-row.open, .date-picker-row.open').forEach(r => r.classList.remove('open'));
     if (!isOpen) row.classList.add('open');
   }
   
