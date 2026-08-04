@@ -665,6 +665,122 @@ test('a failed save raises a sticky banner, and a good save clears it', () => {
   eq(el.hidden, true, 'banner cleared once a save succeeds');
 });
 
+test('a milestone fires at most once ever, and undo un-spends it', () => {
+  const id = probeTask().id;
+  withState(st => { st.completionHistory = {}; st.milestones = {}; st.completions[id] = 0; }, () => {
+    const task = G('getAllTasks')().find(t => t.id === id);
+    G('state').completionHistory[id] = [Date.now()];        // 1st ever
+    const first = G('checkMilestone')(task, 0);
+    ok(first && /first/i.test(first.key), 'expected a first-ever milestone, got ' + JSON.stringify(first));
+    // same key must never fire again
+    const again = G('checkMilestone')(task, 0);
+    ok(!again || again.key !== first.key, 'the same milestone key fired twice');
+    // un-spending restores it, which is what undo relies on
+    delete G('state').milestones[first.key];
+    const after = G('checkMilestone')(task, 0);
+    ok(after && after.key === first.key, 'un-spending did not make the key available again');
+  });
+});
+
+test('a long-neglected task earns the rescued milestone', () => {
+  const id = probeTask().id;
+  withState(st => { st.completionHistory = {}; st.milestones = {}; }, () => {
+    const task = G('getAllTasks')().find(t => t.id === id);
+    G('state').completionHistory[id] = [Date.now(), Date.now()];   // n=2, not first-ever
+    const m = G('checkMilestone')(task, Date.now() - 200 * DAY);
+    ok(m && /rescued/.test(m.key), 'expected rescued, got ' + JSON.stringify(m));
+  });
+});
+
+test('only one milestone is returned per completion', () => {
+  const id = probeTask().id;
+  withState(st => { st.completionHistory = {}; st.milestones = {}; }, () => {
+    const task = G('getAllTasks')().find(t => t.id === id);
+    // first-ever AND rescued both qualify; exactly one must come back
+    G('state').completionHistory[id] = [Date.now()];
+    const m = G('checkMilestone')(task, Date.now() - 400 * DAY);
+    ok(m && typeof m.key === 'string', 'expected exactly one milestone object');
+    eq(Object.keys(G('state').milestones).length, 1, 'more than one key was spent');
+  });
+});
+
+test('the year pixel grid and review derive from history, not from a counter', () => {
+  const probe = probeTask();
+  const Y = new Date().getFullYear();
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [new Date(Y,0,15).getTime(), new Date(Y,0,16).getTime(), new Date(Y,7,3).getTime()];
+    st.yearStats = { [String(Y)]: { since: Y + '-01-01', count: 999, minutes: 9999, byTask:{}, byRoom:{}, byMonth:{} } };
+    st.derivedSince = new Date(Y - 1, 0, 1).getTime();
+  }, () => {
+    const d = G('yearStatsFor')(Y);
+    eq(d.derived, true, 'should derive, not read the stored bucket');
+    eq(d.count, 3, 'count comes from history');
+    ok(d.count !== 999, 'the stale stored counter must not win');
+  });
+});
+
+test('the micro-hand does not persist the budget it deals against', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    st.budgetWeekday = 45; st.budgetWeekend = 90;
+    S('state', st);
+    G('setMicroHand')(10);
+    eq(G('state').budgetWeekday, 45, 'weekday budget was overwritten');
+    eq(G('state').budgetWeekend, 90, 'weekend budget was overwritten');
+    ok(Array.isArray(G('state').hand), 'a hand was still dealt');
+  } finally { S('state', saved); }
+});
+
+test('on-this-day only reports completions from previous years', () => {
+  const probe = probeTask();
+  const now = new Date();
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()];
+  }, () => {
+    eq(G('onThisDayHtml')(), '', 'today\'s own completion must not count as "a year ago"');
+  });
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).getTime()];
+  }, () => {
+    const html = G('onThisDayHtml')();
+    ok(html.indexOf(probe.name) !== -1, 'expected the task name in the on-this-day block');
+    ok(/A year ago today/.test(html), 'expected the one-year label');
+  });
+});
+
+test('the app version and the <meta> tag agree', () => {
+  const meta = src.match(/<meta name="app-version" content="([^"]+)"/);
+  ok(meta, 'no app-version meta tag found');
+  eq(meta[1], G('APP_VERSION'), 'meta tag and APP_VERSION have drifted');
+  ok(/^\d{4}-\d{2}-\d{2} v\d+$/.test(meta[1]), 'meta tag is not in YYYY-MM-DD vN form');
+});
+
+test('the changelog leads with the running version', () => {
+  const log = G('CHANGELOG');
+  ok(Array.isArray(log) && log.length, 'CHANGELOG missing or empty');
+  eq(log[0].v, G('APP_VERSION'), 'newest changelog entry does not match APP_VERSION');
+  ok(log[0].notes.length > 0, 'newest entry has no notes');
+});
+
+test('undo un-spends the milestone the completion earned', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    st.completionHistory = {}; st.milestones = {}; st.bestStreak = 0;
+    S('state', st);
+    const id = probeTask().id;
+    G('completeTask')(id);
+    const spent = Object.keys(G('state').milestones);
+    ok(spent.length === 1, 'expected exactly one milestone spent, got ' + JSON.stringify(spent));
+    G('undoComplete')();
+    deepEq(Object.keys(G('state').milestones), [], 'undo left the milestone key spent — a mis-tap would burn it forever');
+  } finally { S('state', saved); }
+});
+
 test('completeTask on an unknown id is a no-op', () => {
   withState(st => {}, () => {
     const before = snap();

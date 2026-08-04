@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-03 v9">
+  <meta name="app-version" content="2026-08-03 v10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -35,6 +35,10 @@
       /* Text sitting ON a filled accent. Must be a token: in dark mode the accents
          are lightened, and white on a light accent fails. */
       --on-accent: #ffffff;
+      /* The toast inverts: its surface is var(--text), so it is DARK in light mode
+         and LIGHT in dark mode. An accent on it has to flip the opposite way to
+         the normal ones, hence its own token. */
+      --amber-on-inverted: #e8a33e;
       /* Type scale. Six steps; every size in the app maps onto one of them.
          16px is deliberately NOT a step: .search-input, .filter-select,
          .field-input, .field-select and .zone-select all use it because iOS
@@ -73,6 +77,7 @@
            setting these per-component would silently lose the cascade to a later
            base rule at equal specificity; a custom property is what works. */
         --on-accent: #1a1a18;
+        --amber-on-inverted: #8a5409;
       }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -337,7 +342,7 @@
     .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: var(--fs-sub); opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.undoable { pointer-events: auto; }
-    .toast-undo-btn { background: none; border: none; color: var(--amber); font-size: var(--fs-sub); font-weight: 600; margin-left: 10px; cursor: pointer; padding: 0; }
+    .toast-undo-btn { background: none; border: none; color: var(--amber-on-inverted); font-size: var(--fs-sub); font-weight: 600; margin-left: 10px; cursor: pointer; padding: 0; }
   
     /* Loading overlay */
     .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: var(--fs-sub); }
@@ -908,13 +913,13 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v9';
+  const APP_VERSION = '2026-08-03 v10';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
-    { v: '2026-08-03 v9', notes: [
+    { v: '2026-08-03 v10', notes: [
       'Milestones: the app now notices when you do something for the first time, rescue a task you had left for months, hit a round number, sweep a whole room, or beat your streak record.',
       'Checking a task off now animates instead of just dimming.',
       'Stats has a Year in Review card and a full year-in-pixels grid.',
@@ -1628,8 +1633,9 @@
       delete state.customTasks[id];
       state.hand = (state.hand || []).filter(h => h !== id);
     }
+    const _prevBest = state.bestStreak || 0;
     const milestone = task.oneOff ? null : checkMilestone(task, prev);
-    if (milestone) _undoBuffer.milestoneKey = milestone.key;
+    if (milestone) { _undoBuffer.milestoneKey = milestone.key; _undoBuffer.prevBestStreak = _prevBest; }
     saveNow();
     render();
     // D-5: let the card play its completion beat before it settles to dimmed.
@@ -1645,8 +1651,13 @@
 
   function undoComplete() {
     if (!_undoBuffer) return;
-    const { id, prev, hadHistoryToday, wasInProgress } = _undoBuffer;
+    const { id, prev, hadHistoryToday, wasInProgress, milestoneKey, prevBestStreak } = _undoBuffer;
     _undoBuffer = null;
+    // Un-spend the milestone this completion earned, or a mis-tap permanently burns
+    // a once-ever key like "first time". Unconditional: the key was spent whether or
+    // not a history entry was added.
+    if (milestoneKey && state.milestones) delete state.milestones[milestoneKey];
+    if (prevBestStreak !== undefined) state.bestStreak = prevBestStreak;
     if (prev) state.completions[id] = prev;
     else delete state.completions[id];
     if (wasInProgress) {
@@ -1659,11 +1670,6 @@
         const d = new Date(ts);
         return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') !== today;
       });
-      // Un-spend the milestone this completion earned, or a mis-tap permanently
-      // burns a once-ever key like "first time".
-      if (_undoBuffer && _undoBuffer.milestoneKey && state.milestones) {
-        delete state.milestones[_undoBuffer.milestoneKey];
-      }
       // Nothing else to undo: year totals are derived from this array on read, so
       // removing the entry is the whole correction. The old accumulator needed a
       // matching -1 here, and that pair could drift apart.
