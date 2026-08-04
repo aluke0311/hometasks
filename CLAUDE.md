@@ -140,7 +140,7 @@ Five cleaning zones (FlyLady-style), each covering specific rooms:
 
 Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
-`Whole House`, `Robot`, `Downstairs`, and `Upstairs` are zone-less rooms — tasks in them don't compete for zone bonuses.
+`Whole House`, `Robot`, `Downstairs`, `Upstairs`, and `Cats` are zone-less rooms — tasks in them don't compete for zone bonuses. (`Cats` tasks instead get their own `-0.5` tiebreaker via `cat: true`.)
 
 ## Repository Files
 

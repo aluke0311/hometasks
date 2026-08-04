@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-03 v11">
+  <meta name="app-version" content="2026-08-03 v12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -662,7 +662,7 @@
     // ── CAT LITTER / FEEDERS (bob) ──
     { id:'c_scoop_ds',       name:'Scoop downstairs litter',             room:'Cats',          freq:1,   time:3,  cat:true,  owner:'bob' },
     { id:'c_feeders',        name:'Clean feeders',                       room:'Cats',          freq:14,  time:10, cat:true,  owner:'bob' },
-    { id:'custom_1781494271558', name:'Clean upstairs feeder',           room:'Cats',          freq:14,  time:7,  owner:'either' },
+    { id:'custom_1781494271558', name:'Clean upstairs feeder',           room:'Cats',          freq:14,  time:7,  cat:true,  owner:'bob' },
     { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'bob' },
     { id:'c_litter_robot_wipe', name:'Wipe inside Litter Robot',         room:'Cats',          freq:21,  time:8,  cat:true,  owner:'bob' },
     { id:'c_litter_ds_change', name:'Change downstairs litter (full)',   room:'Cats',          freq:30,  time:10, cat:true,  owner:'bob' },
@@ -689,6 +689,9 @@
     { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:4,   time:2,  owner:'either' },
     { id:'rob_water',        name:'Refill robot water & empty dirty tank', room:'Robot',       freq:14,  time:5,  owner:'alina' },
     { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:4,   time:2,  owner:'either' },
+    // The mop lives downstairs, so upstairs means carrying it up first — less
+    // frequent than the downstairs mop, and a bit more time than a one-tap "run".
+    { id:'rob_mop_us',       name:'Run robot mop (upstairs)',             room:'Upstairs',      freq:14,  time:5,  owner:'either' },
     { id:'rob_filters',      name:'Clean robot filters',                  room:'Robot',         freq:30,  time:5,  owner:'alina' },
     { id:'rob_sensors',      name:'Wipe robot sensors',                   room:'Robot',         freq:30,  time:5,  owner:'alina' },
     { id:'rob_deep',         name:'Deep clean robot',                     room:'Robot',         freq:90,  time:20, owner:'alina' },
@@ -913,12 +916,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v11';
+  const APP_VERSION = '2026-08-03 v12';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-03 v12', notes: [
+      'The upstairs cat feeder task now gets the same cat-care priority boost and Bob ownership as the rest of the litter/feeder chores.',
+      'Added a robot mop run for upstairs (less often than downstairs, since the mop has to be carried up first).',
+    ]},
     { v: '2026-08-03 v11', notes: [
       'Tapping a bottom-bar icon now jumps to the top of that screen.',
       'A generated preset checklist closes itself once every task in it is checked off, instead of sitting there forever. You can also close one early with the new ✕ next to "Load all".',
