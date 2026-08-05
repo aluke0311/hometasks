@@ -416,6 +416,24 @@ test('in-progress tasks are carried into a newly dealt hand', () => {
   ok(r.indexOf(id) !== -1, 'in-progress task was dropped from the new hand');
 });
 
+test('backdating a completion clears the in-progress mark', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    st.hand = null; st.handDate = null;
+    st.pinnedIds = []; st.flaggedIds = []; st.removedToday = []; st.snoozed = {};
+    S('state', st);
+    const id = probeTask().id;                    // freq 5–30, so 2 days ago is not due
+    G('state').inProgress = {}; G('state').inProgress[id] = Date.now() - 2 * DAY;
+    G('completeEarlier')(id, 2);
+    ok(!G('state').inProgress[id], 'in-progress mark survived the backdated completion');
+    // The symptom that mark causes: carry-over deals it into every hand forever.
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    ok(G('state').hand.indexOf(id) === -1, 'the finished task was dealt back in as in-progress');
+  } finally { S('state', saved); }
+});
+
 test('out-of-season tasks are excluded from the pool and accrue no starvation', () => {
   const id = 'bp_sweep';
   const thisMonth = new Date().getMonth() + 1;

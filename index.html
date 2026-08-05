@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-03 v13">
+  <meta name="app-version" content="2026-08-05 v14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -925,12 +925,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-03 v13';
+  const APP_VERSION = '2026-08-05 v14';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-05 v14', notes: [
+      'Marking a task "did earlier" now also clears its in-progress mark. Before, a task you had started and then logged as done a day or two ago would keep coming back to your hand as still in progress.',
+    ]},
     { v: '2026-08-03 v13', notes: [
       'Robot maintenance is now split by unit: separate filter, sensor, and deep-clean tasks for the upstairs and downstairs robots, since they turned out to be two physical machines rather than one.',
       'Added a task for cleaning the downstairs dock\'s water filter, which was never covered before (only refilling its reservoirs was).',
@@ -1436,7 +1439,9 @@
     allTasks.forEach(t => {
       if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
     });
-    // In-progress tasks carry into every new hand until finished
+    // In-progress tasks carry into every new hand until finished — including when
+    // they are not currently due (the fountain is in the dishwasher; the task was
+    // last completed four days ago). Every path that ends a task clears the flag.
     Object.keys(state.inProgress || {}).forEach(id => {
       if (allTasks.find(t => t.id === id)) newHandIds.add(id);
     });
@@ -1721,6 +1726,7 @@
     }
     if (state.starvation) state.starvation[id] = 0;
     if (state.snoozed) delete state.snoozed[id];
+    if (state.inProgress) delete state.inProgress[id]; // else it rides into every deal forever
     if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
     if (!isDue(task)) {
       state.hand = (state.hand || []).filter(h => h !== id);
