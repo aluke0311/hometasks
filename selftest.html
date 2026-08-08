@@ -288,7 +288,10 @@ test('zone bonus applies in-zone only, and never to zone-less rooms', () => {
 // ─── Dealing ───────────────────────────────────────────────────────────────
 group('Dealing');
 
-const LOAD_IDS = ['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels'];
+// Derived from the `load: true` flag rather than copied, so the probe filter can
+// never drift out of sync with the app's own notion of a laundry load. A function,
+// not a const: G() is only bound once the frame has booted, well after parse time.
+function loadIds() { return G('getAllTasks')().filter(t => t.load).map(t => t.id); }
 const PROCESS_IDS = ['l_start','l_dryer','l_fold','l_put_away'];
 
 // Pick a probe task by its properties rather than hardcoding an id. Hardcoding
@@ -301,7 +304,7 @@ function probeTask(opts) {
     (t.owner === 'alina' || t.owner === 'either') &&
     t.freq >= (o.minFreq || 5) && t.freq <= (o.maxFreq || 30) &&
     !t.oneOff &&
-    LOAD_IDS.indexOf(t.id) === -1 && PROCESS_IDS.indexOf(t.id) === -1 && t.id !== 'c_fountain' &&
+    loadIds().indexOf(t.id) === -1 && PROCESS_IDS.indexOf(t.id) === -1 && t.id !== 'c_fountain' &&
     G('inSeason')(t)
   );
   if (!t) throw new Error('no suitable probe task found in TASKS');
@@ -329,7 +332,7 @@ function deal(build) {
 test('the dealt hand stays within budget, bar one boundary task', () => {
   const budget = 45;
   const r = deal(st => { st.budgetWeekday = budget; st.budgetWeekend = budget; });
-  const alwaysIds = new Set(['c_fountain', ...LOAD_IDS]);
+  const alwaysIds = new Set(['c_fountain', ...loadIds()]);
   const counted = r.tasks.filter(t => t.freq > 1 && !alwaysIds.has(t.id));
   const times = counted.map(t => G('taskTime')(t));
   const total = times.reduce((a, b) => a + b, 0);
@@ -339,9 +342,22 @@ test('the dealt hand stays within budget, bar one boundary task', () => {
   ok(total - biggest <= budget, 'budget ' + budget + ', dealt ' + total + 'm across ' + counted.length + ' tasks (largest ' + biggest + 'm)');
 });
 
+test('the laundry load set is populated and holds the colour loads', () => {
+  // Guard for the two cases below. Both derive their subject from loadIds(), so an
+  // empty set makes them pass vacuously (0 loads is "at most one", and "no process
+  // steps" is trivial when nothing can be washed). Stripping `load: true` from every
+  // task must fail HERE, or the split's slot behaviour is untested.
+  const ids = loadIds();
+  ok(ids.length >= 5, 'expected the wash slot to have contenders, got ' + ids.length);
+  ['lroom_whites','lroom_cools','lroom_warms','lroom_towels','lroom_microfiber','k_towels']
+    .forEach(id => ok(ids.indexOf(id) !== -1, id + ' is not marked as a laundry load'));
+  // The split replaced this one; a stale id here would quietly re-open the slot to it.
+  eq(G('getAllTasks')().some(t => t.id === 'lroom_myclothes'), false, 'lroom_myclothes should be gone');
+});
+
 test('at most one laundry load task per hand', () => {
   const r = deal();
-  const loads = r.ids.filter(id => LOAD_IDS.indexOf(id) !== -1);
+  const loads = r.ids.filter(id => loadIds().indexOf(id) !== -1);
   ok(loads.length <= 1, 'got ' + loads.length + ' load tasks: ' + loads.join(', '));
 });
 
@@ -350,9 +366,9 @@ test('laundry process steps are suppressed when no load is assigned', () => {
     // Nothing to wash. Two days ago, not today: every load task is freq 7 or 14 so
     // this leaves none due, and dealHand adds anything completed TODAY back into
     // the hand, which would otherwise defeat the precondition.
-    LOAD_IDS.forEach(id => { st.completions[id] = Date.now() - 2 * DAY; });
+    loadIds().forEach(id => { st.completions[id] = Date.now() - 2 * DAY; });
   });
-  const loads = r.ids.filter(id => LOAD_IDS.indexOf(id) !== -1);
+  const loads = r.ids.filter(id => loadIds().indexOf(id) !== -1);
   eq(loads.length, 0, 'precondition: no load assigned');
   const process = r.ids.filter(id => PROCESS_IDS.indexOf(id) !== -1);
   ok(process.length === 0, 'process steps leaked in: ' + process.join(', '));
@@ -398,7 +414,7 @@ test('heavy tasks (>15m) are capped at 2 per hand', () => {
   });
   const probes = r.ids.filter(id => id.indexOf('zz_heavy') === 0);
   ok(probes.length >= 1, 'precondition: the heavy probes must reach the pool at all');
-  const alwaysIds = new Set(['c_fountain', ...LOAD_IDS]);
+  const alwaysIds = new Set(['c_fountain', ...loadIds()]);
   const heavy = r.tasks.filter(t => t.freq > 1 && !alwaysIds.has(t.id) && G('taskTime')(t) > 15);
   ok(heavy.length <= 2, 'got ' + heavy.length + ' heavy tasks: ' + heavy.map(t => t.id).join(', '));
 });

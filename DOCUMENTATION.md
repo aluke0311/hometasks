@@ -252,10 +252,20 @@ Order of operations:
 Laundry is split into **load** tasks and **process** steps, coordinated so only
 one wash happens per day.
 
-- **Load tasks** (`lroom_myclothes`, `lroom_towels`, `lroom_microfiber`,
-  `lroom_whites`, `k_towels`) compete for a **single daily slot**. The most
-  overdue (lowest score) wins. No new load is chosen if one was already
-  completed today, is pinned, or is in progress.
+- **Load tasks** compete for a **single daily slot**. The most overdue (lowest
+  score) wins. No new load is chosen if one was already completed today, is
+  pinned, or is in progress. Membership is declared on the task itself with
+  **`load: true`** — there is no hardcoded id list. `dealHand`'s
+  `LAUNDRY_LOAD_IDS`, the Sprint view's `SPRINT_LOAD_IDS`, and the selftest's
+  `loadIds()` all derive from that flag, and the All Tasks editor exposes it as
+  a checkbox, so a custom wash task can join the slot too.
+- The current loads are the three colour-sorted clothing washes —
+  `lroom_whites` (7d), `lroom_cools` (7d), `lroom_warms` (10d) — plus
+  `lroom_towels` (7d), `lroom_microfiber` (14d) and `k_towels` (7d). They
+  replaced a single `lroom_myclothes` "My clothes laundry" task in Aug 2026.
+  Their combined demand is ≈ 0.79 loads/day against a slot serving 1/day, so
+  the queue is near capacity: another weekly load would push it past 1.0 and
+  the most overdue wash would routinely slip a day.
 - **Process steps** (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) are daily
   tasks that are **suppressed** unless there's a load today (assigned, pinned,
   in progress, or already completed).

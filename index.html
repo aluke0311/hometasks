@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-05 v14">
+  <meta name="app-version" content="2026-08-08 v15">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -314,6 +314,15 @@
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .field-select { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 10px 12px; border-radius: var(--radius-sm); }
     .field-check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-body); color: var(--text2); }
+    /* The blanket `input { appearance: none }` reset above strips the native
+       checkbox glyph, so these need drawing by hand or they are invisible. */
+    .field-check { width: 18px; height: 18px; flex-shrink: 0; margin: 0; cursor: pointer;
+                   border: 1.5px solid var(--border2); border-radius: var(--radius-sm);
+                   background: var(--card); position: relative; }
+    .field-check:checked { background: var(--green); border-color: var(--green); }
+    .field-check:checked::after { content: '✓'; position: absolute; inset: 0;
+                                  display: flex; align-items: center; justify-content: center;
+                                  color: var(--on-accent); font-size: 13px; line-height: 1; }
     .modal-footer { padding: 12px 20px 16px; border-top: 0.5px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
     /* Task actions sheet (D-6). The card shows at most two contextual buttons; the
        rare actions live here, where they get room to be legible instead of
@@ -634,8 +643,12 @@
           </select>
         </div>
         <div class="field-check-row">
-          <input type="checkbox" id="f_cat" style="width:16px;height:16px;">
+          <input type="checkbox" id="f_cat" class="field-check">
           <label for="f_cat">Cat-related task (priority tiebreaker)</label>
+        </div>
+        <div class="field-check-row">
+          <input type="checkbox" id="f_load" class="field-check">
+          <label for="f_load">Laundry load (competes for the one daily wash slot)</label>
         </div>
         <div>
           <div class="field-label">Active months (none selected = all year)</div>
@@ -711,7 +724,7 @@
     { id:'k_trash',          name:'Take out trash',                      room:'Kitchen',       freq:7,   time:2,  owner:'either' },
     { id:'k_sink',           name:'Clean sink',                          room:'Kitchen',       freq:7,   time:5,  owner:'either' },
     { id:'k_stove',          name:'Clean stovetop',                      room:'Kitchen',       freq:7,   time:8,  owner:'alina' },
-    { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  owner:'alina' },
+    { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  load:true, owner:'alina' },
     { id:'k_water_bottle',   name:'Wash water bottle',                   room:'Kitchen',       freq:3,   time:3,  owner:'alina' },
     { id:'k_fridge',         name:'Clean out fridge',                    room:'Kitchen',       freq:14,  time:15, owner:'either' },
     { id:'k_hood',           name:'Clean kitchen hood',                  room:'Kitchen',       freq:21,  time:10, owner:'either' },
@@ -822,10 +835,13 @@
   
     // ── LAUNDRY ROOM ──
     { id:'lroom_tidy',       name:'Tidy laundry room',                   room:'Laundry Room',  freq:7,   time:5,  owner:'either' },
-    { id:'lroom_myclothes',  name:'My clothes laundry',                  room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
-    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:7,   time:5,  owner:'alina' },
-    { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
-    { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:14,  time:5,  owner:'alina' },
+    // Colour-sorted clothing loads (split out of the old single 'my clothes' load).
+    // load:true puts them in the one-per-day wash slot — see LAUNDRY_LOAD_IDS.
+    { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
+    { id:'lroom_cools',      name:'Wash cools',                          room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
+    { id:'lroom_warms',      name:'Wash warms',                          room:'Laundry Room',  freq:10,  time:5,  load:true, owner:'alina' },
+    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
+    { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  load:true, owner:'alina' },
     { id:'lroom_duvet',      name:'Wash duvet cover',                    room:'Laundry Room',  freq:30,  time:8,  owner:'bob' },
     { id:'lroom_dust',       name:'Dust surfaces (laundry room)',        room:'Laundry Room',  freq:30,  time:5,  owner:'either' },
     { id:'lroom_trash',      name:'Empty trash (laundry room)',          room:'Laundry Room',  freq:30,  time:2,  owner:'either' },
@@ -925,12 +941,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-05 v14';
+  const APP_VERSION = '2026-08-08 v15';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-08 v15', notes: [
+      'Clothing laundry is now sorted by colour: "My clothes laundry" has been replaced by separate whites, cools, and warms loads. Whites moved to weekly, cools weekly, warms every 10 days.',
+      'Laundry loads are now marked with a checkbox in the task editor instead of a fixed internal list, so a custom wash task can join the one-per-day laundry slot too.',
+    ]},
     { v: '2026-08-05 v14', notes: [
       'Marking a task "did earlier" now also clears its in-progress mark. Before, a task you had started and then logged as done a day or two ago would keep coming back to your hand as still in progress.',
     ]},
@@ -1324,7 +1344,9 @@
 
     // Laundry: pick exactly one "what to wash" task per day (most overdue by score);
     // suppress the daily process steps if nothing is due to wash.
-    const LAUNDRY_LOAD_IDS = new Set(['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels']);
+    // Membership is declared per-task via `load: true` rather than a hardcoded id list,
+    // so a new wash task (base or custom) joins the slot by declaring it, in one place.
+    const LAUNDRY_LOAD_IDS = new Set(allTasks.filter(t => t.load).map(t => t.id));
     const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
     const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
     const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
@@ -2525,7 +2547,7 @@
     // ── LAUNCH: passive/cycle-starting tasks ──
     // Today's laundry load (towels, microfiber, whites…) rides along next to
     // "Start a load of laundry" so you know what to wash when you launch it.
-    const SPRINT_LOAD_IDS = ['lroom_myclothes','lroom_towels','lroom_microfiber','lroom_whites','k_towels'];
+    const SPRINT_LOAD_IDS = hand.filter(t => t.load).map(t => t.id);
     const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
     const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id) || SPRINT_LOAD_IDS.includes(t.id));
     if (launchTasks.length) {
@@ -4541,6 +4563,7 @@
       document.getElementById('f_time').value = task.time;
       document.getElementById('f_owner').value = task.owner;
       document.getElementById('f_cat').checked = !!task.cat;
+      document.getElementById('f_load').checked = !!task.load;
     } else {
       document.getElementById('f_name').value = '';
       document.getElementById('f_room').value = '';
@@ -4548,6 +4571,7 @@
       document.getElementById('f_time').value = '';
       document.getElementById('f_owner').value = 'either';
       document.getElementById('f_cat').checked = false;
+      document.getElementById('f_load').checked = false;
     }
     showSheet('taskModal');
   }
@@ -4594,6 +4618,7 @@
     const time = parseInt(document.getElementById('f_time').value);
     const owner = document.getElementById('f_owner').value;
     const cat = document.getElementById('f_cat').checked;
+    const load = document.getElementById('f_load').checked;
   
     if (!name || !room || !freq || !time) { showToast('Fill in all fields'); return; }
   
@@ -4606,12 +4631,12 @@
     if (editingId) {
       const isBase = TASKS.find(t => t.id === editingId);
       if (isBase) state.deletedIds = [...new Set([...state.deletedIds, editingId])];
-      state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat };
+      state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat, load };
       if (months.length && months.length < 12) state.taskMonths[editingId] = months;
       else delete state.taskMonths[editingId];
     } else {
       const newId = 'custom_' + Date.now();
-      state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat };
+      state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat, load };
       state.completions[newId] = Date.now() - freq * 86400000;
       if (months.length && months.length < 12) state.taskMonths[newId] = months;
     }
