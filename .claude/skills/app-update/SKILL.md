@@ -39,8 +39,12 @@ change).
 4. **Verify in the preview** before committing — never ask the user to check
    manually:
    - `preview_start` with the `hometasks` config (python http.server on 7821).
-   - Navigate to `/index.html`, exercise the change, and check the console for
-     errors.
+   - Navigate to `/index.html?v=<something new>`, exercise the change, and check
+     the console for errors. **The query string is not optional:** the pane
+     caches, so a plain `/index.html` can keep serving the previous build and you
+     will verify a change that isn't there. `selftest.html` is immune (it fetches
+     `no-store`), which makes the failure mode "tests green, page stale" —
+     confirm `APP_VERSION` in the page matches what you just wrote.
    - For data/preset changes, run the dead-ref check below.
    - **For any UI change, render the screen at 390px and look at it** — in both
      light and dark mode. A clean console is not evidence the layout is right;
@@ -56,9 +60,8 @@ change).
 
 6. **State the export status** at the end of the change description, always one
    of: `✅ No export needed` or `⚠️ Export needed before deploying`.
-   - **No export needed:** UI/logic changes, and adding new state fields (give
-     them a default in `defaultState()` AND in the `loadState()` migration block
-     AND in `applyImport`).
+   - **No export needed:** UI/logic changes, and adding new state fields (a
+     default in `defaultState()` is enough — see the retired watch-out below).
    - **Export needed:** bumping `STORAGE_KEY`, a breaking field-format change, or
      intentionally clearing/restructuring state.
 
@@ -79,7 +82,40 @@ real data.
   `selftest.html` — run it.
 - Preset task ids must exist in `TASKS`, or the item silently vanishes and
   `completeTask` returns early so it can never be checked off. `selftest.html`
-  case 3 covers every preset constant; no manual scan needed.
+  case 3 covers every preset constant; no manual scan needed, and case 4 fails if
+  a new preset type is wired into the tab without joining the sweep.
+- **A new per-task setting goes in its own `state.*` map keyed by id**
+  (`taskMonths`, `taskVac`), NOT on the task object. `saveTask` rebuilds a custom
+  task from an explicit field list, so anything stored on the task is silently
+  stripped the first time she edits it. `load: true` is the one flag that lives
+  on the task, and it only survives because it has its own editor checkbox.
+- **Re-query a DOM node after calling anything that can re-render.** The
+  date-picker toggles save-and-close the open row first; that save re-renders, so
+  a node captured before the loop is detached and opening it does nothing at all.
+- **Check whether a "does nothing" bug is a short-circuit upstream.** `markTaskDue`
+  wrote the right timestamp for a year, but `daysOverdue()` returns early on an
+  active snooze before it ever reads it, so the button toasted success and changed
+  nothing.
+- **Two undos exist and they are not interchangeable.** `undoComplete` (toast)
+  reverses the last completion from `_undoBuffer`; `uncompleteTask` (card button,
+  All Tasks checkbox, Sprint untick) restores `prevCompletions[id]`. Never let
+  either fabricate `now − freq` — on a twice-yearly task that moves last-done
+  months *backwards* and destroys the real date.
+- **A checklist tick must be `toggleComplete`, never `completeTask`.** Wired to
+  the latter, tapping a ticked card re-fires the completion and a mis-tap is
+  uncorrectable once the toast expires.
+- **Every path that adds a task to today must call `unremoveToday(id)`,** or the
+  next redeal takes it back out.
+- `renderCard` has a local `const isSnoozed` boolean that shadows the global
+  `isSnoozed()` helper. Calling the helper inside `renderCard` throws.
+
+**When auditing rather than building:** the harness being green says nothing
+about the paths it doesn't cover. The 2026-08-08 round found twelve real bugs
+against a fully green suite. What actually surfaced them was driving the running
+app with `javascript_tool` — set up a realistic state, take an action a user
+would take, and assert on what came back. Reading the code alone would have
+missed the ones that depend on state (Bob's completions eating the budget, the
+detached date-picker node).
 
 **Retired watch-outs — do not reinstate:**
 - *"Adding state? Update all three of `defaultState()`, `loadState()` and

@@ -47,23 +47,25 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
 |------|-------|
 | CSS | 9–265 |
 | Body markup (views, nav, modals) | 266–480 |
-| `TASKS` array (185 entries) | 654–889 |
-| `DEFAULT_MONTHS`, `ZONE_ROOMS` | 711–745 |
-| Storage layer (`loadState`/`saveState`/`defaultState`) | 746–840 |
-| Core logic (due, season, zone, scoring) | 842–1047 |
-| `dealHand` | 1049–1214 |
-| Hand/overflow/not-due selectors | 1216–1311 |
-| Completion + task actions | 1313–1575 |
-| Render: My Hand | 1579–1760 |
-| `renderCard` | 1762–1862 |
-| "Why this task?" modal | 1866–1902 |
-| Sprint tab (incl. `copySprint`) | 1905–2171 |
-| Presets (definitions + render; incl. Weekly Reset & Seasonal Deep Clean) | 2172–3040 |
-| Stats tab | 3129–3273 |
-| Settings tab | 3275–3400 |
-| Vacation / backup / import (`applyImport` ~3508) | 3400–3580 |
-| Manage tab + modals | 3582–3900 |
-| Misc UI helpers + `init()` | 3902–3995 |
+| `TASKS` array (186 entries) | 700–918 |
+| `DEFAULT_MONTHS`, vacation decay (`VAC_SHIFT`, `DEFAULT_VAC`), `ZONE_ROOMS` | 920–1000 |
+| Storage layer (`defaultState`/`coerceState`/`loadState`/`saveState`) | 1085–1190 |
+| Core logic (due, season, `vacMode`, zone, scoring) | 1200–1425 |
+| `dealHand` | 1427–1620 |
+| Hand/overflow/not-due selectors | 1623–1700 |
+| Completion + task actions (incl. `uncompleteTask`, snooze/un-snooze) | 1777–2140 |
+| Render: My Hand + `renderDayBudget` | 2144–2420 |
+| `renderCard` | 2426–2520 |
+| Milestones, task-actions sheet, "Why this task?" | 2560–2720 |
+| Sprint tab (incl. `copySprint`) | 2793–3005 |
+| Presets (definitions + render; incl. Weekly Reset & Seasonal Deep Clean) | 3008–3930 |
+| Stats tab | 4050–4365 |
+| Settings tab (incl. the vacation card) | 4371–4560 |
+| Vacation / backup / import (`resumeApp` ~4566, `applyImport` ~4659) | 4560–4690 |
+| Manage tab + modals (`openModal` ~4860, `saveTask` ~4920) | 4699–5000 |
+| Misc UI helpers + `init()` | 5000–5190 |
+
+Line numbers drift with every change — re-grep rather than trusting them.
 
 ---
 
@@ -220,8 +222,14 @@ Order of operations:
 7. **Non-daily pool.** All due (or flagged) in-season alina/either non-daily
    tasks, excluding pinned/always-assigned/laundry-load, sorted by score
    (or floated by tier if `_dealPreferTier`).
-8. **Budget fill.** `budget` = weekday/weekend setting. Time already spent today
-   on non-dailies plus always-assigned time is pre-counted. Then:
+8. **Budget fill.** `budget` = the weekday/weekend setting (non-daily minutes),
+   *unless* `todayBudgetDate` is today, in which case it is
+   `max(0, todayBudget − dailyTime)` — the My Hand slider is a **whole-day
+   total**, so the daily load comes off the top. `dailyTime` covers the dailies
+   being forced into the hand (including pinned ones) plus any already completed
+   today. Time already spent today on non-dailies plus always-assigned time is
+   pre-counted; only `alina`/`either` completions count, since the pool is hers
+   and a Bob-only completion would otherwise silently shrink her hand. Then:
    - **Flagged tasks fill first** in every mode. They count against the budget,
      but the **first flagged task is always dealt** even if the budget is spent
      (so flagging guarantees surfacing). Flagged tasks that don't fit fall to
@@ -279,18 +287,33 @@ one wash happens per day.
 ### My Hand (`alina`)
 
 - **Header:** title "Today's Hand", date, Redeal (with A/B/C tier-redeal pills),
-  the zone selector, the three mode pills, and "+ one-off task".
+  the zone selector, the three mode pills, the **Today's time** slider, and
+  "+ one-off task".
 - **Stats row:** done/total count, time-left estimate, progress bar.
+- **Today's time slider** (`renderDayBudget`): a whole-day total for today only.
+  It sits at `dailyLoad + usual budget` until moved; moving it writes
+  `todayBudget`/`todayBudgetDate`, and "back to usual" clears them. Dragging
+  repaints the value and the `~Xm of dailies + Ym of everything else` note only —
+  the deal happens once, on release, or the hand would reshuffle under her thumb.
+  It replaced the "Got 10/20/30 min" chips, which set only the *non-daily* budget
+  and so offered a 10-minute hand while dealing an hour of dailies.
 - **Sections:** Daily Tasks, Other Tasks (the budgeted non-dailies), Completed
   (collapsible), then "+ Give me more (N due)" with A/B/C filters and a Backup
   list (Due/overdue + Not-due-yet).
 - **Quick-log:** "+ Log something else I did" expands a search over all tasks;
   selecting one records a completion **without** adding it to the hand or
   counting against budget.
-- **Per-card actions** (`renderCard`): tap to complete (undo toast); swap; pin;
-  snooze 1/2/3d; "did earlier" (yesterday/2d/3d ago backdate); timer; remove;
-  why?; flag; edit last-done date. Badges show overdue/snoozed/in-progress,
-  real cadence (`~Nd real`), learned time, owner.
+- **Per-card actions** (`renderCard`): tap to toggle complete (undo toast); swap;
+  pin; snooze 1/2/3d; **un-snooze**; "did earlier" (yesterday/2d/3d ago
+  backdate); timer; remove; why?; flag; mark due; edit last-done date. Badges
+  show overdue/snoozed/in-progress, real cadence (`~Nd real`), learned time,
+  owner.
+- **Two different undos, deliberately.** The toast's Undo (`undoComplete`)
+  reverses the *last* completion from its in-memory buffer. The card's "undo",
+  the All Tasks checkbox and un-ticking in Sprint all route to `uncompleteTask`,
+  which restores `prevCompletions[id]` — the date that completion replaced.
+  Neither may fall back to fabricating `now − freq`: on a 180-day task that
+  moves last-done *backwards* by months and destroys the real date.
 
 ### Sprint (`sprint`)
 
@@ -301,7 +324,10 @@ A guided, room-grouped walkthrough of today's hand:
   → grouped rooms (Bathrooms, Bedroom, Living spaces, Office, Hall & entries,
   Around the house) → Other.
 - Per-block remaining time, "Hide done" toggle, and per-task
-  timer / in-progress / remove controls. Tapping a card completes it.
+  timer / in-progress / remove controls. Tapping a card **toggles** it — wired to
+  `completeTask` instead, a mis-tap was uncorrectable once the 5s undo toast
+  expired, because tapping the ticked card just re-fired the completion. Preset
+  checklists share this and the same rule applies.
 - A 📋 **Copy** button (`copySprint()`) writes the whole sprint to the clipboard
   as markdown for pasting into notes/messages: a title line with the date, a
   `done/total · ~time left` summary, then each block numbered with its label and
@@ -339,9 +365,11 @@ See §8.
 ### Settings (`settings`)
 
 Budget steppers, active-zone reference table, system overview counts, a scoring
-explainer, recent-activity log, vacation mode toggle, a reload-app card (shows
-`APP_VERSION`), the weekly-backup card, and export/import (copy to clipboard,
-restore from a backup file, or paste).
+explainer, recent-activity log, the vacation mode card (pause/resume plus the
+freeze / half / full counts, with the task lists behind a `<details>` disclosure
+— the half-speed list alone runs to 60-odd tasks and swallows the tab if left
+open), a reload-app card (shows `APP_VERSION`), the weekly-backup card, and
+export/import (copy to clipboard, restore from a backup file, or paste).
 
 ---
 
@@ -410,6 +438,10 @@ Stored as JSON under `localStorage['hometasks_v8']`. Defaults come from
 | `customTasks` | `{id: task}` | User tasks + base-task overrides + one-offs |
 | `taskMonths` | `{id: [1..12]}` | Seasonal windows |
 | `seasonalDefaultsApplied` | bool | Guards one-time `DEFAULT_MONTHS` migration |
+| `taskVac` | `{id: 'freeze'\|'half'\|'full'}` | Per-task vacation decay; unset = `freeze` |
+| `vacDefaultsApplied` | bool | Guards one-time `DEFAULT_VAC` migration |
+| `todayBudget` / `todayBudgetDate` | number / string | Today-only **total** time budget (the My Hand slider); expires with its date |
+| `prevCompletions` | `{id: ts}` | Date a today-completion replaced, so `uncompleteTask` restores the real one |
 | `actualTimes` | `{id: min[]}` | Last 10 logged durations; `taskTime()` uses median of 3+ |
 | `guestHand` / `resetHand` / `goingOutHand` | `id[]` \| null | Legacy preset checklists |
 | `presetHands` | `{key: id[] \| null}` | All other preset checklists |
@@ -472,11 +504,46 @@ Otherwise: **no export needed.** Every code-change description should end with
 
 - `pauseApp()` sets `paused`/`pausedAt`. While paused, `dealHand` keeps the
   current hand and skips dealing + starvation; a banner shows on My Hand.
-- `resumeApp()` shifts every **pre-pause** completion timestamp forward by the
-  pause duration (so nothing aged while away — you don't come home to a wall of
-  fake-overdue tasks), then deals a fresh hand. `completionHistory` is **not**
-  shifted (it records what actually happened). Completing tasks while paused is
-  allowed and records normally.
+- `resumeApp()` shifts each **pre-pause** completion timestamp forward by
+  `pauseDuration × VAC_SHIFT[vacMode(id)]`, then deals a fresh hand.
+  `completionHistory` is **not** shifted (it records what actually happened).
+  Completing tasks while paused is allowed, records normally, and those
+  timestamps are never shifted — a sitter's work stays where it happened.
+
+#### Per-task decay (`taskVac`)
+
+Holding every task for the whole trip is right for laundry and dishes, which
+cannot come due in a house nobody is using, and wrong for the fridge water
+filter, which does not care that you were away. Each task therefore carries a
+mode, and `VAC_SHIFT` is the **share of the pause given back**:
+
+| Mode | `VAC_SHIFT` | Meaning | Rule of thumb |
+|---|---|---|---|
+| `freeze` | 1 | Did not age at all | Needs someone using the house |
+| `half` | 0.5 | Aged at half speed | Dust settles, outdoor grime arrives |
+| `full` | 0 | Aged exactly as if home | Pure calendar |
+
+- `vacMode(id)` returns `'freeze'` for anything unset or unrecognised, so an
+  unclassified task behaves exactly as vacation mode did before this existed.
+- `DEFAULT_VAC` is built from the `VAC_HALF` and `VAC_FULL` id lists and applied
+  once through the `vacDefaultsApplied` migration in `init()`, mirroring
+  `DEFAULT_MONTHS`. Current split: **113 freeze / 61 half / 12 full.**
+  - *Freeze* — all washing and laundry process, dishes and counters, tidying,
+    trash, towels and soap, bathroom supplies, all cat care, robot **runs** and
+    robot **maintenance**, and all descaling (scale comes from use, not time).
+  - *Half* — dusting, blinds, fans and fixtures, vacuuming and mopping,
+    upholstery, windows, baseboards, air purifiers, the fridge clean-out, and
+    the bathroom surfaces a humid house keeps working on (toilets, sinks,
+    showers, mirrors, grout, curtain, handles). The supply-and-tidy jobs in the
+    same rooms stay frozen — no amount of humidity makes a soap refill due.
+  - *Full* — fridge deep-clean, freezer, coils, water filter, hall air filter,
+    ceiling-fan filters, mattress rotation, butcher-block oil, Pura fragrances,
+    and all three Back Porch tasks (outdoors, weather-driven).
+- The setting is stored in `state.taskVac` **keyed by task id, not on the task
+  object** — `saveTask` rebuilds a custom task from an explicit field list and
+  would silently strip a flag stored there, the same trap `load: true` fell into.
+- Edited from a three-way chip row in the task editor; Settings → Vacation Mode
+  shows the counts with the full lists behind a `<details>` disclosure.
 
 ### Per-task timer & learned times
 
@@ -545,6 +612,10 @@ GitHub Pages. To ship a change:
 - **Hand** — the set of tasks dealt for today.
 - **Deal / redeal** — build (or rebuild) the hand.
 - **Budget** — minutes allotted to non-daily tasks; dailies are always included.
+  The exception is the **Today's time** slider, which is a whole-day total with
+  the daily load charged against it.
+- **Vacation decay** — per task, the share of a pause it gets back on resume:
+  freeze (all), half, or none.
 - **Tier** — A/B/C bucket by frequency, for UI filtering only.
 - **Mode** — Keep up / Catch up / By freq, controlling pool order and overdue weight.
 - **Zone** — rotating room focus giving a scoring boost.
