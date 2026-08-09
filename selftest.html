@@ -176,15 +176,25 @@ test('the frame cannot see or write real localStorage', () => {
 // ─── Preset integrity ──────────────────────────────────────────────────────
 group('Preset integrity');
 
+// Tidy Everywhere shipped and this sweep never saw it, because the list of
+// constants was hand-maintained. Registered preset types are now pulled through
+// getNewPresetSections(), so a new preset is covered the moment it is wired up.
+const REGISTERED_PRESET_TYPES = ['expressReset','tidyEverywhere','weeklyReset','returnHome',
+                                 'beforeCleaners','recovery','postIllness'];
+
 function collectPresetIds() {
   const out = [];
   const push = (where, id) => out.push({ where, id });
-  const sections = ['EXPRESS_RESET_SECTIONS','WEEKLY_RESET_SECTIONS','RETURN_HOME_SECTIONS',
-                    'BEFORE_CLEANERS_SECTIONS','RECOVERY_SECTIONS','POST_ILLNESS_SECTIONS'];
-  sections.forEach(name => {
+  REGISTERED_PRESET_TYPES.forEach(type => {
+    const secs = G('getNewPresetSections')(type) || [];
+    if (!secs.length) push('getNewPresetSections', '<' + type + ' resolves to nothing>');
+    secs.forEach(sec => (sec.ids || []).forEach(id => push('preset:' + type, id)));
+  });
+  ['FULL_RESET_SECTIONS','GOING_OUT_SECTIONS'].forEach(name => {
     (G(name) || []).forEach(sec => (sec.ids || []).forEach(id => push(name, id)));
   });
-  ['EVENING_SHUTDOWN_FIXED','EVENING_TIDY_POOL'].forEach(name => {
+  ['EVENING_SHUTDOWN_FIXED','EVENING_TIDY_POOL',
+   'GUEST_DAY_IDS','GUEST_OVERNIGHT_IDS','GUEST_EMERGENCY_IDS'].forEach(name => {
     (G(name) || []).forEach(id => push(name, id));
   });
   (G('ROOM_PRESETS') || []).forEach(r => {
@@ -203,6 +213,23 @@ test('every preset task id resolves in TASKS', () => {
   const known = new Set(G('TASKS').map(t => t.id));
   const dead = collectPresetIds().filter(r => !known.has(r.id));
   ok(dead.length === 0, 'dead preset ids: ' + dead.map(r => r.where + '→' + r.id).join(', '));
+});
+
+// Closes the loop on the list above: whatever the Presets tab can actually
+// generate must be in REGISTERED_PRESET_TYPES, so a new preset cannot ship with
+// its ids unchecked the way Tidy Everywhere did.
+test('every preset the Presets tab can generate is covered by the id sweep', () => {
+  const saved = snap();
+  try {
+    S('state', fresh());
+    switchTabQuiet('presets');
+    const html = G('document').getElementById('presetsContent').innerHTML;
+    const found = new Set();
+    html.replace(/generateNewPreset\('([^']+)'\)/g, (_, t) => { found.add(t); return _; });
+    ok(found.size > 0, 'no generateNewPreset buttons found — selector is stale');
+    const missing = [...found].filter(t => !REGISTERED_PRESET_TYPES.includes(t));
+    eq(missing.length, 0, 'preset types not covered by collectPresetIds: ' + missing.join(', '));
+  } finally { S('state', saved); switchTabQuiet('alina'); }
 });
 
 test('every ROOM_PRESETS label names a room that exists in TASKS', () => {
@@ -755,17 +782,69 @@ test('the year pixel grid and review derive from history, not from a counter', (
   });
 });
 
-test('the micro-hand does not persist the budget it deals against', () => {
+// The old "Got 10 min" chips set only the NON-daily budget, so a 10-minute
+// request dealt an hour of dailies. The slider is a TOTAL: dailies come off the
+// top. These three pin the whole contract — no persistence, dailies counted,
+// and expiry — because that is exactly where the old feature lied.
+test('the day budget override never touches the stored weekday/weekend budgets', () => {
   const saved = snap();
   try {
     const st = fresh();
     st.budgetWeekday = 45; st.budgetWeekend = 90;
     S('state', st);
-    G('setMicroHand')(10);
+    G('setDayBudget')(20);
     eq(G('state').budgetWeekday, 45, 'weekday budget was overwritten');
     eq(G('state').budgetWeekend, 90, 'weekend budget was overwritten');
+    eq(G('state').todayBudget, 20, 'override not recorded');
+    eq(G('state').todayBudgetDate, G('todayStr')(), 'override not dated to today');
     ok(Array.isArray(G('state').hand), 'a hand was still dealt');
+    G('clearDayBudget')();
+    eq(G('state').todayBudget, null, 'clearDayBudget did not lift the override');
   } finally { S('state', saved); }
+});
+
+test('the day budget is a total: dailies are charged against it, not exempt from it', () => {
+  const BUDGET = 90;
+  // Two probes at the SAME total, differing only in how much of it the dailies
+  // eat. If the daily load is charged, deleting 28m of laundry steps has to buy
+  // back room for extras; if it is exempt (the old bug) both probes are identical.
+  function probe(deletedIds) {
+    const saved = snap();
+    try {
+      const st = fresh();
+      st.deletedIds = deletedIds;
+      S('state', st);
+      G('setDayBudget')(BUDGET);
+      const hand = G('getHandTasks')();
+      return {
+        extras: hand.filter(t => t.freq > 1).length,
+        total:  hand.reduce((s, t) => s + G('taskTime')(t), 0),
+      };
+    } finally { S('state', saved); }
+  }
+  const heavy = probe([]);                                             // ~48m of dailies
+  const light = probe(['l_start', 'l_dryer', 'l_fold', 'l_put_away']); // ~20m of dailies
+
+  // The promise on the label: slide to 90 and the hand really is about 90. One
+  // boundary task of overshoot is allowed, same as the budget case above.
+  ok(heavy.total <= BUDGET + 25,
+     'a ' + BUDGET + 'm day dealt a ' + heavy.total + 'm hand — dailies are not being charged');
+  ok(light.extras > heavy.extras,
+     'cutting 28m of dailies bought no extra tasks (' + heavy.extras + ' vs ' + light.extras + ')');
+});
+
+test('a day budget set yesterday does not apply today', () => {
+  withState(st => {
+    st.todayBudget = 5;
+    st.todayBudgetDate = '2000-01-01';
+    st.budgetWeekday = 45; st.budgetWeekend = 90;
+  }, () => {
+    eq(G('dayBudgetOverride')(), null, 'a stale dated override must expire on its own');
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    const extras = G('getHandTasks')().filter(t => t.freq > 1);
+    ok(extras.length > 2, 'yesterday\'s tiny budget still throttled today, got ' + extras.length);
+  });
 });
 
 test('on-this-day only reports completions from previous years', () => {
@@ -916,6 +995,135 @@ test('completeTask on an unknown id is a no-op', () => {
     G('completeTask')('zz_does_not_exist');
     deepEq(snap(), before, 'state changed');
   });
+});
+
+// ─── Undo, snooze, and getting a task back ─────────────────────────────────
+group('Undo, snooze & hand membership');
+
+// The card's "undo" used to fake `now - freq`, which for a twice-yearly task
+// moved last-done MONTHS backwards and destroyed the real date. It has to be as
+// lossless as the toast's Undo, which is why both are asserted against the same
+// timestamp here.
+test('uncompleting a task restores the real previous date, not an invented one', () => {
+  const id = 'k_oven_int';                                   // freq 180
+  withState(st => { st.completions[id] = Date.now() - 30 * DAY; }, () => {
+    const before = G('state').completions[id];
+    G('completeTask')(id);
+    ok(G('state').completions[id] !== before, 'precondition: completion moved to now');
+    G('uncompleteTask')(id);
+    eq(G('state').completions[id], before, 'undo did not put the real last-done date back');
+    eq(G('isDue')(G('getAllTasks')().find(t => t.id === id)), false,
+       'a task 30 days into a 180-day cycle must not read as due after an undo');
+  });
+});
+
+test('completing twice in a day does not overwrite the stashed previous date', () => {
+  const id = 'k_fridge_deep';
+  withState(st => { st.completions[id] = Date.now() - 10 * DAY; }, () => {
+    const before = G('state').completions[id];
+    G('completeTask')(id);
+    G('completeTask')(id);                                   // e.g. a stray tap in Sprint
+    G('uncompleteTask')(id);
+    eq(G('state').completions[id], before, 'the second completion clobbered the stash');
+  });
+});
+
+test('a snoozed task can be un-snoozed, and mark-due lifts the snooze too', () => {
+  const id = 'br_mirror';                                    // freq 60
+  withState(st => { st.completions[id] = Date.now() - 70 * DAY; }, () => {
+    const task = G('getAllTasks')().find(t => t.id === id);
+    G('snoozeTask')(id, 3);
+    eq(G('isDue')(task), false, 'precondition: snoozing makes it not due');
+    // mark-due used to toast success and change nothing, because daysOverdue()
+    // short-circuits on the snooze before it ever reads the completion date.
+    G('markTaskDue')(id);
+    eq(G('isDue')(task), true, 'mark due did not actually make a snoozed task due');
+
+    G('snoozeTask')(id, 3);
+    G('unsnoozeTask')(id);
+    eq(G('isSnoozed')(id), false, 'unsnoozeTask left the snooze in place');
+    eq(G('isDue')(task), true, 'un-snoozing did not return the task to the pool');
+  });
+});
+
+test('adding a removed task back to today survives a redeal', () => {
+  withState(st => {}, () => {
+    G('dealHand')();
+    const all = G('getAllTasks')();
+    const id = G('state').hand.find(h => {
+      const t = all.find(x => x.id === h);
+      return t && t.freq > 1 && !G('wasCompletedToday')(t);
+    });
+    ok(!!id, 'fixture needs a non-daily task in the hand');
+    G('removeFromHand')(id);
+    ok((G('state').removedToday || []).includes(id), 'precondition: removal is recorded for today');
+    G('addToHand')(id);
+    eq((G('state').removedToday || []).includes(id), false,
+       'adding it back left the for-today removal in place');
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    ok(G('state').hand.includes(id), 'the task she deliberately added back vanished on redeal');
+  });
+});
+
+// ─── Sprint ordering & budget ownership ────────────────────────────────────
+group('Sprint & budget');
+
+// Every robot RUN is a passive job you set going first. rob_mop_us was added in
+// the per-unit split and missed, so it landed in a one-task block at the very end.
+test('every robot run task starts the sprint, not just the downstairs ones', () => {
+  withState(st => {}, () => {
+    const runs = ['rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us'];
+    G('dealHand')();
+    runs.forEach(id => { if (!G('state').hand.includes(id)) G('state').hand.push(id); });
+    const launch = (G('getSprintBlocks')().find(b => b.label === 'Launch') || { tasks: [] })
+      .tasks.map(t => t.id);
+    const stranded = runs.filter(id => !launch.includes(id));
+    eq(stranded.length, 0, 'robot runs left out of the Launch block: ' + stranded.join(','));
+  });
+});
+
+// She logs Bob's completions, so his work looked like spent time and silently
+// shrank her own hand. The dealing pool is hers; the budget must be too.
+test('completing a Bob-only task does not spend Alina\'s budget', () => {
+  const bobIds = ['usb_shower', 'usb_grout'];
+  let baseline;
+  withState(st => {}, () => {
+    G('dealHand')();
+    baseline = G('state').hand.length;
+  });
+  withState(st => { bobIds.forEach(id => { st.completions[id] = Date.now(); }); }, () => {
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    const dealt = G('state').hand.filter(id => !bobIds.includes(id)).length;
+    ok(dealt >= baseline, 'Bob\'s ' + bobIds.length + ' completions cut her hand from ' +
+       baseline + ' to ' + dealt);
+  });
+});
+
+// ─── Checklist ticks ───────────────────────────────────────────────────────
+group('Checklist ticks');
+
+// Sprint and preset cards used to be wired to completeTask, so a mis-tap was
+// uncorrectable once the 5s undo toast expired — tapping the ticked card just
+// re-fired the completion.
+test('sprint and preset checklist cards toggle rather than only complete', () => {
+  withState(st => {}, () => {
+    switchTabQuiet('sprint');
+    G('render')();
+    const sprintHtml = G('document').getElementById('sprintContent').innerHTML;
+    ok(/class="sprint-card[^"]*"[^>]*onclick="toggleComplete\(/.test(sprintHtml),
+       'a sprint card is still wired straight to completeTask');
+    ok(!/class="sprint-card[^"]*"[^>]*onclick="completeTask\(/.test(sprintHtml),
+       'a sprint card is still wired straight to completeTask');
+
+    G('generateNewPreset')('expressReset');
+    switchTabQuiet('presets');
+    const presetHtml = G('document').getElementById('presetsContent').innerHTML;
+    ok(!/class="sprint-card[^"]*"[^>]*onclick="completeTask\(/.test(presetHtml),
+       'a preset checklist card is still wired straight to completeTask');
+  });
+  switchTabQuiet('alina');
 });
 
 // ─── Version hygiene ───────────────────────────────────────────────────────

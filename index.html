@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-08 v15">
+  <meta name="app-version" content="2026-08-08 v16">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -412,11 +412,24 @@
     .tier-pills { display: flex; gap: 4px; }
     .tier-pill { padding: 6px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-meta); font-weight: 600; cursor: pointer; }
     .tier-pill:hover { background: var(--bg2); }
-    /* F-5: "I've got 10 minutes" — a moment of intent, not a settings change. */
-    .micro-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
-    .micro-label { font-size: var(--fs-label); color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
-    .micro-chip { flex: 1; font-size: var(--fs-meta); padding: 6px 0; border-radius: 20px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; }
-    .micro-chip.active { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
+    /* F-5b: "how much time do I have today" — a dated override of the budget,
+       not a settings change. Replaced the old 10/20/30 chips, which set only the
+       NON-daily budget and so quoted 10 minutes while dealing an hour. */
+    .day-budget { margin-top: 8px; }
+    .day-budget-top { display: flex; align-items: baseline; gap: 8px; }
+    .day-budget-label { font-size: var(--fs-label); color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+    .day-budget-val { font-size: var(--fs-sub); font-weight: 700; color: var(--text); margin-left: auto; }
+    .day-budget-reset { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
+    .day-budget-note { font-size: var(--fs-label); color: var(--text3); margin-top: 2px; }
+    .day-budget-note.over { color: var(--amber); }
+    /* input { appearance: none } up at the top is a blanket reset, so a range
+       input has no track and no thumb until both are drawn by hand. */
+    .day-budget-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; cursor: pointer; margin: 0; padding: 0; }
+    .day-budget-slider:focus { outline: none; }
+    .day-budget-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--bg3); }
+    .day-budget-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%; background: var(--green); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+    .day-budget-slider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg3); }
+    .day-budget-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--green); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
     /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
     .onthisday { margin: 16px 24px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--bg2); border: 0.5px solid var(--border); }
     .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
@@ -479,7 +492,7 @@
           <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">🔄 Catch up</button>
           <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">📋 By freq</button>
         </div>
-        <div class="micro-row" id="microRow"></div>
+        <div class="day-budget" id="dayBudgetRow"></div>
         <button class="oneoff-add-btn" onclick="openOneOffModal()">+ one-off task</button>
       </div>
       <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
@@ -536,7 +549,7 @@
   <div class="toast" id="toast"></div>
   
   <!-- One-off task modal -->
-  <div class="modal-backdrop" id="oneoffModal">
+  <div class="modal-backdrop" id="oneoffModal" onclick="if(event.target===this)closeOneOffModal()">
     <div class="modal">
       <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
       <div class="modal-header">
@@ -608,7 +621,7 @@
   </div>
 
   <!-- Task edit/add modal -->
-  <div class="modal-backdrop" id="taskModal">
+  <div class="modal-backdrop" id="taskModal" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
       <div class="modal-header">
@@ -941,12 +954,22 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-08 v15';
+  const APP_VERSION = '2026-08-08 v16';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-08 v16', notes: [
+      'The "Got 10 / 20 / 30 min" chips are gone. In their place is a "Today\'s time" slider that sets how much time you have for the whole day — dailies come off the top and the rest buys everything else. It only applies to today and never changes your usual weekday/weekend budgets.',
+      'Undoing a completion no longer wrecks the last-done date. Tapping "undo" on a finished card used to invent a date instead of restoring the real one, which could move a twice-yearly task months backwards.',
+      'You can now un-tick a task in Sprint and in preset checklists. Before, tapping a ticked one just re-completed it.',
+      'A snoozed task can now actually be un-snoozed, from the card or the ⋯ menu. "Mark due" used to say it worked and quietly do nothing.',
+      'Tapping "edit" on a last-done date now opens straight away when another one is already open, instead of needing two taps and redealing your hand.',
+      'Bob\'s tasks no longer eat your time budget. Logging his chores was silently shrinking your own hand.',
+      'The upstairs robot mop now starts the sprint alongside the other robot runs instead of being stranded at the very end.',
+      'Adding a task back to today after removing it now sticks, instead of vanishing on the next redeal.',
+    ]},
     { v: '2026-08-08 v15', notes: [
       'Clothing laundry is now sorted by colour: "My clothes laundry" has been replaced by separate whites, cools, and warms loads. Whites moved to weekly, cools weekly, warms every 10 days.',
       'Laundry loads are now marked with a checkbox in the task editor instead of a fixed internal list, so a custom wash task can join the one-per-day laundry slot too.',
@@ -1018,7 +1041,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {} };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -1029,6 +1052,7 @@
     hand: 'array', guestHand: 'array', resetHand: 'array', goingOutHand: 'array',
     handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
     lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number', seenVersion: 'string',
+    todayBudget: 'number', todayBudgetDate: 'string',
   };
 
   // The single place a parsed blob becomes a valid state object — used by both the
@@ -1393,8 +1417,33 @@
 
     const HEAVY_THRESHOLD = 15;
     const HEAVY_MAX = 2;
-    const budget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
-    const completedNonDailyTime = allTasks.filter(t => t.freq > 1 && wasCompletedToday(t))
+    const mine = t => t.owner === 'alina' || t.owner === 'either';
+
+    // Everything the day is already committed to before a single extra is picked:
+    // the dailies that will be forced into the hand, plus any already done today.
+    // Only needed for the todayBudget override, but it is the honest denominator
+    // for "how much time do I have today" either way.
+    const dailyLoadIds = new Set([
+      ...dailyIds,
+      ...pinned.filter(id => { const t = allTasks.find(x => x.id === id); return t && t.freq === 1 && !t.oneOff; }),
+      ...allTasks.filter(t => t.freq === 1 && !t.oneOff && mine(t) && wasCompletedToday(t)).map(t => t.id),
+    ]);
+    const dailyTime = [...dailyLoadIds].reduce((s, id) => {
+      const t = allTasks.find(x => x.id === id);
+      return s + (t ? taskTime(t) : 0);
+    }, 0);
+
+    // The dated override is a TOTAL for the day — dailies come off the top and
+    // whatever is left buys extras. The stored weekday/weekend budgets keep their
+    // original meaning (extras only), so nothing about them changes here.
+    const baseBudget = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
+    const override = (state.todayBudgetDate === today && state.todayBudget != null) ? state.todayBudget : null;
+    const budget = override === null ? baseBudget : Math.max(0, override - dailyTime);
+
+    // Owner filter matters: the pool below is hers, so letting a task only Bob
+    // ever does spend her budget silently shrank her hand by however long his
+    // work took. She logs his completions, which is exactly when this bit.
+    const completedNonDailyTime = allTasks.filter(t => t.freq > 1 && mine(t) && wasCompletedToday(t))
       .reduce((s, t) => s + taskTime(t), 0);
     const alwaysAssignedTime = alwaysAssigned.reduce((s, id) => {
       const t = allTasks.find(t => t.id === id);
@@ -1652,6 +1701,15 @@
     if (!task) return;
     const prev = state.completions[id] || 0;
     const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
+    // Remember the date this replaced, so the card's "undo" can put the real one
+    // back instead of inventing "now - freq". Only stash a genuinely older date:
+    // checking the same task off twice today must not overwrite it with today.
+    if (!state.prevCompletions) state.prevCompletions = {};
+    Object.keys(state.prevCompletions).forEach(k => {
+      const c = state.completions[k];
+      if (!c || dayKeyOf(c) !== todayStr()) delete state.prevCompletions[k]; // same-day affordance only
+    });
+    if (!prev || dayKeyOf(prev) !== todayStr()) state.prevCompletions[id] = prev;
     state.completions[id] = Date.now();
     if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
     if (!state.completionHistory) state.completionHistory = {};
@@ -1711,6 +1769,8 @@
     if (prevBestStreak !== undefined) state.bestStreak = prevBestStreak;
     if (prev) state.completions[id] = prev;
     else delete state.completions[id];
+    if (state.prevCompletions) delete state.prevCompletions[id]; // consumed
+
     if (wasInProgress) {
       if (!state.inProgress) state.inProgress = {};
       state.inProgress[id] = wasInProgress;
@@ -1768,9 +1828,27 @@
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
     state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+    // daysOverdue() short-circuits on an active snooze before it ever reads the
+    // completion date, so without this the button toasted "Marked as due" and
+    // changed nothing — and it is the button you reach for to undo a snooze.
+    if (state.snoozed) delete state.snoozed[id];
     saveState();
     render();
     showToast('Marked as due');
+  }
+
+  function unsnoozeTask(id) {
+    if (state.snoozed) delete state.snoozed[id];
+    state.hand = null;
+    state.handDate = null;
+    saveState();
+    render();
+    showToast('Un-snoozed');
+  }
+
+  function isSnoozed(id) {
+    const until = state.snoozed && state.snoozed[id];
+    return !!until && Date.now() < until;
   }
 
   function unflagTask(id) {
@@ -1792,10 +1870,23 @@
     render();
   }
 
+  // The card's "undo", the All Tasks checkbox, and un-ticking in Sprint all land
+  // here. It has to be as lossless as the toast's Undo: the old version faked
+  // "now - freq", which for a twice-yearly task moved last-done six months
+  // BACKWARDS and destroyed the real date with no way to recover it.
   function uncompleteTask(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
-    state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+    const stashed = (state.prevCompletions || {})[id];
+    if (stashed !== undefined) {
+      if (stashed) state.completions[id] = stashed;
+      else delete state.completions[id];
+      delete state.prevCompletions[id];
+    } else {
+      // No stash: completed on an earlier run, or restored from a backup written
+      // before this existed. Marking it due now is the only safe guess left.
+      state.completions[id] = Date.now() - task.freq * 86400000 - 3600000;
+    }
     if (state.completionHistory && state.completionHistory[id]) {
       const today = todayStr();
       state.completionHistory[id] = state.completionHistory[id].filter(ts => {
@@ -1814,11 +1905,27 @@
     else completeTask(id);
   }
   
+  // Putting a task into today's hand has to lift the for-today removal, or the
+  // next redeal quietly takes it straight back out again. pinTask already did
+  // this; every other "add it to today" path did not.
+  function unremoveToday(id) {
+    if (state.removedToday) state.removedToday = state.removedToday.filter(x => x !== id);
+  }
+
+  function markRemovedToday(id) {
+    if (state.removedTodayDate !== todayStr()) { state.removedToday = []; state.removedTodayDate = todayStr(); }
+    if (!state.removedToday.includes(id)) state.removedToday.push(id);
+  }
+
   function swapTask(id) {
     const overflow = getOverflowTasks();
     if (!overflow.length) { showToast('Nothing else available'); return; }
     const idx = state.hand.indexOf(id);
-    if (idx >= 0) state.hand[idx] = overflow[0].id;
+    if (idx >= 0) {
+      state.hand[idx] = overflow[0].id;
+      markRemovedToday(id);          // else the task you swapped away returns on redeal
+      unremoveToday(overflow[0].id);
+    }
     saveState();
     render();
     showToast('Swapped!');
@@ -1828,9 +1935,7 @@
     state.hand = (state.hand || []).filter(h => h !== id);
     if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
     if (state.inProgress) delete state.inProgress[id]; // else it returns on next deal
-    // Keep it out of any redeal until tomorrow
-    if (state.removedTodayDate !== todayStr()) { state.removedToday = []; state.removedTodayDate = todayStr(); }
-    if (!state.removedToday.includes(id)) state.removedToday.push(id);
+    markRemovedToday(id);                              // keep it out of any redeal until tomorrow
     saveState();
     render();
   }
@@ -1868,8 +1973,7 @@
   
   function pinTask(id) {
     if (!state.pinnedIds) state.pinnedIds = [];
-    // Pinning a previously-removed task overrides the for-today removal
-    if (state.removedToday) state.removedToday = state.removedToday.filter(x => x !== id);
+    unremoveToday(id);   // pinning overrides the for-today removal
     if (state.pinnedIds.includes(id)) return;
     state.pinnedIds.push(id);
     // If task isn't in hand, add it and bump lowest-priority non-pinned non-daily
@@ -1927,6 +2031,16 @@
     showToast(labels[mode] || mode);
   }
   
+  // Closing a date picker calls this for whatever is in the field, which is
+  // usually the date that was already there. Saving that anyway redealt the whole
+  // hand and toasted "Last done updated" for an edit that never happened.
+  function setLastDoneIfChanged(id, dateStr) {
+    if (!dateStr) return;
+    const cur = state.completions[id];
+    if (cur && new Date(cur).toISOString().slice(0, 10) === dateStr) return;
+    setLastDone(id, dateStr);
+  }
+
   function setLastDone(id, dateStr) {
     if (!dateStr) return;
     const d = new Date(dateStr + 'T12:00:00');
@@ -2079,34 +2193,89 @@
     html += onThisDayHtml();
     html += '<div class="bottom-pad"></div>';
     document.getElementById('alinaTaskList').innerHTML = html;
-    renderMicroRow();
+    renderDayBudget();
     if (quickLogOpen) renderQuickLogResults();
   }
 
-  // ─── F-5: "I've got 10 minutes" ───────────────────────────────────────────
-  // A transient budget override, deliberately NOT persisted — it's a moment, not
-  // a setting. Redealing or tapping again returns to the normal hand.
-  let microBudget = null;
-  function renderMicroRow() {
-    const row = document.getElementById('microRow');
-    if (!row) return;
-    row.innerHTML = '<span class="micro-label">Got</span>' +
-      [10, 20, 30].map(m => '<button class="micro-chip' + (microBudget === m ? ' active' : '') +
-        '" onclick="setMicroHand(' + m + ')">' + m + ' min</button>').join('');
+  // ─── F-5b: "how much time do I have today" ────────────────────────────────
+  // A TOTAL for today, stored against today's date so it survives a reload and
+  // expires on its own tomorrow. It never touches budgetWeekday/budgetWeekend —
+  // sliding today to 20 minutes must not make every future Tuesday 20 minutes.
+  const DAY_BUDGET_MAX = 240;
+  const DAY_BUDGET_STEP = 5;
+
+  function dayBudgetOverride() {
+    return (state.todayBudgetDate === todayStr() && state.todayBudget != null) ? state.todayBudget : null;
   }
 
-  function setMicroHand(mins) {
-    if (microBudget === mins) { microBudget = null; state.hand = null; dealHand(); saveState(); render(); return; }
-    microBudget = mins;
-    const saved = { wd: state.budgetWeekday, we: state.budgetWeekend };
-    state.budgetWeekday = mins; state.budgetWeekend = mins;
-    state.hand = null; state.handDate = null;
+  // Read off the dealt hand rather than recomputed, so the number under the
+  // slider is the same daily load dealHand actually charged against the total.
+  function handDailyMinutes() {
+    return getHandTasks()
+      .filter(t => t.freq === 1 && !t.oneOff)
+      .reduce((s, t) => s + taskTime(t), 0);
+  }
+
+  function renderDayBudget() {
+    const row = document.getElementById('dayBudgetRow');
+    if (!row) return;
+    const dailyTime = handDailyMinutes();
+    const override = dayBudgetOverride();
+    const base = isWeekend() ? state.budgetWeekend : state.budgetWeekday;
+    const value = override === null ? dailyTime + base : override;
+    const extra = Math.max(0, value - dailyTime);
+    const note = extra > 0
+      ? '~' + fmtMinutes(dailyTime) + ' of dailies + ' + fmtMinutes(extra) + ' of everything else'
+      : '~' + fmtMinutes(dailyTime) + ' of dailies alone — no room for anything else';
+    row.innerHTML =
+      '<div class="day-budget-top">' +
+        '<span class="day-budget-label">Today\'s time</span>' +
+        (override !== null ? '<button class="day-budget-reset" onclick="clearDayBudget()">back to usual</button>' : '') +
+        '<span class="day-budget-val" id="dayBudgetVal">' + fmtMinutes(value) + '</span>' +
+      '</div>' +
+      '<input type="range" class="day-budget-slider" id="dayBudgetSlider" min="0" max="' + DAY_BUDGET_MAX + '" step="' + DAY_BUDGET_STEP + '" value="' + Math.min(value, DAY_BUDGET_MAX) + '"' +
+        ' aria-label="Time available today, in minutes"' +
+        ' oninput="previewDayBudget(this.value)" onchange="setDayBudget(this.value)">' +
+      '<div class="day-budget-note' + (extra > 0 ? '' : ' over') + '" id="dayBudgetNote">' + note + '</div>';
+  }
+
+  // Dragging only repaints the two labels. Re-dealing on every input event would
+  // reshuffle the hand under her thumb; the deal happens once, on release.
+  function previewDayBudget(v) {
+    const value = parseInt(v);
+    const dailyTime = handDailyMinutes();
+    const extra = Math.max(0, value - dailyTime);
+    const val = document.getElementById('dayBudgetVal');
+    const note = document.getElementById('dayBudgetNote');
+    if (val) val.textContent = fmtMinutes(value);
+    if (note) {
+      note.textContent = extra > 0
+        ? '~' + fmtMinutes(dailyTime) + ' of dailies + ' + fmtMinutes(extra) + ' of everything else'
+        : '~' + fmtMinutes(dailyTime) + ' of dailies alone — no room for anything else';
+      note.classList.toggle('over', extra === 0);
+    }
+  }
+
+  function setDayBudget(v) {
+    state.todayBudget = parseInt(v);
+    state.todayBudgetDate = todayStr();
+    state.hand = null;
+    state.handDate = null;
     dealHand();
-    state.budgetWeekday = saved.wd; state.budgetWeekend = saved.we;
     state.hand = mergeStickyHand(state.hand || []);
     saveState();
     render();
-    showToast('Dealt a ' + mins + '-minute hand');
+    showToast('Today: ' + fmtMinutes(state.todayBudget));
+  }
+
+  function clearDayBudget() {
+    state.todayBudget = null;
+    state.todayBudgetDate = null;
+    state.hand = null;
+    state.handDate = null;
+    saveState();
+    render();
+    showToast('Back to your usual budget');
   }
 
   // ─── F-4: "On this day" ───────────────────────────────────────────────────
@@ -2231,7 +2400,11 @@
         cardBtns += '<button class="task-btn" onclick="' + stop + 'toggleInProgress(\'' + task.id + '\')">started</button>';
       }
       // Slot 2 — only when the task isn't due, where it's the one thing you'd want.
-      if (!isDue(task) && !task.oneOff) {
+      // A snoozed task gets un-snooze instead: "mark due" is the wrong verb for it,
+      // and the snooze was previously impossible to lift without completing it.
+      if (isSnoozed) {   // the local boolean above, not the global helper it shadows
+        cardBtns += '<button class="task-btn" onclick="' + stop + 'unsnoozeTask(\'' + task.id + '\')" title="Cancel the snooze">un-snooze</button>';
+      } else if (!isDue(task) && !task.oneOff) {
         cardBtns += '<button class="task-btn" onclick="' + stop + 'markTaskDue(\'' + task.id + '\')" title="Mark as due (enters dealing pool without flag priority)">mark due</button>';
       }
     }
@@ -2380,6 +2553,7 @@
     const isFlagged = (state.flaggedIds || []).includes(id);
     const isInProgress = !!(state.inProgress && state.inProgress[id]);
     const timerRunning = activeTimer && activeTimer.id === id;
+    const snoozed = isSnoozed(id);
     const q = "'" + id + "'";
     const btn = (label, onclick, cls) =>
       '<button class="sheet-btn' + (cls ? ' ' + cls : '') + '" onclick="' + onclick + '">' + label + '</button>';
@@ -2389,14 +2563,15 @@
     if (!isDone && !timerRunning && !isInProgress) html += btn('⏱ Time it', 'taskAction(toggleTimer,' + q + ')');
     if (!isDone && !task.oneOff) html += btn(isPinned ? '📌 Unpin' : '📌 Pin', 'taskAction(togglePin,' + q + ')', isPinned ? 'on' : '');
     if (!isDone && !task.oneOff) html += btn(isFlagged ? '🚩 Unflag' : '🚩 Flag', 'taskAction(' + (isFlagged ? 'unflagTask' : 'flagTask') + ',' + q + ')', isFlagged ? 'on' : '');
-    if (!isDone && !isDue(task) && !task.oneOff) html += btn('Mark due', 'taskAction(markTaskDue,' + q + ')');
+    if (!isDone && snoozed) html += btn('⏰ Un-snooze', 'taskAction(unsnoozeTask,' + q + ')');
+    if (!isDone && !snoozed && !isDue(task) && !task.oneOff) html += btn('Mark due', 'taskAction(markTaskDue,' + q + ')');
     if (canSwap && !isDone && !isPinned && !task.oneOff) html += btn('🔀 Swap', 'taskAction(swapTask,' + q + ')');
     if (!task.oneOff) html += btn('Why this task?', 'closeTaskActions();showWhy(' + q + ')');
     if (!isDone) html += btn('Remove from today', 'taskAction(removeFromHand,' + q + ')', 'danger wide');
     html += '</div>';
 
     if (!isDone && !isPinned && !task.oneOff) {
-      html += '<div class="sheet-group"><div class="sheet-group-label">Snooze</div><div class="sheet-chips">' +
+      html += '<div class="sheet-group"><div class="sheet-group-label">' + (snoozed ? 'Snooze further' : 'Snooze') + '</div><div class="sheet-chips">' +
         [1,2,3].map(d => '<button onclick="taskAction(snoozeTask,' + q + ',' + d + ')">' + d + ' day' + (d>1?'s':'') + '</button>').join('') +
       '</div></div>';
     }
@@ -2548,10 +2723,13 @@
     // Today's laundry load (towels, microfiber, whites…) rides along next to
     // "Start a load of laundry" so you know what to wash when you launch it.
     const SPRINT_LOAD_IDS = hand.filter(t => t.load).map(t => t.id);
-    const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
+    // Every robot RUN belongs here — they are the passive jobs you set going and
+    // walk away from. rob_mop_us was added in the per-unit split and missed, so it
+    // fell through to a one-task block at the very end of the sprint.
+    const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
     const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id) || SPRINT_LOAD_IDS.includes(t.id));
     if (launchTasks.length) {
-      const launchOrder = ['l_start', ...SPRINT_LOAD_IDS, 'rob_run_ds', 'rob_run_us', 'rob_mop', 'bed_make'];
+      const launchOrder = ['l_start', ...SPRINT_LOAD_IDS, 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
       launchTasks.sort((a, b) => launchOrder.indexOf(a.id) - launchOrder.indexOf(b.id));
       blocks.push({ label: 'Launch', tasks: launchTasks });
       launchTasks.forEach(t => assigned.add(t.id));
@@ -2685,7 +2863,7 @@
         const sRemoveBtn = !isDone && !sPinned
           ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
           : '';
-        html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')">' +
+        html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="toggleComplete(\'' + t.id + '\')">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
@@ -3118,6 +3296,7 @@
   function addRandomPickToHand() {
     if (!randomPick) return;
     if (!state.hand) state.hand = [];
+    unremoveToday(randomPick.id);
     if (!state.hand.includes(randomPick.id)) state.hand.push(randomPick.id);
     if (!state.handDate) state.handDate = todayStr();
     randomPick = null;
@@ -3292,6 +3471,9 @@
     }, 0);
   }
   
+  // Ticks here toggle, like the ones on My Hand. They used to only ever complete,
+  // so a mis-tap in a checklist was uncorrectable once the undo toast expired —
+  // tapping the ticked card just re-fired the completion.
   function renderPresetChecklist(taskIds, taskSource) {
     const allRealTasks = getAllTasks();
     let html = '';
@@ -3303,7 +3485,7 @@
       const taskDue = realTask && !isDone && isDue(realTask);
       const dueHtml = taskDue ? ' <span class="task-overdue" style="font-size:var(--fs-label);padding:1px 5px">due</span>' : '';
       html +=
-        '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="completeTask(\'' + t.id + '\')" style="margin:0 0 6px">' +
+        '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="toggleComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
@@ -3560,7 +3742,7 @@
     html +=
       '<div class="settings-card">' +
         '<div class="settings-card-title">Recovery Mode</div>' +
-        '<div class="settings-card-desc">When things feel overwhelming. Start with Phase 1 — that\'s enough. Phase 1 is only ~' + fmtMinutes(p1Time) + ' min.</div>' +
+        '<div class="settings-card-desc">When things feel overwhelming. Start with Phase 1 — that\'s enough. Phase 1 is only ~' + fmtMinutes(p1Time) + '.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (recActive ? '14px' : '0') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
     if (recActive) {
       html +=
@@ -3579,7 +3761,7 @@
     html +=
       '<div class="settings-card">' +
         '<div class="settings-card-title">Post-Illness</div>' +
-        '<div class="settings-card-desc">Sanitize high-touch surfaces first (~' + fmtMinutes(piP1Time) + ' min), then restore normal routines when you\'re ready.</div>' +
+        '<div class="settings-card-desc">Sanitize high-touch surfaces first (~' + fmtMinutes(piP1Time) + '), then restore normal routines when you\'re ready.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (piActive ? '14px' : '0') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
     if (piActive) {
       html +=
@@ -3817,7 +3999,10 @@
     const lastWeek = sumRange(7, 14);
 
     // ── Heatmap: 13 weeks, columns = weeks, rows = Sun–Sat ──
-    const totalDays = 91 + today.getDay(); // pad back to a Sunday
+    // The first cell must land on a Sunday for a column to be a calendar week:
+    // it sits totalDays-1 back, so totalDays-1 ≡ today.getDay() (mod 7). 91+d was
+    // one short and every column ran Mon–Sun.
+    const totalDays = 92 + today.getDay();
     const cells = [];
     let maxCount = 0;
     for (let i = totalDays - 1; i >= 0; i--) {
@@ -4177,7 +4362,8 @@
           '<li><b>Cat tasks</b>: −0.5 tiebreaker boost</li>' +
           '<li><b>Zone match</b>: −2 when room is in active zone</li>' +
           '<li><b>Overdue</b>: up to −80% of frequency based on how overdue</li>' +
-          '<li><b>Starvation boost</b>: −0.3 per day a due task was not selected</li>' +
+          '<li><b>Starvation boost</b>: −0.3 per day a due task was not selected, capped at 15% of frequency</li>' +
+          '<li><b>Flagged</b>: −50, so a flagged task surfaces ahead of everything else</li>' +
           '<li><b>Heavy task cap</b>: max 2 tasks over 15m per hand</li>' +
         '</ul>' +
       '</div>' +
@@ -4667,6 +4853,7 @@
   
   function addToHand(id) {
     if (!state.hand) dealHand();
+    unremoveToday(id);
     if (!state.hand.includes(id)) {
       state.hand.push(id);
       saveState();
@@ -4678,21 +4865,22 @@
   // removeFromHand is defined earlier near swapTask — this duplicate is removed
   
   function toggleManageDp(dpId) {
-    const row = document.getElementById(dpId);
-    if (!row) return;
-    const isOpen = row.classList.contains('open');
+    if (!document.getElementById(dpId)) return;
+    const isOpen = document.getElementById(dpId).classList.contains('open');
     document.querySelectorAll('.manage-dp-row.open').forEach(r => {
-      const taskId = r.id.replace(/^mdp_/, '');
-      saveManageDate(taskId);
       r.classList.remove('open');
+      saveManageDate(r.id.replace(/^mdp_/, ''));   // may re-render and detach `r`
     });
-    if (!isOpen) row.classList.add('open');
+    // Re-query: a save above re-renders the list, so the element captured before
+    // the loop is detached and opening it would silently do nothing.
+    const row = document.getElementById(dpId);
+    if (row && !isOpen) row.classList.add('open');
   }
-  
+
   function saveManageDate(taskId) {
     const input = document.getElementById('minput_' + taskId);
     if (!input) return;
-    setLastDone(taskId, input.value);
+    setLastDoneIfChanged(taskId, input.value);
   }
   
   function saveZone() {
@@ -4738,15 +4926,14 @@
   }
   
   function toggleDatePicker(dpId) {
-    const row = document.getElementById(dpId);
-    if (!row) return;
-    const isOpen = row.classList.contains('open');
+    if (!document.getElementById(dpId)) return;
+    const isOpen = document.getElementById(dpId).classList.contains('open');
     document.querySelectorAll('.date-picker-row.open').forEach(r => {
-      const taskId = r.id.replace(/^dp_/, '');
-      saveDate(taskId);
       r.classList.remove('open');
+      saveDate(r.id.replace(/^dp_/, ''));          // may re-render and detach `r`
     });
-    if (!isOpen) row.classList.add('open');
+    const row = document.getElementById(dpId);     // see toggleManageDp
+    if (row && !isOpen) row.classList.add('open');
   }
   
   function snoozeTask(id, days) {
@@ -4763,7 +4950,7 @@
   function saveDate(taskId) {
     const input = document.getElementById('input_' + taskId);
     if (!input) return;
-    setLastDone(taskId, input.value);
+    setLastDoneIfChanged(taskId, input.value);
   }
   
   let toastTimer;
