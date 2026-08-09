@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-08 v16">
+  <meta name="app-version" content="2026-08-08 v17">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -430,6 +430,21 @@
     .day-budget-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%; background: var(--green); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
     .day-budget-slider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg3); }
     .day-budget-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--green); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+    /* Vacation decay picker (task editor) */
+    .vac-chips { display: flex; gap: 6px; }
+    .vac-chip { flex: 1; padding: 8px 4px; font-size: var(--fs-meta); border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); cursor: pointer; }
+    .vac-chip.on { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
+    .vac-hint { font-size: var(--fs-label); color: var(--text3); margin-top: 5px; line-height: 1.4; }
+    .vac-legend { display: flex; gap: 6px; margin: 10px 0 4px; }
+    .vac-legend-box { flex: 1; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 8px; padding: 8px 6px; text-align: center; }
+    .vac-legend-num { font-size: var(--fs-title); font-weight: 700; color: var(--text); }
+    .vac-legend-label { font-size: var(--fs-label); color: var(--text3); }
+    .vac-list { font-size: var(--fs-meta); color: var(--text2); line-height: 1.6; margin-top: 8px; }
+    .vac-list b { color: var(--text); font-weight: 600; }
+    .vac-details > summary { font-size: var(--fs-sub); color: var(--text2); cursor: pointer; padding: 6px 0; list-style: none; }
+    .vac-details > summary::-webkit-details-marker { display: none; }
+    .vac-details > summary::before { content: '▸ '; color: var(--text3); }
+    .vac-details[open] > summary::before { content: '▾ '; }
     /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
     .onthisday { margin: 16px 24px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--bg2); border: 0.5px solid var(--border); }
     .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
@@ -666,6 +681,11 @@
         <div>
           <div class="field-label">Active months (none selected = all year)</div>
           <div id="monthChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+        <div>
+          <div class="field-label">While you're away (vacation mode)</div>
+          <div id="vacChips" class="vac-chips"></div>
+          <div id="vacHint" class="vac-hint"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -928,6 +948,53 @@
     br_win: APR_OCT, mud_win: APR_OCT,
   };
 
+  // ── Vacation decay ────────────────────────────────────────────────────────
+  // A house nobody is using does not get dirtier from use — but dust still
+  // settles, filters still fill and produce still rots. So a pause can't hold
+  // every task equally. The value is the SHARE OF THE PAUSE GIVEN BACK on
+  // resume: 'freeze' returns all of it (the task did not age at all), 'full'
+  // returns none (it aged exactly as if you were home).
+  const VAC_SHIFT = { freeze: 1, half: 0.5, full: 0 };
+  const VAC_LABELS = { freeze: 'Freeze', half: 'Half speed', full: 'Ages normally' };
+  const VAC_HINTS = {
+    freeze: 'Needs someone using the house — it can\'t come due while you\'re gone.',
+    half:   'Partly time-driven: dust settles and grime arrives even in an empty house.',
+    full:   'Pure calendar — being away makes no difference at all.',
+  };
+
+  // Applied once via migration into state.taskVac; edits in the task editor win
+  // from then on. Anything not listed defaults to 'freeze', which is exactly how
+  // vacation mode behaved before this existed.
+  const VAC_HALF = [
+    // Dust settles on its own schedule
+    'lr_dust','dr_dust','bed_dust','br_dust','off_dust','hs_dust','lroom_dust',
+    'lr_blinds','dr_blinds','lr_fan','bed_fan','br_fan','off_fan','dr_fixtures',
+    'house_vents','house_baseboards','sun_baseboards','k_top_fridge','k_cabinets',
+    // Floors pick up settled dust rather than footfall
+    'lr_vacuum','bed_vacuum','br_vacuum','off_vacuum','hs_sweep','hs_mop','bed_mop_up',
+    'usb_mop','mud_sweep','house_entryway','house_rug_deep','bed_behind',
+    'lr_sofa','off_couch','dr_chairs',
+    // Outdoor grime keeps arriving
+    'k_win','lr_win','dr_win','dsb_win','usb_win','bed_win','sun_win','off_win','br_win','mud_win',
+    // Air handling keeps running
+    'dr_purifier','bed_purifier','dr_purifier_deep','bed_purifier_deep',
+    // Produce rots to its own clock even with nobody eating it
+    'k_fridge',
+    // Bathroom surfaces a humid house keeps working on. The supply-and-tidy jobs
+    // in the same rooms (towels, trash, soap, cups, brushes, drawers) stay frozen:
+    // no amount of humidity makes a soap refill due.
+    'dsb_toilet','dsb_sink','dsb_tub','dsb_mirror','dsb_handles',
+    'usb_toilet','usb_sink','usb_shower','usb_mirror','usb_grout','usb_curtain','usb_handles',
+  ];
+  const VAC_FULL = [
+    'k_fridge_deep','k_freezer','k_fridge_filter','k_fridge_coils',
+    'hs_air_filter','bed_fan_filters','bed_mattress','k_butcher','custom_1776614703299',
+    'bp_tidy','bp_sweep','bp_furniture',
+  ];
+  const DEFAULT_VAC = {};
+  VAC_HALF.forEach(id => DEFAULT_VAC[id] = 'half');
+  VAC_FULL.forEach(id => DEFAULT_VAC[id] = 'full');
+
   // Zone → rooms mapping
   const ZONE_ROOMS = {
     1: ['Dining Room','Mud Room','Back Porch'],
@@ -954,12 +1021,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-08 v16';
+  const APP_VERSION = '2026-08-08 v17';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-08 v17', notes: [
+      'Vacation mode no longer treats every task the same. Each one now has a "while you\'re away" setting: Freeze (can\'t come due while you\'re gone — laundry, dishes, tidying, cat care), Half speed (dust, floors, windows, bathroom surfaces), or Ages normally (fridge, filters, descaling by the calendar, the back porch).',
+      'Sensible settings are applied to every task already; change any of them in the task editor on All Tasks. Settings → Vacation Mode lists which tasks are in which group.',
+    ]},
     { v: '2026-08-08 v16', notes: [
       'The "Got 10 / 20 / 30 min" chips are gone. In their place is a "Today\'s time" slider that sets how much time you have for the whole day — dailies come off the top and the rest buys everything else. It only applies to today and never changes your usual weekday/weekend budgets.',
       'Undoing a completion no longer wrecks the last-done date. Tapping "undo" on a finished card used to invent a date instead of restoring the real one, which could move a twice-yearly task months backwards.',
@@ -1041,7 +1112,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {} };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -1273,6 +1344,13 @@
     recordTime(id, mins);
     render();
     showToast('⏱ ' + mins + 'm logged');
+  }
+
+  // Unset means 'freeze', which is how vacation mode behaved before per-task
+  // decay existed — so a task nobody has classified keeps the old behaviour.
+  function vacMode(id) {
+    const m = (state.taskVac || {})[id];
+    return VAC_SHIFT[m] === undefined ? 'freeze' : m;
   }
 
   function inSeason(task) {
@@ -4389,14 +4467,32 @@
       })() +
   
       // Card: Vacation mode
-      '<div class="settings-card">' +
-        '<div class="settings-card-title">Vacation Mode</div>' +
-        '<div class="settings-card-desc">Pause while you\'re away: no new hands are dealt and starvation stops accruing. When you resume, every task\'s last-done date shifts forward by the time away, so you don\'t come home to a wall of fake-overdue tasks.</div>' +
-        (state.paused
-          ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
-            '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
-          : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
-      '</div>' +
+      (function() {
+        const buckets = { freeze: [], half: [], full: [] };
+        all.filter(t => !t.oneOff).forEach(t => buckets[vacMode(t.id)].push(t));
+        const names = list => list.map(t => t.name).sort().join(' · ');
+        return '<div class="settings-card">' +
+          '<div class="settings-card-title">Vacation Mode</div>' +
+          '<div class="settings-card-desc">Pause while you\'re away: no new hands are dealt and starvation stops accruing. On resume, each task gets back the share of the time away that its own setting allows — so laundry doesn\'t come home overdue, but the fridge filter does.</div>' +
+          '<div class="vac-legend">' +
+            ['freeze','half','full'].map(m =>
+              '<div class="vac-legend-box"><div class="vac-legend-num">' + buckets[m].length + '</div>' +
+              '<div class="vac-legend-label">' + VAC_LABELS[m] + '</div></div>').join('') +
+          '</div>' +
+          // Collapsed: the half-speed list alone runs to 60-odd tasks and would
+          // swallow the whole Settings tab if it were always open.
+          '<details class="vac-details"><summary>Which tasks are in which group</summary>' +
+            '<div class="vac-list"><b>Ages normally:</b> ' + (names(buckets.full) || 'none') + '</div>' +
+            '<div class="vac-list"><b>Half speed:</b> ' + (names(buckets.half) || 'none') + '</div>' +
+            '<div class="vac-list"><b>Frozen:</b> everything else — all washing, dishes, tidying, bathroom supplies and cat care.</div>' +
+          '</details>' +
+          '<div class="settings-card-desc" style="margin:8px 0 12px">Change any task in its editor on the All Tasks tab.</div>' +
+          (state.paused
+            ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
+              '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
+            : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
+        '</div>';
+      })() +
 
       // Card: Reload app
       '<div class="settings-card">' +
@@ -4471,11 +4567,18 @@
     if (!state.paused) return;
     const pausedAt = state.pausedAt || Date.now();
     const delta = Date.now() - pausedAt;
-    // Shift pre-pause completions forward by the pause duration so nothing
-    // aged while away. Completions logged during the pause stay as-is.
+    // Shift each pre-pause completion forward by the share of the pause its own
+    // setting gives back: all of it for a frozen task, half for a half-speed one,
+    // none for one that ages normally. Completions logged during the pause (a
+    // sitter's, or a task you did the morning you left) stay exactly as they are.
+    const counts = { freeze: 0, half: 0, full: 0 };
     Object.keys(state.completions).forEach(id => {
       const ts = state.completions[id];
-      if (ts && ts <= pausedAt) state.completions[id] = Math.min(ts + delta, Date.now());
+      if (!ts || ts > pausedAt) return;
+      const mode = vacMode(id);
+      counts[mode] = (counts[mode] || 0) + 1;
+      const shift = delta * VAC_SHIFT[mode];
+      if (shift > 0) state.completions[id] = Math.min(ts + shift, Date.now());
     });
     state.paused = false;
     state.pausedAt = null;
@@ -4483,7 +4586,9 @@
     state.handDate = null;
     saveNow();
     render();
-    showToast('Welcome home! Due dates shifted by ' + Math.max(1, Math.round(delta / 86400000)) + 'd');
+    const days = Math.max(1, Math.round(delta / 86400000));
+    showToast('Welcome home! ' + days + 'd away — ' + counts.freeze + ' held, ' +
+              counts.half + ' half-aged, ' + counts.full + ' aged as normal');
   }
 
   function downloadBackup(auto) {
@@ -4732,6 +4837,26 @@
     renderMonthChips();
   }
 
+  // Held in the editor rather than on the task object: saveTask rebuilds a custom
+  // task from an explicit field list, so a flag stored ON the task is silently
+  // stripped the moment you edit it. state.taskVac is keyed by id, like taskMonths.
+  let editingVac = 'freeze';
+
+  function renderVacChips() {
+    const el = document.getElementById('vacChips');
+    if (!el) return;
+    el.innerHTML = ['freeze', 'half', 'full'].map(m =>
+      '<button type="button" class="vac-chip' + (editingVac === m ? ' on' : '') +
+      '" onclick="setVacChip(\'' + m + '\')">' + VAC_LABELS[m] + '</button>').join('');
+    const hint = document.getElementById('vacHint');
+    if (hint) hint.textContent = VAC_HINTS[editingVac];
+  }
+
+  function setVacChip(m) {
+    editingVac = m;
+    renderVacChips();
+  }
+
   function openModal(id) {
     editingId = id;
     const modal = document.getElementById('taskModal');
@@ -4739,6 +4864,8 @@
 
     editingMonths = new Set(id ? ((state.taskMonths || {})[id] || []) : []);
     renderMonthChips();
+    editingVac = id ? vacMode(id) : 'freeze';
+    renderVacChips();
 
     if (id) {
       const task = getAllTasks().find(t => t.id === id);
@@ -4812,6 +4939,7 @@
     if (!state.deletedIds) state.deletedIds = [];
   
     if (!state.taskMonths) state.taskMonths = {};
+    if (!state.taskVac) state.taskVac = {};
     const months = [...editingMonths].sort((a,b) => a - b);
 
     if (editingId) {
@@ -4820,11 +4948,13 @@
       state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat, load };
       if (months.length && months.length < 12) state.taskMonths[editingId] = months;
       else delete state.taskMonths[editingId];
+      state.taskVac[editingId] = editingVac;
     } else {
       const newId = 'custom_' + Date.now();
       state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat, load };
       state.completions[newId] = Date.now() - freq * 86400000;
       if (months.length && months.length < 12) state.taskMonths[newId] = months;
+      state.taskVac[newId] = editingVac;
     }
   
     state.hand = null;
@@ -5003,7 +5133,18 @@
       state.seasonalDefaultsApplied = true;
       saveState();
     }
-  
+
+    // One-time vacation-decay defaults, same shape: classify by rule once, then
+    // her edits win. Everything unlisted stays 'freeze' — the old behaviour.
+    if (!state.vacDefaultsApplied) {
+      if (!state.taskVac) state.taskVac = {};
+      Object.entries(DEFAULT_VAC).forEach(([id, mode]) => {
+        if (!(id in state.taskVac)) state.taskVac[id] = mode;
+      });
+      state.vacDefaultsApplied = true;
+      saveState();
+    }
+
     // Apply loaded settings to UI
     const zoneEl = document.getElementById('zoneSelect');
     if (zoneEl) zoneEl.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);

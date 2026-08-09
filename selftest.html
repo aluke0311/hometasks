@@ -1066,6 +1066,79 @@ test('adding a removed task back to today survives a redeal', () => {
   });
 });
 
+// ─── Vacation decay ────────────────────────────────────────────────────────
+group('Vacation decay');
+
+// A pause used to hold every task equally. Now each gets back the share of the
+// time away its own setting allows: freeze all of it, half half, full none.
+test('resume gives each task back the share of the pause its setting allows', () => {
+  const away = 10 * DAY;
+  withState(st => {
+    st.taskVac = { zz_freeze: 'freeze', zz_half: 'half', zz_full: 'full' };
+    ['zz_freeze', 'zz_half', 'zz_full', 'zz_unset'].forEach(id => {
+      st.completions[id] = Date.now() - 20 * DAY;
+    });
+    st.paused = true;
+    st.pausedAt = Date.now() - away;
+  }, () => {
+    const before = {};
+    ['zz_freeze', 'zz_half', 'zz_full', 'zz_unset'].forEach(id => { before[id] = G('state').completions[id]; });
+    G('resumeApp')();
+    const shift = id => (G('state').completions[id] - before[id]) / DAY;
+    near(shift('zz_freeze'), 10, 0.2, 'a frozen task should not have aged at all');
+    near(shift('zz_half'),    5, 0.2, 'a half-speed task should get back half the trip');
+    near(shift('zz_full'),    0, 0.2, 'a normally-ageing task should get nothing back');
+    // Unclassified must behave exactly as vacation mode did before this existed.
+    near(shift('zz_unset'),  10, 0.2, 'an unset task must default to freeze');
+    eq(G('state').paused, false, 'resume did not clear the pause');
+  });
+});
+
+test('a completion logged DURING the pause is left alone', () => {
+  withState(st => {
+    // Must be a FROZEN task: a 'full' one has a zero shift anyway, so it could
+    // not tell "skipped because it is mid-pause" from "shifted by nothing".
+    st.taskVac = { zz_mid: 'freeze' };
+    st.paused = true;
+    st.pausedAt = Date.now() - 10 * DAY;
+    st.completions['zz_mid'] = Date.now() - 2 * DAY;   // the sitter did it mid-trip
+  }, () => {
+    const before = G('state').completions['zz_mid'];
+    G('resumeApp')();
+    eq(G('state').completions['zz_mid'], before, 'a mid-pause completion was shifted');
+  });
+});
+
+test('every default vacation classification names a task that exists', () => {
+  const known = new Set(G('TASKS').map(t => t.id));
+  const dead = Object.keys(G('DEFAULT_VAC')).filter(id => !known.has(id));
+  eq(dead.length, 0, 'DEFAULT_VAC entries with no task: ' + dead.join(', '));
+  const bad = Object.entries(G('DEFAULT_VAC')).filter(([, m]) => G('VAC_SHIFT')[m] === undefined);
+  eq(bad.length, 0, 'unknown decay modes: ' + bad.map(b => b.join('=')).join(', '));
+  // The three buckets must all be represented, or a rule silently collapsed.
+  const modes = new Set(Object.values(G('DEFAULT_VAC')));
+  ok(modes.has('half') && modes.has('full'), 'defaults no longer classify anything');
+});
+
+// saveTask rebuilds a custom task from an explicit field list, which is exactly
+// how a task-level flag gets silently stripped on edit. taskVac is keyed by id
+// to dodge that — this case is what proves the dodge works.
+test('editing a task does not strip its vacation setting', () => {
+  const saved = snap();
+  try {
+    S('state', fresh());
+    const id = 'lr_dust';                                  // 'half' by default
+    G('state').taskVac[id] = 'full';
+    const doc = G('document');
+    G('openModal')(id);
+    eq(G('editingVac'), 'full', 'the editor did not load the stored setting');
+    doc.getElementById('f_name').value = 'Dust surfaces (living room) edited';
+    G('saveTask')();
+    eq(G('vacMode')(id), 'full', 'saving the task stripped its vacation setting');
+    ok(!!G('state').customTasks[id], 'precondition: the edit produced a custom task');
+  } finally { S('state', saved); }
+});
+
 // ─── Sprint ordering & budget ownership ────────────────────────────────────
 group('Sprint & budget');
 
