@@ -4,37 +4,49 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-08 v17">
+  <meta name="app-version" content="2026-08-09 v18">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
   <style>
+    /* ── Editorial calm (redesign 2026-08-09, mockups 3a–3i) ────────────────
+       Warm paper instead of cool off-white, a single pine accent, tan eyebrow
+       labels. The mockups' lightest greys and their tan eyebrow (#9c968a,
+       #a89f8e, #a08f6a, #a8791f) all land between 2.6:1 and 3.5:1 on paper —
+       under this app's documented 4.5 floor. Hue kept, luminance darkened
+       until each clears 4.5:1 on --bg. Dark mode is 3h as drawn; those values
+       already pass. */
     :root {
-      --bg: #fafaf8; --bg2: #f1efe8; --bg3: #e8e6df;
-      --card: #ffffff; --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
-      /* --text3 darkened from #888780: it was 3.61:1 on white, under the 4.5 floor,
-         and it is the single most common cause of low-contrast text in the app. */
-      --text: #2c2c2a; --text2: #5f5e5a; --text3: #6e6d67;
-      /* Darkened from #e24b4a: as text it was 3.93:1 on white and 3.41:1 on
-         --red-bg (overdue badges), both under the 4.5 floor. Now 5.56 / 4.83. */
-      --red: #c0342f; --red-bg: #fcebeb;
-      /* Darker red for white text sitting ON the accent: white on --red is only
-         3.94:1, under the 4.5 floor for text this size. Same value in both themes,
-         since the pairing is white-on-red either way. */
-      --red-strong: #b3312f;
-      /* Darkened from #ba7517: white on that was 3.71:1, under the 4.5 floor, and
-         the Pause button puts white text straight onto it. Now 4.77:1. */
-      --amber: #a2650f; --amber-bg: #faeeda;
-      --green: #3b6d11; --green-bg: #eaf3de;
-      --blue: #185fa5; --blue-bg: #e6f1fb;
+      --bg: #f6f3ec; --bg2: #efe9dc; --bg3: #e4ddce;
+      --card: #fffdf8; --border: rgba(0,0,0,0.09); --border2: rgba(0,0,0,0.16);
+      /* The row separator. Lighter than --border on purpose: it repeats every
+         48px down a long list, where --border reads as a stack of rules. */
+      --hairline: rgba(0,0,0,0.07);
+      /* --text3 is the meta line under every task name — the most-repeated
+         small text in the app. Mockup #9c968a is 2.65:1 on paper; this is 4.71. */
+      --text: #23211c; --text2: #6b675d; --text3: #726c5e;
+      /* Uppercase tracked section label. Mockup #a08f6a is 2.86:1; this is 4.84. */
+      --eyebrow: #7d6839;
+      --red: #a8442f; --red-bg: #f7e6e0;
+      /* Darker red for white text sitting ON the accent. Same value in both
+         themes, since the pairing is white-on-red either way. */
+      --red-strong: #9b3c2a;
+      /* Pin amber. Mockup #a8791f is 3.53:1 as text; this is 4.77. */
+      --amber: #96600d; --amber-bg: #f4ead4;
+      /* Pine — the one accent. 7.4:1 on paper, 8.2:1 under white. */
+      --green: #26583f; --green-bg: #e8eee7;
+      /* Warm slate stands in for the old blue: one-off and custom badges were
+         the only cold thing left on a warm-paper screen. */
+      --blue: #3c5a7a; --blue-bg: #e7ecf1;
       /* Owner badges referenced these via fallback and they were never defined, so
          the light-mode literals applied in dark mode too — a pale lilac chip glowing
          on a near-black card. */
       --purple: #534ab7; --purple-bg: #eeedfe;
       --teal: #0f6e56; --teal-bg: #e1f5ee;
       /* Text sitting ON a filled accent. Must be a token: in dark mode the accents
-         are lightened, and white on a light accent fails. */
-      --on-accent: #ffffff;
+         are lightened, and white on a light accent fails. Paper-white, not pure
+         white — pure white on pine is the one place the warmth visibly breaks. */
+      --on-accent: #fffdf8;
       /* The toast inverts: its surface is var(--text), so it is DARK in light mode
          and LIGHT in dark mode. An accent on it has to flip the opposite way to
          the normal ones, hence its own token. */
@@ -44,8 +56,9 @@
          .field-input, .field-select and .zone-select all use it because iOS
          Safari zooms the page when you focus an input smaller than 16px. That
          is load-bearing — it looks like an inconsistency, but do not "fix" it. */
-      --fs-display: 28px;  /* the one big number / hero title */
-      --fs-title:   20px;  /* view + card titles */
+      --fs-hero:    34px;  /* Today's Hand only — the one serif hero per screen */
+      --fs-display: 32px;  /* screen titles, big stat numerals */
+      --fs-title:   19px;  /* card + section titles */
       --fs-body:    15px;  /* task names, primary text */
       --fs-sub:     13px;  /* secondary text, descriptions */
       --fs-meta:    12px;  /* room · time · freq */
@@ -60,23 +73,26 @@
       --nav-height: 49px;
     }
     @media (prefers-color-scheme: dark) {
+      /* Warm ink — mockup 3h. Paper becomes deep umber and pine lifts to sage so
+         it stays legible; every value below clears 4.5:1 on --bg and --card. */
       :root {
-        --bg: #1a1a18; --bg2: #222220; --bg3: #2c2c2a;
-        --card: #252523; --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.18);
-        /* Same token, lifted rather than darkened: 4.26:1 on --card in dark. */
-        --text: #f1efe8; --text2: #b4b2a9; --text3: #9a9891;
-        --red-bg: #3d1a1a; --amber-bg: #2e1f08; --green-bg: #1a2e0a; --blue-bg: #0c2240;
+        --bg: #1c1a16; --bg2: #24211c; --bg3: #33302a;
+        --card: #211f1a; --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.22);
+        --hairline: rgba(255,255,255,0.08);
+        --text: #efe9dc; --text2: #a6a08f; --text3: #8b8574;
+        --eyebrow: #a89a6f;
+        --red-bg: #3a221c; --amber-bg: #332813; --green-bg: #1e3129; --blue-bg: #1c2937;
         /* The foreground accents have to be lightened too, not just the -bg pairs.
-           Left at their light-mode values, --green rendered at 2.4:1 on --card — and
+           Left at their light-mode values, pine rendered at 1.4:1 on umber — and
            .tab.active { color: var(--green) } is the ONLY indicator of which tab
-           you're on. Every value below clears 4.5:1 against --card, --bg and --bg3. */
-        --red: #f4776f; --amber: #e8a33e; --green: #8fc45a; --blue: #6fb1f0;
+           you're on. */
+        --red: #e08a6f; --amber: #d6a94a; --green: #8fbfa3; --blue: #8fb3d9;
         --purple: #a99ef5; --purple-bg: #2b2550;
         --teal: #5fcfae;  --teal-bg: #123a30;
         /* Accents are light here, so text on them must be dark. A @media rule
            setting these per-component would silently lose the cascade to a later
            base rule at equal specificity; a custom property is what works. */
-        --on-accent: #1a1a18;
+        --on-accent: #1c1a16;
         --amber-on-inverted: #8a5409;
       }
     }
@@ -97,49 +113,74 @@
       .modal-backdrop { align-items: center; }
     }
   
-    .header { padding: env(safe-area-inset-top) 24px 0; border-bottom: 0.5px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 100; }
-    .header-inner { display: flex; justify-content: space-between; align-items: center; height: 52px; }
-    .header-logo { display: flex; align-items: center; gap: 8px; }
-    .header-logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--on-accent); font-size: var(--fs-body); flex-shrink: 0; }
-    .header-logo-text { font-size: 16px; font-weight: 500; color: var(--text); }
+    /* The brand row sits ON the paper, not on a card with a rule under it — in the
+       mockups it reads as a masthead, not as chrome. */
+    .header { padding: env(safe-area-inset-top) 26px 0; background: var(--bg); position: sticky; top: 0; z-index: 100; }
+    .header-inner { display: flex; justify-content: space-between; align-items: center; height: 44px; }
+    .header-logo { display: flex; align-items: center; gap: 8px; color: var(--green); }
+    .header-logo-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .header-logo-text { font-size: var(--fs-sub); font-weight: 600; letter-spacing: 0.02em; color: var(--green); }
+    .header-action { background: none; border: none; padding: 6px; margin: -6px; color: var(--text2); cursor: pointer; display: flex; align-items: center; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   
     .tab-row { display: none; }
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: var(--card); border-top: 0.5px solid var(--border); display: flex; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: none; background: transparent; color: var(--text3); cursor: pointer; padding: 6px 2px 4px; min-height: var(--nav-height); transition: color 0.15s; }
     .tab.active { color: var(--green); }
-    .tab-icon { font-size: var(--fs-title); line-height: 1; }
-    .tab-label { font-size: var(--fs-label); font-weight: 500; letter-spacing: 0.01em; }
+    /* The icons are stroked SVG inheriting currentColor, so the active/idle swap is
+       the same one-line colour change it was with emoji. */
+    .tab-icon { display: flex; align-items: center; justify-content: center; line-height: 1; }
+    .tab-icon svg { display: block; }
+    .tab-label { font-size: 10px; font-weight: 500; letter-spacing: 0.01em; }
+    .tab.active .tab-label { font-weight: 600; }
   
-    /* Hero header (Alina view) */
-    .view-hero { padding: 20px 24px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; }
-    .view-hero-left { }
-    .view-hero-title { font-size: var(--fs-display); font-weight: 600; line-height: 1.2; }
-    .view-hero-subtitle { font-size: var(--fs-sub); color: var(--text3); margin-top: 2px; }
-  
-    /* Stats row */
-    .stats-row { padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
-    .stats-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .stat-badge { font-size: var(--fs-meta); padding: 3px 10px; border-radius: 12px; background: var(--card); border: 0.5px solid var(--border2); color: var(--text2); white-space: nowrap; flex-shrink: 0; }
-    /* min-width:0 is load-bearing: a flex item won't shrink below its content width
-       by default, and the longest <option> ("Zone 3 — Sunroom, Office, DS Bath,
-       Laundry") was setting that floor, pushing the control off the right edge. */
-    .stats-zone { margin-left: auto; min-width: 0; }
-    /* No fixed width: a <select> sizes to its WIDEST option ("Zone 3 — Sunroom,
-       Office, DS Bath, Laundry"), so it reserves far more room than the selected
-       label needs. Let it size naturally and wrap to its own line when tight.
-       font-size 16px is load-bearing — anything smaller makes iOS zoom on focus. */
-    .zone-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 3px 8px; border-radius: var(--radius-sm); max-width: 100%; min-width: 0; text-overflow: ellipsis; }
-    .stats-progress-wrap { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-    .progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
-    .mode-selector { display: flex; gap: 6px; margin-top: 8px; }
-    .mode-btn { flex: 1; font-size: var(--fs-meta); padding: 5px 8px; border-radius: 12px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
-    .mode-btn.active { background: var(--green); color: var(--on-accent); border-color: transparent; }
+    /* Hero header (Alina view) — eyebrow, serif title, counts, one pine rule. */
+    .view-hero { padding: 8px 26px 16px; }
+    .view-hero-title { font-family: var(--serif); font-size: var(--fs-hero); font-weight: 600; line-height: 1.05; letter-spacing: -0.02em; margin-top: 6px; }
+    .view-hero-subtitle { font-size: var(--fs-label); letter-spacing: 0.18em; text-transform: uppercase; color: var(--eyebrow); font-weight: 600; }
+    .hand-counts { display: flex; align-items: baseline; gap: 14px; margin-top: 14px; }
+    .hand-counts .stat-badge { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--text); white-space: nowrap; }
+    /* The denominator greys out so the numerator is what the eye lands on; set by
+       renderAlina wrapping it in <span class="of">. */
+    .hand-counts .stat-badge .of { color: var(--text3); }
+    .hand-count-word { font-size: var(--fs-sub); color: var(--text2); white-space: nowrap; }
+    .hand-count-sep { width: 1px; height: 14px; background: var(--border2); flex-shrink: 0; }
 
-    /* Settings page cards */
-    .settings-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin: 16px 24px 0; }
-    .settings-card-title { font-size: var(--fs-body); font-weight: 600; margin-bottom: 4px; }
-    .settings-card-desc { font-size: var(--fs-sub); color: var(--text3); margin-bottom: 14px; }
+    /* Stats row — now just the progress rule and the mode/zone strip. */
+    .stats-row { padding: 0; }
+    /* min-width:0 on .mode-zone above is load-bearing: a flex item won't shrink
+       below its content width by default, and the longest <option> ("Zone 3 —
+       Sunroom, Office, DS Bath, Laundry") was setting that floor, pushing the
+       control off the right edge.
+       No fixed width either: a <select> sizes to its WIDEST option, so it reserves
+       far more room than the selected label needs. Let it size naturally.
+       font-size 16px is load-bearing — anything smaller makes iOS zoom on focus. */
+    /* Borderless in the tab strip. The native arrow is gone (appearance:none up
+       top), so the caret is drawn as a background image — a wrapper element would
+       break the flex baseline the strip aligns on.
+       font-size 16px is load-bearing — anything smaller makes iOS zoom on focus. */
+    .zone-select { border: none; background: transparent; color: var(--text2); font-size: 16px; padding: 0 16px 0 0; max-width: 100%; min-width: 0; text-overflow: ellipsis; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23726c5e' stroke-width='1.5'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right center; }
+    @media (prefers-color-scheme: dark) {
+      .zone-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238b8574' stroke-width='1.5'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E"); }
+    }
+    .stats-progress-wrap { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin: 12px 26px 0; }
+    .progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+    /* Mode is a tab strip, not pills: the underline sits on the same hairline that
+       starts the list below, so the whole head reads as one masthead block. */
+    .mode-selector { display: flex; align-items: center; gap: 20px; padding: 16px 26px 0; border-bottom: 1px solid var(--border); }
+    .mode-btn { border: none; background: none; font-size: var(--fs-sub); color: var(--text3); cursor: pointer; white-space: nowrap; padding: 0 0 12px; margin-bottom: -1px; border-bottom: 2px solid transparent; transition: color 0.15s; }
+    .mode-btn.active { color: var(--green); font-weight: 600; border-bottom-color: var(--green); }
+    .mode-zone { margin-left: auto; padding-bottom: 8px; min-width: 0; }
+
+    /* Card shell — shared by Presets and Settings. Presets sit inside a padded
+       column, so the margin is vertical only there; Settings sets its own. */
+    .settings-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin: 12px 0 0; }
+    .settings-card-title { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; margin-bottom: 4px; }
+    .settings-card-desc { font-size: var(--fs-sub); color: var(--text2); line-height: 1.5; margin-bottom: 14px; }
+    /* When the title came through presetTitle() the icon tile carries the spacing. */
+    .settings-card .ed-card-head + .settings-card-desc { margin-top: 12px; }
     .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .settings-row:last-child { margin-bottom: 0; }
     .settings-label { font-size: var(--fs-sub); color: var(--text2); }
@@ -150,103 +191,120 @@
     .settings-summary { font-size: var(--fs-meta); color: var(--text3); margin-top: 10px; }
     .settings-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
     .settings-stat-box { background: var(--bg2); border-radius: var(--radius-sm); padding: 12px 14px; }
-    .settings-stat-num { font-size: var(--fs-display); font-weight: 600; }
-    .settings-stat-label { font-size: var(--fs-meta); color: var(--text3); }
+    .settings-stat-num { font-size: 26px; font-weight: 600; }
+    .settings-stat-label { font-size: var(--fs-meta); color: var(--text3); line-height: 1.35; }
+
+    /* Stats hero (3f) — numbers, not gauges. */
+    .stat-hero { display: flex; gap: 22px; padding: 12px 26px 4px; align-items: flex-start; }
+    .stat-hero-num { font-family: var(--serif); font-size: 38px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+    .stat-hero-label { font-size: var(--fs-meta); color: var(--text3); margin-top: 5px; line-height: 1.35; }
+    .stat-hero-sep { width: 1px; align-self: stretch; background: var(--border); flex-shrink: 0; }
+    .week-bars { display: flex; align-items: flex-end; gap: 10px; padding: 8px 26px 4px; height: 128px; }
+    .week-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; justify-content: flex-end; }
+    .week-bar-fill { width: 100%; background: var(--bg3); border-radius: 4px; }
+    .week-bar-fill.today { background: var(--green); }
+    .week-bar span { font-size: var(--fs-label); color: var(--text3); }
+    .week-bar span.today { color: var(--text); font-weight: 600; }
     .zone-ref-table { width: 100%; border-collapse: collapse; font-size: var(--fs-meta); margin-top: 10px; }
     .zone-ref-table th { text-align: left; color: var(--text3); font-weight: 500; padding: 4px 0; border-bottom: 0.5px solid var(--border); }
     .zone-ref-table td { padding: 5px 0; border-bottom: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
     .zone-ref-table td:first-child { font-weight: 500; color: var(--text); width: 70px; white-space: nowrap; padding-right: 12px; }
   
-    .section { padding: 0 24px; margin-top: 16px; }
-    .section-label { font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; padding-left: 2px; display: flex; justify-content: space-between; align-items: center; }
-    .section-label-time { font-weight: 400; font-size: var(--fs-label); color: var(--text3); letter-spacing: 0; text-transform: none; }
-    .section-label-btn { background: none; border: none; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; }
+    .section { padding: 0 26px; margin-top: 0; }
+    .section-label { font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--eyebrow); padding: 16px 0 4px; display: flex; justify-content: space-between; align-items: center; }
+    .section-label-time { font-weight: 400; font-size: var(--fs-meta); color: var(--text3); letter-spacing: 0; text-transform: none; }
+    .section-label-btn { background: none; border: none; color: var(--eyebrow); cursor: pointer; display: flex; align-items: center; gap: 7px; font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; padding: 0; }
     .section-label-btn svg { transition: transform 0.2s; flex-shrink: 0; }
     .section-label-btn.open svg { transform: rotate(90deg); }
   
-    .task-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; }
-    .task-card.done { opacity: 0.45; }
-    .task-main { display: flex; align-items: center; padding: 14px 16px; gap: 12px; cursor: pointer; }
-    .task-check { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    /* ── The row (mockup 3a) ─────────────────────────────────────────────────
+       Hairline-separated, no card, no border, no inline buttons. Everything a
+       task can do lives one gesture away: swipe left for the rail below, or tap
+       the row's ⋯ / long-press for the sheet. The row itself stays pristine. */
+    .task-card { position: relative; overflow: hidden; border-bottom: 1px solid var(--hairline); }
+    /* touch-action:pan-y is load-bearing: it hands vertical scrolling to the
+       browser and horizontal panning to the swipe handler. Without it the
+       handler's preventDefault fights native scrolling and the list feels stuck. */
+    .task-main { display: flex; align-items: center; padding: 14px 0; gap: 14px; cursor: pointer;
+                 background: var(--bg); position: relative; touch-action: pan-y;
+                 transition: transform 0.24s cubic-bezier(.32,.72,0,1); }
+    /* While a finger is down we set the offset directly and must not animate it. */
+    .task-card.dragging .task-main { transition: none; }
+    .task-card.swiped .task-main { box-shadow: -8px 0 12px -6px rgba(0,0,0,.15); }
+    .task-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .task-card.done .task-check { background: var(--green); border-color: var(--green); }
     .task-check-inner { width: 8px; height: 8px; border-right: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(45deg) translate(-1px, -2px); display: none; }
     .task-card.done .task-check-inner { display: block; }
     .task-body { flex: 1; min-width: 0; }
-    .task-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); }
-    .task-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
-    .task-room { font-size: var(--fs-meta); color: var(--text3); }
-    .task-dot { font-size: var(--fs-label); color: var(--border2); }
-    .task-time { font-size: var(--fs-meta); color: var(--text3); }
-    .task-freq { font-size: var(--fs-label); color: var(--text3); background: var(--bg2); padding: 1px 6px; border-radius: 8px; }
-    .task-overdue { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 500; }
-    .task-notdue  { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
+    .task-card.done .task-body { opacity: 0.5; }
+    .task-card.done .task-name { text-decoration: line-through; }
+    .task-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .task-name-text { min-width: 0; }
+    /* One quiet line. Room · cadence · state — no pills, no wrapping. */
+    .task-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: var(--fs-meta); color: var(--text3); min-width: 0; }
+    .task-meta-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-time { font-size: var(--fs-sub); color: var(--text3); flex-shrink: 0; }
+    .task-card.done .task-time { display: none; }
+    /* State reads as a phrase on the meta line, not as a badge. */
+    .task-overdue { color: var(--red); font-weight: 600; white-space: nowrap; }
+    .task-notdue  { color: var(--text3); white-space: nowrap; }
+    .task-pinned-word { color: var(--amber); font-weight: 600; }
+    .task-started { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); font-weight: 700; border-left: 2px solid var(--green); padding-left: 6px; white-space: nowrap; flex-shrink: 0; }
+
+    /* Swipe rail — revealed under the row, mockup 3b. */
+    .task-swipe { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+    .task-swipe button { width: 64px; border: none; color: #fffdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 10.5px; font-weight: 600; cursor: pointer; padding: 0; }
+    /* Literal light text, not --on-accent: these three fills stay dark in both
+       themes, so the label must not flip to dark ink in dark mode. */
+    .task-swipe .sw-more   { background: #8a8577; }
+    .task-swipe .sw-pin    { background: #b58a2a; }
+    .task-swipe .sw-remove { background: var(--red-strong); }
+    .task-swipe button:active { transform: none; }
+    .task-swipe svg { display: block; }
   
     .owner-badge { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; font-weight: 500; }
     .owner-alina { background: var(--purple-bg, #eeedfe); color: var(--purple, #534ab7); }
     .owner-bob   { background: var(--teal-bg, #e1f5ee);   color: var(--teal, #0f6e56); }
   
-    .task-detail { padding: 0 12px 4px 48px; }
-    .task-lastdone { font-size: var(--fs-meta); color: var(--text3); display: flex; align-items: center; gap: 6px; }
+    /* Reachable, but not part of the row's resting state: transparent on touch,
+       revealed on hover, always visible once focused by keyboard. Swipe is the
+       primary path and it isn't keyboard-operable, so this has to exist. */
+    .task-more-btn { flex-shrink: 0; width: 30px; height: 30px; margin-right: -6px; border: none; background: none; color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; }
+    .task-card:hover .task-more-btn { opacity: 1; }
+    .task-more-btn:focus-visible { opacity: 1; }
+    @media (hover: none) { .task-card:hover .task-more-btn { opacity: 0; } }
+
     .edit-btn { font-size: var(--fs-label); padding: 2px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
     .edit-btn:hover { background: var(--bg2); }
-    .date-picker-row { display: none; align-items: center; gap: 8px; margin-top: 4px; padding-bottom: 4px; }
-    .date-picker-row.open { display: flex; }
     .date-input { border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: var(--fs-meta); padding: 3px 7px; border-radius: var(--radius-sm); }
     .date-save-btn { font-size: var(--fs-meta); padding: 3px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--green); background: transparent; color: var(--green); cursor: pointer; }
-    .task-snoozed { font-size: var(--fs-label); padding: 1px 6px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-weight: 500; }
-  
-    .task-actions { display: flex; gap: 6px; padding: 0 12px 12px 48px; flex-wrap: wrap; }
-    .task-btn { font-size: var(--fs-meta); padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: background 0.12s; min-height: 28px; }
-    .task-btn:active { background: var(--bg2); }
-    .task-btn.swap-btn { color: var(--blue); border-color: var(--blue); }
-  
-    .more-btn { width: 100%; padding: 11px; border-radius: var(--radius); border: 0.5px dashed var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-sub); cursor: pointer; margin-bottom: 8px; transition: background 0.12s; }
+    .task-snoozed { color: var(--amber); font-weight: 600; white-space: nowrap; }
+
+    .more-btn { width: 100%; padding: 11px; border-radius: 8px; border: 1px dashed var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-sub); cursor: pointer; margin-bottom: 8px; transition: background 0.12s; }
     .more-btn:hover { background: var(--bg2); }
-  
-    .overflow-section { padding: 0 24px; margin-top: 8px; }
-    .overflow-toggle { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text3); font-size: var(--fs-meta); cursor: pointer; padding: 4px 2px; margin-bottom: 8px; }
+
+    .overflow-section { padding: 0 26px; margin-top: 8px; }
+    .overflow-toggle { display: flex; align-items: center; gap: 7px; background: none; border: none; color: var(--eyebrow); font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; cursor: pointer; padding: 14px 0 8px; }
     .overflow-toggle svg { transition: transform 0.2s; }
     .overflow-toggle.open svg { transform: rotate(90deg); }
   
   
-    /* All Tasks (manage) tab */
-    .manage-header { padding: 16px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border); }
-    .manage-header-left { }
-    .manage-title { font-size: var(--fs-title); font-weight: 600; }
-    .manage-subtitle { font-size: var(--fs-sub); color: var(--text3); margin-top: 2px; }
-    .add-btn { font-size: var(--fs-sub); padding: 7px 16px; border-radius: var(--radius-sm); border: none; background: var(--green); color: var(--on-accent); cursor: pointer; font-weight: 500; }
-    .manage-toolbar { padding: 10px 24px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+    /* All Tasks (manage) tab — mockup 3d */
+    .add-btn { font-size: 13.5px; padding: 11px 16px; border-radius: 9px; border: none; background: var(--green); color: var(--on-accent); cursor: pointer; font-weight: 600; }
     .search-input { flex: 1; min-width: 100px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: 8px 10px; border-radius: var(--radius-sm); }
     .filter-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: 7px 8px; border-radius: var(--radius-sm); }
-    .tasks-table { width: 100%; border-collapse: collapse; }
-    .tasks-table th { text-align: left; font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 10px 24px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
-    .tasks-table td { padding: 10px 24px; border-bottom: 0.5px solid var(--border); font-size: var(--fs-sub); color: var(--text2); vertical-align: middle; }
-    .tasks-table td:first-child { color: var(--text); font-size: var(--fs-sub); }
-    .tasks-table tr:hover td { background: var(--bg2); }
-    .status-due { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; background: var(--red-bg); color: var(--red); font-weight: 600; }
-    .status-ok { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--text3); }
-    .manage-row-actions { display: flex; gap: 4px; }
+    /* A hairline between the two filter axes sharing one chip row. */
+    .chip-sep { width: 1px; align-self: stretch; background: var(--border); flex-shrink: 0; margin: 4px 2px; }
+    .rowlist { padding: 0 26px; }
+    /* No completion circle in the library (3d draws none) — the name starts at the
+       margin. Mark done lives in the sheet, and swipe-right still completes. */
+    .manage-row .task-main { gap: 12px; }
+    .sw-today { background: var(--green); }
+    .in-hand-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: var(--fs-sub); display: flex; align-items: center; justify-content: center; }
     .icon-btn.danger { color: var(--red); border-color: var(--red); }
-    /* Mobile manage cards */
-    .manage-list { padding: 0 16px; margin-top: 8px; }
-    .manage-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; overflow: hidden; transition: opacity 0.15s; }
-    .manage-card.mc-done { opacity: 0.5; }
-    .manage-card-main { display: flex; align-items: flex-start; padding: 12px 12px 4px 12px; gap: 10px; }
-    .mc-check { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent; cursor: pointer; margin-top: 1px; }
-    .manage-card.mc-done .mc-check { background: var(--green); border-color: var(--green); }
-    .mc-check-inner { width: 8px; height: 8px; border-right: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(45deg) translate(-1px,-2px); display: none; }
-    .manage-card.mc-done .mc-check-inner { display: block; }
-    .manage-card-body { flex: 1; min-width: 0; }
-    .manage-card-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); line-height: 1.3; }
-    .manage-card-meta { font-size: var(--fs-meta); color: var(--text3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-    .manage-card-icons { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
-    .manage-card-foot { display: flex; align-items: center; gap: 8px; padding: 6px 12px 10px 50px; }
-    .manage-card-last { font-size: var(--fs-meta); color: var(--text3); flex: 1; }
     .manage-hand-btn { font-size: var(--fs-meta); padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
     .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
-    .manage-dp-row { display: none; align-items: center; gap: 8px; padding: 0 12px 10px 50px; }
-    .manage-dp-row.open { display: flex; }
     /* ── D-2: serif headings ─────────────────────────────────────────────── */
     .view-hero-title, .manage-title, .settings-card-title, .modal-title,
     .settings-stat-num, .sprint-block-label, .empty b {
@@ -258,9 +316,12 @@
        Proportional digits make the surrounding text jitter on every tick. */
     body { font-variant-numeric: tabular-nums; }
 
-    button:active, .task-card:active, .sprint-card:active, .manage-card:active,
-    .settings-card button:active { transform: scale(0.97); }
-    button, .task-card, .sprint-card, .manage-card { transition: transform 0.09s ease-out; }
+    /* .task-card and .sprint-card are hairline rows now, not cards. Scaling a rule
+       that spans the full column reads as the whole list twitching, and it fights
+       the swipe transform on .task-main. They flash a tint instead. */
+    button:active, .settings-card button:active { transform: scale(0.97); }
+    button { transition: transform 0.09s ease-out; }
+    .task-main:active, .sprint-card:active { background: var(--bg2); }
 
     :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 
@@ -291,7 +352,9 @@
         animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
         transition-duration: 0.001ms !important; scroll-behavior: auto !important;
       }
-      button:active, .task-card:active, .sprint-card:active, .manage-card:active { transform: none; }
+      button:active { transform: none; }
+      /* Swipe is a transform driven by JS, so it has to be muted here explicitly. */
+      .task-main { transition: none !important; }
     }
 
     /* Modal — bottom sheet */
@@ -299,7 +362,7 @@
        set from visualViewport below. Without it iOS puts the keyboard straight over
        the bottom of the sheet, hiding the Save button with no way to scroll to it. */
     :root { --kb: 0px; }
-    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(35,33,28,0.42); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
     .modal-backdrop.open { display: flex; animation: backdropIn 0.2s ease-out both; }
     .modal-backdrop.open > .modal { animation: sheetIn 0.28s cubic-bezier(.32,.72,0,1) both; }
     .modal-backdrop.closing { animation: backdropOut 0.22s ease-in both; }
@@ -327,22 +390,15 @@
     /* Task actions sheet (D-6). The card shows at most two contextual buttons; the
        rare actions live here, where they get room to be legible instead of
        competing as ten identical grey pills on every card. */
-    .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .sheet-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: var(--fs-sub); font-weight: 500; cursor: pointer; text-align: center; }
-    .sheet-btn.wide { grid-column: 1 / -1; }
-    .sheet-btn.danger { color: var(--red); border-color: var(--red); }
-    .sheet-btn.on { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
     /* No margin: .modal-body is a flex column with gap:14px and would double up. */
     .sheet-group { }
     .sheet-group-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 7px; }
     .sheet-chips { display: flex; gap: 8px; }
     .sheet-chips > button { flex: 1; padding: 11px 0; font-size: var(--fs-sub); border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .sheet-chips > button.go { border-color: var(--green); color: var(--green); }
-    /* NOT .more-btn — that class already exists for the full-width dashed
-       "+ Give me more" button and would make this stretch to fill the row. */
-    .task-btn.task-more { font-weight: 700; letter-spacing: 0.06em; padding-left: 14px; padding-right: 14px; }
-    .modal-btn { font-size: var(--fs-sub); padding: 7px 16px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
-    .modal-btn.primary { background: var(--blue); color: var(--on-accent); border-color: var(--blue); }
+    .modal-btn { font-size: var(--fs-sub); padding: 9px 18px; border-radius: 9px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .modal-btn.primary { background: var(--green); color: var(--on-accent); border-color: var(--green); font-weight: 600; }
+    .modal-btn.danger { color: var(--red); border-color: var(--red); }
     .empty { padding: 40px 16px; text-align: center; color: var(--text3); font-size: var(--fs-sub); }
     .bottom-pad { height: 32px; }
   
@@ -356,56 +412,61 @@
     /* Loading overlay */
     .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--text3); font-size: var(--fs-sub); }
   
-    /* Sprint tab */
-    .sprint-block { margin: 16px 24px 0; }
-    .sprint-block-header { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 12px; }
-    /* Was var(--bg3) — a background token used as a text colour, which rendered the
-       step number at 1.25:1 in dark and ~1.1:1 in light. Invisible in both themes. */
-    .sprint-block-num { font-size: var(--fs-display); font-weight: 700; color: var(--text3); line-height: 1.1; flex-shrink: 0; min-width: 20px; }
-    .sprint-block-meta { flex: 1; }
+    /* Sprint tab (mockup 3i) — serif block numerals set the rhythm. */
+    .sprint-block { padding: 18px 26px 0; }
+    .sprint-block-header { display: flex; align-items: flex-start; gap: 16px; }
+    .sprint-block-num { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--green); line-height: 1; flex-shrink: 0; min-width: 22px; }
+    .sprint-block-num.done { color: var(--text3); }
+    .sprint-block-meta { flex: 1; min-width: 0; }
     .sprint-block-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-    .sprint-block-label { font-size: var(--fs-title); font-weight: 600; color: var(--text); }
-    .sprint-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; display: flex; align-items: flex-start; padding: 10px 12px; gap: 10px; cursor: pointer; transition: opacity 0.15s; }
-    .sprint-card.done { opacity: 0.4; }
-    .sprint-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-top: 1px; }
+    .sprint-block-label { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; color: var(--text); }
+    /* Rows are indented to clear the numeral, so the hairlines line up with the
+       block title rather than starting under the number. */
+    .sprint-rows { padding-left: 38px; margin-top: 6px; }
+    .sprint-progress { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .sprint-progress-bar-wrap { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+    .sprint-progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+    .sprint-progress-text { font-size: var(--fs-sub); color: var(--text2); white-space: nowrap; }
+    .sprint-chips { display: flex; gap: 8px; margin-top: 14px; }
+    .sprint-chips .chip { display: flex; align-items: center; gap: 5px; font-size: var(--fs-meta); padding: 5px 12px; }
+    .sprint-block-time { font-size: var(--fs-meta); color: var(--text3); white-space: nowrap; }
+    .sprint-block-divider { height: 1px; background: var(--border); margin: 16px 26px 0; }
+    /* The block's own divider closes the group; a row hairline under it doubles up. */
+    .sprint-rows .task-card:last-child { border-bottom: none; }
+
+    .sprint-block-hint { font-size: var(--fs-meta); color: var(--text3); margin-top: 1px; }
+    .sprint-done-badge { font-size: var(--fs-label); font-weight: 600; color: var(--green); letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* Checklist row — quick-log results and every preset checklist still build
+       these by hand (they aren't hand tasks, so they don't go through renderCard).
+       Same hairline anatomy as a task row. */
+    .sprint-card { display: flex; align-items: center; padding: 12px 0; gap: 13px; cursor: pointer; border-bottom: 1px solid var(--hairline); }
+    .sprint-card.done .sprint-card-body { opacity: 0.5; }
+    .sprint-card.done .sprint-card-name { text-decoration: line-through; }
+    .sprint-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .sprint-card.done .sprint-check { background: var(--green); border-color: var(--green); }
     .sprint-check-inner { width: 7px; height: 7px; border-right: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(45deg) translate(-1px, -1px); display: none; }
     .sprint-card.done .sprint-check-inner { display: block; }
     .sprint-card-body { flex: 1; min-width: 0; }
-    .sprint-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-    .sprint-card-name { font-size: var(--fs-sub); color: var(--text); }
+    .sprint-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .sprint-card-name { font-size: var(--fs-sub); color: var(--text); min-width: 0; }
     .sprint-card-time { font-size: var(--fs-meta); color: var(--text3); white-space: nowrap; flex-shrink: 0; }
-    .sprint-progress { padding: 12px 24px; background: var(--bg2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
-    .sprint-progress-label { font-size: var(--fs-meta); color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
-    .sprint-progress-stats { display: flex; align-items: center; gap: 10px; flex: 1; }
-    .sprint-progress-bar-wrap { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
-    .sprint-progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
-    .sprint-progress-text { font-size: var(--fs-sub); font-weight: 500; color: var(--text2); white-space: nowrap; }
-    .sprint-time-left { font-size: var(--fs-meta); color: var(--text3); white-space: nowrap; }
-    .sprint-block-time { font-size: var(--fs-sub); color: var(--text3); white-space: nowrap; }
-    .sprint-block-divider { height: 1px; background: var(--border); margin: 16px 24px 0; }
+    .sprint-pin { color: var(--amber); margin-left: 4px; }
+
+    /* Compact row (Sprint): tighter circle and name, no meta line. */
+    .task-card.compact .task-main { padding: 12px 0; gap: 13px; }
+    .task-card.compact .task-check { width: 20px; height: 20px; }
+    .task-card.compact .task-name { font-size: var(--fs-sub); font-weight: 400; }
+    .task-card.compact .task-time { font-size: var(--fs-sub); }
   
-    .sprint-block-hint { font-size: var(--fs-label); color: var(--text3); margin-top: 1px; }
-    .sprint-done-badge { font-size: var(--fs-label); font-weight: 500; color: var(--green); background: var(--green-bg); padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
-  
-    /* Pin indicator */
-    .pin-badge { font-size: var(--fs-label); color: var(--amber); margin-left: 2px; }
-    .task-btn.pin-btn { color: var(--amber); border-color: var(--amber); }
-    .task-btn.pin-btn.pinned { background: var(--amber-bg); }
-    .task-btn.remove-btn { color: var(--red); border-color: var(--red); }
     .sprint-pin { font-size: var(--fs-label); color: var(--amber); margin-left: 4px; }
 
     /* One-off badge */
     .oneoff-badge { font-size: var(--fs-label); font-weight: 500; color: var(--blue); background: var(--blue-bg); padding: 1px 6px; border-radius: 10px; margin-left: 5px; }
-    .oneoff-add-btn { background: none; border: 0.5px dashed var(--border2); border-radius: var(--radius-sm); padding: 6px 12px; font-size: var(--fs-meta); color: var(--text3); cursor: pointer; width: 100%; margin-top: 4px; text-align: center; }
-    .oneoff-add-btn:hover { background: var(--bg2); color: var(--text2); border-color: var(--blue); }
   
-    /* Redeal button */
-    .redeal-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 5px 10px; font-size: var(--fs-meta); color: var(--text2); cursor: pointer; }
-    .redeal-btn:hover { background: var(--bg2); }
-    .redeal-group { display: flex; align-items: center; gap: 6px; }
-    .redeal-tiers { display: flex; gap: 3px; }
-    .tier-pill-sm { padding: 4px 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); font-size: var(--fs-label); font-weight: 600; cursor: pointer; }
+    /* Tier redeal — sits at the right of the counts row, quiet by design. */
+    .redeal-tiers { display: flex; gap: 4px; margin-left: auto; align-self: center; }
+    .tier-pill-sm { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border2); background: transparent; color: var(--text3); font-size: var(--fs-label); font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .tier-pill-sm:hover { background: var(--bg2); }
     .more-btn-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .more-btn-row .more-btn { flex: 1; margin-bottom: 0; }
@@ -415,12 +476,16 @@
     /* F-5b: "how much time do I have today" — a dated override of the budget,
        not a settings change. Replaced the old 10/20/30 chips, which set only the
        NON-daily budget and so quoted 10 minutes while dealing an hour. */
-    .day-budget { margin-top: 8px; }
-    .day-budget-top { display: flex; align-items: baseline; gap: 8px; }
-    .day-budget-label { font-size: var(--fs-label); color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
-    .day-budget-val { font-size: var(--fs-sub); font-weight: 700; color: var(--text); margin-left: auto; }
-    .day-budget-reset { font-size: var(--fs-label); padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
-    .day-budget-note { font-size: var(--fs-label); color: var(--text3); margin-top: 2px; }
+    /* Collapsed to a single quiet row (3a); the real slider is one tap away. */
+    .day-budget { padding: 0 26px; }
+    .day-budget-top { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 14px 0 12px; cursor: pointer; font: inherit; color: inherit; text-align: left; }
+    .day-budget-top:active { transform: none; }
+    .day-budget-label { font-size: var(--fs-meta); color: var(--text2); }
+    .day-budget-val { font-size: var(--fs-sub); font-weight: 600; color: var(--text); }
+    .day-budget-chev { margin-left: auto; color: var(--text3); display: flex; transition: transform 0.2s; }
+    .day-budget.open .day-budget-chev { transform: rotate(180deg); }
+    .day-budget-reset { font-size: var(--fs-label); padding: 3px 9px; border-radius: 10px; border: 1px solid var(--border2); background: transparent; color: var(--text3); cursor: pointer; }
+    .day-budget-note { font-size: var(--fs-meta); color: var(--text3); padding-bottom: 12px; }
     .day-budget-note.over { color: var(--amber); }
     /* input { appearance: none } up at the top is a blanket reset, so a range
        input has no track and no thumb until both are drawn by hand. */
@@ -445,10 +510,97 @@
     .vac-details > summary::-webkit-details-marker { display: none; }
     .vac-details > summary::before { content: '▸ '; color: var(--text3); }
     .vac-details[open] > summary::before { content: '▾ '; }
+    /* A whole card that collapses — the scoring explainer and the activity log are
+       both reference material and both long enough to swallow the tab. */
+    .ed-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; color: var(--text3); }
+    .ed-details > summary::-webkit-details-marker { display: none; }
+    .ed-details > summary .settings-card-title { margin-bottom: 0; }
+    .ed-details > summary svg { transition: transform 0.2s; flex-shrink: 0; }
+    .ed-details[open] > summary svg { transform: rotate(180deg); }
     /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
-    .onthisday { margin: 16px 24px 0; padding: 12px 14px; border-radius: var(--radius); background: var(--bg2); border: 0.5px solid var(--border); }
-    .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
+    .onthisday { margin: 16px 26px 0; padding: 13px 16px; border-radius: var(--radius); background: var(--bg2); }
+    .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.14em; color: var(--eyebrow); font-weight: 600; margin-bottom: 4px; }
     .onthisday-body { font-size: var(--fs-sub); color: var(--text2); line-height: 1.45; }
+
+    /* ── Editorial primitives (redesign 2026-08-09) ─────────────────────────
+       Shared by every tab. Screen head = eyebrow + serif title; chips are the
+       filter control; ed-card is the one card shape left in the app. */
+    .screen-head { padding: 22px 26px 14px; }
+    .screen-head-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+    .eyebrow { font-size: var(--fs-label); letter-spacing: 0.18em; text-transform: uppercase; color: var(--eyebrow); font-weight: 600; }
+    .screen-title { font-family: var(--serif); font-size: var(--fs-display); font-weight: 600; letter-spacing: -0.02em; line-height: 1.06; margin-top: 5px; }
+    .serif-num { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+    .rule { height: 1px; background: var(--border); margin: 16px 26px 0; }
+
+    /* Chips — horizontally scrollable filter rows. */
+    .chip-row { display: flex; gap: 8px; padding: 0 26px 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .chip-row::-webkit-scrollbar { display: none; }
+    .chip { font-size: 12.5px; color: var(--text2); border: 1px solid var(--border2); background: transparent; border-radius: 20px; padding: 6px 14px; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+    .chip.on { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
+
+    /* Search — a filled well, not a bordered input. */
+    .search-well { margin: 0 26px 14px; display: flex; align-items: center; gap: 9px; background: var(--bg2); border-radius: var(--radius); padding: 0 13px; }
+    .search-well svg { flex-shrink: 0; color: var(--eyebrow); }
+    .search-well .search-input { flex: 1; border: none; background: transparent; padding: 10px 0; border-radius: 0; min-width: 0; }
+    .search-well .search-input:focus { outline: none; }
+
+    /* Round + button used by All Tasks. */
+    .round-add { width: 36px; height: 36px; border-radius: 50%; background: var(--green); border: none; color: var(--on-accent); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+
+    /* Grouped list row — Settings, and any "label left, value right" list. */
+    .list-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--hairline); }
+    .list-row-body { flex: 1; min-width: 0; }
+    .list-row-title { font-size: var(--fs-body); color: var(--text); }
+    .list-row-desc { font-size: var(--fs-meta); color: var(--text3); margin-top: 2px; }
+    .list-row-value { font-size: var(--fs-sub); color: var(--text2); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+    button.list-row { width: 100%; background: none; border: none; border-bottom: 1px solid var(--hairline); text-align: left; cursor: pointer; font: inherit; }
+    button.list-row:active { transform: none; background: var(--bg2); }
+
+    /* Toggle — the one filled-pine control. */
+    .toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--bg3); border: none; position: relative; flex-shrink: 0; cursor: pointer; transition: background 0.18s; padding: 0; }
+    .toggle.on { background: var(--green); }
+    .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform 0.18s; }
+    .toggle.on::after { transform: translateX(18px); }
+    .toggle:active { transform: none; }
+
+    /* The one card shape: Presets, Stats modules, Settings groups that need one. */
+    .ed-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin: 0 26px 12px; }
+    .ed-card-head { display: flex; align-items: center; gap: 12px; }
+    .ed-card-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--bg2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--green); }
+    .ed-card-title { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; }
+    .ed-card-sub { font-size: var(--fs-meta); color: var(--text3); margin-top: 1px; }
+    .ed-card-desc { font-size: var(--fs-sub); color: var(--text2); line-height: 1.5; margin-top: 12px; }
+    .ed-card-btns { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .btn-fill { background: var(--green); color: var(--on-accent); border: none; border-radius: 9px; padding: 11px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; flex: 1; min-width: 96px; }
+    .btn-line { background: none; border: 1px solid var(--border2); border-radius: 9px; padding: 11px 16px; font-size: 13.5px; color: var(--text2); cursor: pointer; }
+    .btn-line.danger { color: var(--red); border-color: var(--red); }
+
+    /* Dashed "add" affordance. */
+    .btn-dashed { width: 100%; border: 1px dashed var(--border2); border-radius: 8px; padding: 11px; font-size: var(--fs-sub); color: var(--text2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; }
+    .btn-dashed:active { background: var(--bg2); }
+
+    /* ── Action sheet as icon rows (mockup 3c) ─────────────────────────────── */
+    .sheet-head { padding: 2px 24px 14px; border-bottom: 1px solid var(--border); }
+    .sheet-head-name { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; }
+    .sheet-head-meta { font-size: var(--fs-meta); color: var(--text3); margin-top: 2px; }
+    .sheet-row { display: flex; align-items: center; gap: 15px; padding: 13px 12px; border-radius: 10px; width: 100%; background: none; border: none; text-align: left; cursor: pointer; font: inherit; color: var(--text); }
+    .sheet-row:active { background: var(--bg2); transform: none; }
+    .sheet-row-icon { flex-shrink: 0; display: flex; align-items: center; color: var(--text2); }
+    /* These are spans inside a button (a <div> would be invalid there), so each
+       needs display:block or the title and its subtitle run together on one line. */
+    .sheet-row-body { flex: 1; min-width: 0; display: block; }
+    .sheet-row-title { display: block; font-size: var(--fs-body); font-weight: 500; }
+    .sheet-row-desc { display: block; font-size: var(--fs-meta); color: var(--text3); margin-top: 1px; line-height: 1.35; }
+    .sheet-row.on .sheet-row-icon, .sheet-row.on .sheet-row-title { color: var(--amber); }
+    .sheet-row.go .sheet-row-icon { color: var(--green); }
+    .sheet-row.danger .sheet-row-icon, .sheet-row.danger .sheet-row-title { color: var(--red); }
+    .sheet-primary { width: 100%; background: var(--green); color: var(--on-accent); border: none; border-radius: 12px; padding: 15px; font-size: var(--fs-body); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+    /* .modal-body is a 14px-gap flex column, which is right for a form and much
+       too airy for a list of rows. The actions sheet sets its own rhythm. */
+    #taskActionsBody { gap: 0; padding: 6px 8px 8px; }
+    .sheet-foot { padding: 8px 20px 16px; flex-shrink: 0; background: var(--card); }
+    #taskActionsBody .sheet-group { padding: 10px 12px 4px; }
+    .sheet-grab { width: 38px; height: 4px; border-radius: 2px; background: var(--bg3); margin: 0 auto 14px; }
   </style>
   </head>
   <body>
@@ -457,58 +609,61 @@
          this must not time out. It clears itself only when a save succeeds. Sits in
          the flow above the header rather than fixed over it, so it can't hide the app. -->
     <div class="save-error-banner" id="saveErrorBanner" role="alert" hidden>
-      ⚠️ Changes aren’t saving — storage may be full. Back up from Settings, then reload.
+      Changes aren’t saving — storage may be full. Back up from Settings, then reload.
     </div>
     <div class="header">
       <div class="header-inner">
         <div class="header-logo">
-          <div class="header-logo-icon">🏠</div>
+          <span class="header-logo-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg></span>
           <span class="header-logo-text">Home Tasks</span>
         </div>
+        <button class="header-action" id="headerRedeal" onclick="redealHand()" title="Redeal today's hand" aria-label="Redeal today's hand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg></button>
       </div>
     </div>
-  
+
     <div id="alinaView">
       <div class="view-hero">
-        <div class="view-hero-left">
-          <div class="view-hero-title">Today's Hand</div>
-          <div class="view-hero-subtitle" id="heroDate"></div>
-        </div>
-        <div class="redeal-group">
-          <button class="redeal-btn" onclick="redealHand()" title="Redeal today's hand">&#8635; Redeal</button>
+        <div class="view-hero-subtitle" id="heroDate"></div>
+        <div class="view-hero-title">Today's Hand</div>
+        <div class="hand-counts">
+          <span class="stat-badge" id="progressText">0<span class="of">/0</span></span>
+          <span class="hand-count-word">done</span>
+          <span class="hand-count-sep"></span>
+          <span class="hand-count-word" id="totalTime"></span>
+          <!-- Tier redeal. The plain redeal is the masthead glyph; these three stay
+               because a tier-weighted redeal is the one thing it can't express. -->
           <div class="redeal-tiers">
-            <button class="tier-pill-sm" onclick="redealHand('A')" title="Redeal favoring tier A">A</button>
-            <button class="tier-pill-sm" onclick="redealHand('B')" title="Redeal favoring tier B">B</button>
-            <button class="tier-pill-sm" onclick="redealHand('C')" title="Redeal favoring tier C">C</button>
+            <button class="tier-pill-sm" onclick="redealHand('A')" title="Redeal favouring tier A — operational (≤7d)">A</button>
+            <button class="tier-pill-sm" onclick="redealHand('B')" title="Redeal favouring tier B — maintenance (8–60d)">B</button>
+            <button class="tier-pill-sm" onclick="redealHand('C')" title="Redeal favouring tier C — deep clean (>60d)">C</button>
           </div>
         </div>
       </div>
+      <div class="stats-progress-wrap">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
       <div class="stats-row">
-        <div class="stats-row-top">
-          <span class="stat-badge" id="progressText">0 / 0 done</span>
-          <span class="stat-badge" id="totalTime"></span>
-          <div class="stats-zone">
-            <select class="zone-select" id="zoneSelect" onchange="saveZone()">
+        <div class="mode-selector">
+          <button class="mode-btn" id="modeBtn-maintenance" onclick="setMode('maintenance')">Keep up</button>
+          <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">Catch up</button>
+          <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">By freq</button>
+          <div class="mode-zone">
+            <select class="zone-select" id="zoneSelect" onchange="saveZone()" aria-label="Zone focus">
+              <!-- Short labels on purpose: a <select> is as wide as its widest
+                   option, and "Zone 3 — Sunroom, Office, DS Bath, Laundry" pushed
+                   the control off the strip. The zone→rooms reference lives in
+                   Settings, which the plan keeps in full. -->
               <option value="auto" id="zoneAutoOption">Auto zone</option>
-              <option value="0">No zone focus</option>
-              <option value="1">Zone 1 — Dining, Mud, Porches</option>
-              <option value="2">Zone 2 — Kitchen</option>
-              <option value="3">Zone 3 — Sunroom, Office, DS Bath, Laundry</option>
-              <option value="4">Zone 4 — Bedroom, US Bath</option>
-              <option value="5">Zone 5 — Living Room, Back Room</option>
+              <option value="0">No zone</option>
+              <option value="1">Zone 1</option>
+              <option value="2">Zone 2</option>
+              <option value="3">Zone 3</option>
+              <option value="4">Zone 4</option>
+              <option value="5">Zone 5</option>
             </select>
           </div>
         </div>
-        <div class="stats-progress-wrap">
-          <div class="progress-bar" id="progressBar" style="width:0%"></div>
-        </div>
-        <div class="mode-selector">
-          <button class="mode-btn" id="modeBtn-maintenance" onclick="setMode('maintenance')">🏠 Keep up</button>
-          <button class="mode-btn" id="modeBtn-catchup" onclick="setMode('catchup')">🔄 Catch up</button>
-          <button class="mode-btn" id="modeBtn-byfreq" onclick="setMode('byfreq')">📋 By freq</button>
-        </div>
         <div class="day-budget" id="dayBudgetRow"></div>
-        <button class="oneoff-add-btn" onclick="openOneOffModal()">+ one-off task</button>
       </div>
       <div id="alinaTaskList"><div class="loading-overlay">Loading tasks&hellip;</div></div>
     </div>
@@ -536,27 +691,27 @@
   
   <nav class="bottom-nav">
     <button class="tab active" data-tab="alina" onclick="switchTab('alina')">
-      <span class="tab-icon">✋</span>
-      <span class="tab-label">My Hand</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10V6a2 2 0 0 1 4 0v3m0 0V4.5a2 2 0 0 1 4 0V10m0-2a2 2 0 0 1 4 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3 14"/></svg></span>
+      <span class="tab-label">Hand</span>
     </button>
     <button class="tab" data-tab="sprint" onclick="switchTab('sprint')">
-      <span class="tab-icon">⚡</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
       <span class="tab-label">Sprint</span>
     </button>
     <button class="tab" data-tab="manage" onclick="switchTab('manage')">
-      <span class="tab-icon">📋</span>
-      <span class="tab-label">All Tasks</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span>
+      <span class="tab-label">Tasks</span>
     </button>
     <button class="tab" data-tab="presets" onclick="switchTab('presets')">
-      <span class="tab-icon">🗂</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/></svg></span>
       <span class="tab-label">Presets</span>
     </button>
     <button class="tab" data-tab="stats" onclick="switchTab('stats')">
-      <span class="tab-icon">📊</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
       <span class="tab-label">Stats</span>
     </button>
     <button class="tab" data-tab="settings" onclick="switchTab('settings')">
-      <span class="tab-icon">⚙️</span>
+      <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span>
       <span class="tab-label">Settings</span>
     </button>
   </nav>
@@ -566,7 +721,7 @@
   <!-- One-off task modal -->
   <div class="modal-backdrop" id="oneoffModal" onclick="if(event.target===this)closeOneOffModal()">
     <div class="modal">
-      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title">Add one-off task</span>
         <button class="modal-close" onclick="closeOneOffModal()">&#10005;</button>
@@ -591,7 +746,7 @@
   <!-- Log time modal -->
   <div class="modal-backdrop" id="timeModal" onclick="if(event.target===this)closeTimeModal()">
     <div class="modal">
-      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title">Log time</span>
         <button class="modal-close" onclick="closeTimeModal()">&#10005;</button>
@@ -614,7 +769,7 @@
   <!-- Why this task? modal -->
   <div class="modal-backdrop" id="whyModal" onclick="if(event.target===this)closeWhyModal()">
     <div class="modal">
-      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title" id="whyTitle">Why this task?</span>
         <button class="modal-close" onclick="closeWhyModal()">&#10005;</button>
@@ -624,21 +779,26 @@
   </div>
 
   <!-- Task actions sheet (the card's "⋯") -->
+  <!-- 3c: no title bar and no ✕ — the sheet is headed by the task itself and
+       dismissed by the backdrop, the grab handle, or Mark done. -->
   <div class="modal-backdrop" id="taskActionsModal" onclick="if(event.target===this)closeTaskActions()">
     <div class="modal">
-      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
-      <div class="modal-header">
-        <span class="modal-title" id="taskActionsTitle"></span>
-        <button class="modal-close" onclick="closeTaskActions()">&#10005;</button>
+      <div style="padding:10px 0 0" onclick="closeTaskActions()"><div class="sheet-grab"></div></div>
+      <div class="sheet-head">
+        <div class="sheet-head-name" id="taskActionsTitle"></div>
+        <div class="sheet-head-meta" id="taskActionsMeta"></div>
       </div>
       <div class="modal-body" id="taskActionsBody"></div>
+      <!-- Outside .modal-body on purpose: the body scrolls when the sheet is
+           taller than the screen, and the primary must stay under the thumb. -->
+      <div class="sheet-foot" id="taskActionsFoot"></div>
     </div>
   </div>
 
   <!-- Task edit/add modal -->
   <div class="modal-backdrop" id="taskModal" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div style="display:flex;justify-content:center;padding:10px 0 4px"><div style="width:36px;height:4px;border-radius:2px;background:var(--border2)"></div></div>
+      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title" id="modalTitle">Add task</span>
         <button class="modal-close" onclick="closeModal()">&#10005;</button>
@@ -689,6 +849,10 @@
         </div>
       </div>
       <div class="modal-footer">
+        <!-- Delete used to live as a ✕ on every manage row. The rows are clean
+             now, so this is the only way to remove a custom task or hide a base
+             one — openModal() shows it for an existing task only. -->
+        <button class="modal-btn danger" id="modalDelete" onclick="deleteTask(editingId)" style="margin-right:auto">Delete</button>
         <button class="modal-btn" onclick="closeModal()">Cancel</button>
         <button class="modal-btn primary" onclick="saveTask()">Save</button>
       </div>
@@ -696,6 +860,69 @@
   </div>
   
   <script>
+  // ─── ICONS ─────────────────────────────────────────────────────────────────
+  // Redesign 2026-08-09: the mockups are line icons only, no emoji. Every glyph
+  // is a stroked path on a 24-box inheriting currentColor, so a caller changes
+  // colour with `color:` and size with icon(name, px) — same one-line swap the
+  // emoji allowed. Inline strings, not files: this app makes zero external
+  // requests and that is worth protecting.
+  const ICON_PATHS = {
+    house:    '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/>',
+    hand:     '<path d="M6 10V6a2 2 0 0 1 4 0v3m0 0V4.5a2 2 0 0 1 4 0V10m0-2a2 2 0 0 1 4 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3 14"/>',
+    bolt:     '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+    list:     '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
+    grid:     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/>',
+    bars:     '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    gear:     '<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+    refresh:  '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/>',
+    clock:    '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2.5 5.5 5M15 2.5 18.5 5"/>',
+    play:     '<path d="M7 4v16l13-8z"/>',
+    trash:    '<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13h10l1-13"/>',
+    calendar: '<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>',
+    check:    '<path d="M4 12l5 5L20 6"/>',
+    checkBack:'<path d="M4 12l5 5L20 6"/><path d="M12 21a9 9 0 1 0-9-9" opacity=".35"/>',
+    chevron:  '<path d="M9 6l6 6-6 6"/>',
+    chevDown: '<path d="M4 8l6 6 6-6"/>',
+    search:   '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    plus:     '<path d="M12 5v14M5 12h14"/>',
+    minus:    '<path d="M5 12h14"/>',
+    close:    '<path d="M6 6l12 12M18 6 6 18"/>',
+    warn:     '<path d="M12 3 1.8 20.5h20.4z"/><path d="M12 10v4M12 17.5h.01"/>',
+    copy:     '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+    dots:     '<circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none"/>',
+    flag:     '<path d="M5 21V4h13l-2.5 4L18 12H5"/>',
+    /* Stroked pin for the sheet (3c draws it outlined there); the row and the
+       swipe rail use the filled `pinFill` below, which is what reads at 12px. */
+    pin:      '<path d="M14 4l6 6-4 1-3 3-1 6-2-2-4 4-1-1 4-4-2-2 6-1 3-3z"/>',
+    guests:   '<path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11h5M19.5 8.5v5"/>',
+    home2:    '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+    dice:     '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8.5 8.5h.01M15.5 15.5h.01M12 12h.01"/>',
+    pause:    '<path d="M9 5v14M15 5v14"/>',
+    download: '<path d="M12 3v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+    sun:      '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+    sparkle:  '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/>',
+    info:     '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    moon:     '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+    heart:    '<path d="M12 20 4.8 13a4.5 4.5 0 0 1 7.2-5.3A4.5 4.5 0 0 1 19.2 13z"/>',
+    bag:      '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    door:     '<path d="M4 21V4a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v17"/><path d="M2 21h20M13 12h.01"/>'
+  };
+  // The pin is the one filled glyph — it has to read at 12px inside a row.
+  const ICON_FILLED = {
+    pinFill: '<path d="M14 4l6 6-4 1-3 3-1 6-2-2-4 4-1-1 4-4-2-2 6-1 3-3z"/>'
+  };
+  function icon(name, size = 18, sw = 1.7) {
+    if (ICON_FILLED[name]) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="currentColor" ' +
+             'aria-hidden="true" focusable="false">' + ICON_FILLED[name] + '</svg>';
+    }
+    const d = ICON_PATHS[name];
+    if (!d) return '';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round" ' +
+      'aria-hidden="true" focusable="false">' + d + '</svg>';
+  }
+
   // ─── TASK DATABASE ─────────────────────────────────────────────────────────
   const TASKS = [
     // ── CAT WATER (alina only) ──
@@ -1021,12 +1248,20 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-08 v17';
+  const APP_VERSION = '2026-08-09 v18';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-09 v18', notes: [
+      'A full redesign. Warm paper instead of grey, one deep-green accent, serif headings, and line icons everywhere in place of the emoji.',
+      'Tasks are now hairline-separated rows rather than boxes: a circle, the name, one quiet line of detail, and the time. Nothing else sits on the row.',
+      'Every action moved one gesture away. Swipe a row left for More / Pin / Remove, swipe right to complete, or press and hold to open a sheet with the full toolkit — pin, start, snooze, edit last done, "actually did it earlier", remove, and mark done.',
+      '"Due today" no longer shouts on every daily. Only genuine lateness is called out in red.',
+      'All Tasks is now grouped by room with search and filter chips, and tapping a task opens its editor. Delete moved into that editor.',
+      'Sprint, Presets, Stats and Settings all follow the same language. Stats leads with the week in serif and a seven-day bar row; Settings keeps every panel, with the scoring explainer and activity log collapsed by default.',
+    ]},
     { v: '2026-08-08 v17', notes: [
       'Vacation mode no longer treats every task the same. Each one now has a "while you\'re away" setting: Freeze (can\'t come due while you\'re gone — laundry, dishes, tidying, cat care), Half speed (dust, floors, windows, bathroom surfaces), or Ages normally (fridge, filters, descaling by the calendar, the back porch).',
       'Sensible settings are applied to every task already; change any of them in the task editor on All Tasks. Settings → Vacation Mode lists which tasks are in which group.',
@@ -1218,6 +1453,9 @@
   let dailiesOpen = true;
   let otherTasksOpen = true;
   let completedOpen = false;
+  // The slider is collapsed behind its own row (3a). Session-only, like the rest
+  // of these — an expanded slider is not worth persisting.
+  let dayBudgetOpen = false;
   
   // ─── CORE LOGIC ────────────────────────────────────────────────────────────
   
@@ -1231,6 +1469,15 @@
     return d === 0 || d === 6;
   }
 
+  // "last done 5 days ago" reads better than a date in a list you scan (3d).
+  // Falls back to a date past a fortnight, where "23 days ago" stops meaning much.
+  function relativeDay(ts) {
+    const days = Math.floor((Date.now() - ts) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days <= 14) return days + ' days ago';
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
   function fmtMinutes(min) {
     if (min < 60) return min + 'm';
     const h = Math.floor(min / 60);
@@ -1292,7 +1539,7 @@
     timerInterval = setInterval(() => {
       if (!activeTimer) { clearInterval(timerInterval); return; }
       const el = document.getElementById('timerElapsed_' + activeTimer.id);
-      if (el) el.textContent = '⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt);
+      if (el) el.textContent = fmtElapsed(Date.now() - activeTimer.startedAt);
     }, 1000);
   }
 
@@ -1343,7 +1590,7 @@
     closeTimeModal();
     recordTime(id, mins);
     render();
-    showToast('⏱ ' + mins + 'm logged');
+    showToast(mins + 'm logged');
   }
 
   // Unset means 'freeze', which is how vacation mode behaved before per-task
@@ -2133,6 +2380,9 @@
   // ─── RENDER ────────────────────────────────────────────────────────────────
   
   function render() {
+    // An open swipe rail is about to have its markup replaced; drop the state
+    // first or .swiped survives onto a row that no longer carries the offset.
+    if (window.closeSwipedRows) window.closeSwipedRows();
     if (currentTab === 'alina') renderAlina();
     else if (currentTab === 'sprint') renderSprint();
     else if (currentTab === 'manage') renderManage();
@@ -2144,7 +2394,7 @@
   function renderAlina() {
     // Sync zone selector (auto label shows the current zone)
     const autoOpt = document.getElementById('zoneAutoOption');
-    if (autoOpt) autoOpt.textContent = 'Auto — Zone ' + autoZone();
+    if (autoOpt) autoOpt.textContent = 'Auto · Zone ' + autoZone();
     const zoneSel = document.getElementById('zoneSelect');
     if (zoneSel) zoneSel.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
 
@@ -2159,9 +2409,9 @@
     const totalMin = hand.reduce((s,t) => s + taskTime(t), 0);
 
     const leftMin = hand.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
-    document.getElementById('progressText').textContent = doneCount + ' / ' + hand.length + ' done';
+    document.getElementById('progressText').innerHTML = doneCount + '<span class="of">/' + hand.length + '</span>';
     document.getElementById('progressBar').style.width = hand.length ? Math.round(doneCount/hand.length*100) + '%' : '0%';
-    document.getElementById('totalTime').textContent = '⏱ ~' + fmtMinutes(leftMin) + ' left';
+    document.getElementById('totalTime').textContent = fmtMinutes(leftMin) + ' left';
   
     const dailyIds = getDailies().map(t => t.id);
     const dailies = hand.filter(t => dailyIds.includes(t.id));
@@ -2175,7 +2425,7 @@
       const since = state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
       html += '<div class="section" style="margin-top:12px">' +
         '<div style="background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:var(--radius);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">' +
-          '<div><div style="font-weight:600;color:var(--amber)">&#9208; Vacation mode</div>' +
+          '<div><div style="font-weight:600;color:var(--amber);display:flex;align-items:center;gap:6px">' + icon('pause', 15, 1.8) + 'Vacation mode</div>' +
           '<div style="font-size:var(--fs-meta);color:var(--text3)">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
           '<button class="add-btn" style="background:var(--amber);flex-shrink:0" onclick="resumeApp()">I\'m back</button>' +
         '</div></div>';
@@ -2187,9 +2437,9 @@
       html += '<div class="section"><div class="section-label">' +
         '<button class="section-label-btn' + (dailiesOpen ? ' open' : '') + '" onclick="toggleDailies()">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
-          'Daily Tasks (' + dailiesUndone.length + ')' +
+          'Daily' +
         '</button>' +
-        '<span class="section-label-time">⏱ ~' + fmtMinutes(dailyLeftMin) + ' remaining</span>' +
+        '<span class="section-label-time">' + dailiesUndone.length + ' left · ~' + fmtMinutes(dailyLeftMin) + '</span>' +
       '</div>' +
       '<div id="dailiesList" style="display:' + (dailiesOpen ? 'block' : 'none') + '">';
       dailiesUndone.forEach(t => html += renderCard(t, false));
@@ -2202,9 +2452,9 @@
       html += '<div class="section"><div class="section-label">' +
         '<button class="section-label-btn' + (otherTasksOpen ? ' open' : '') + '" id="otherTasksToggle" onclick="toggleOtherTasks()">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
-          'Other Tasks (' + cappedUndone.length + ')' +
+          'The rest' +
         '</button>' +
-        '<span class="section-label-time">⏱ ~' + fmtMinutes(otherLeftMin) + ' remaining</span>' +
+        '<span class="section-label-time">' + cappedUndone.length + ' left · ~' + fmtMinutes(otherLeftMin) + '</span>' +
       '</div>' +
       '<div id="otherTasksList" style="display:' + (otherTasksOpen ? 'block' : 'none') + '">';
       cappedUndone.forEach(t => html += renderCard(t, true));
@@ -2258,12 +2508,17 @@
     if (!hand.length && !overflow.length) {
       html = '<div class="empty">Nothing due — all clear!</div>';
     }
-  
+
+    // 3a puts this at the foot of the list, not in the header.
+    html += '<div class="section" style="padding-top:14px;padding-bottom:6px">' +
+      '<button class="btn-dashed" onclick="openOneOffModal()">' + icon('plus', 14, 1.8) + 'Add a one-off task</button>' +
+    '</div>';
+
     // Quick-log: record a completion for anything you did that isn't in the hand
-    html += '<div class="section" style="margin-top:12px">' +
+    html += '<div class="section" style="margin-top:6px">' +
       '<button class="more-btn" style="margin-bottom:' + (quickLogOpen ? '8px' : '0') + '" onclick="toggleQuickLog()">' + (quickLogOpen ? '&minus; Log something else' : '+ Log something else I did') + '</button>';
     if (quickLogOpen) {
-      html += '<input class="search-input" id="quickLogInput" style="width:100%" placeholder="&#128269; Search any task&hellip;" value="' + quickLogQuery.replace(/"/g,'&quot;') + '" oninput="quickLogQuery=this.value;renderQuickLogResults()">' +
+      html += '<input class="search-input" id="quickLogInput" style="width:100%" placeholder="Search any task&hellip;" value="' + quickLogQuery.replace(/"/g,'&quot;') + '" oninput="quickLogQuery=this.value;renderQuickLogResults()">' +
         '<div id="quickLogResults" style="margin-top:8px"></div>';
     }
     html += '</div>';
@@ -2305,16 +2560,28 @@
     const note = extra > 0
       ? '~' + fmtMinutes(dailyTime) + ' of dailies + ' + fmtMinutes(extra) + ' of everything else'
       : '~' + fmtMinutes(dailyTime) + ' of dailies alone — no room for anything else';
+    row.className = 'day-budget' + (dayBudgetOpen ? ' open' : '');
     row.innerHTML =
-      '<div class="day-budget-top">' +
+      '<button class="day-budget-top" onclick="toggleDayBudget()" aria-expanded="' + (dayBudgetOpen ? 'true' : 'false') + '">' +
         '<span class="day-budget-label">Today\'s time</span>' +
-        (override !== null ? '<button class="day-budget-reset" onclick="clearDayBudget()">back to usual</button>' : '') +
         '<span class="day-budget-val" id="dayBudgetVal">' + fmtMinutes(value) + '</span>' +
-      '</div>' +
-      '<input type="range" class="day-budget-slider" id="dayBudgetSlider" min="0" max="' + DAY_BUDGET_MAX + '" step="' + DAY_BUDGET_STEP + '" value="' + Math.min(value, DAY_BUDGET_MAX) + '"' +
-        ' aria-label="Time available today, in minutes"' +
-        ' oninput="previewDayBudget(this.value)" onchange="setDayBudget(this.value)">' +
-      '<div class="day-budget-note' + (extra > 0 ? '' : ' over') + '" id="dayBudgetNote">' + note + '</div>';
+        '<span class="day-budget-chev">' + icon('chevDown', 12, 1.5) + '</span>' +
+      '</button>' +
+      (dayBudgetOpen
+        ? '<input type="range" class="day-budget-slider" id="dayBudgetSlider" min="0" max="' + DAY_BUDGET_MAX + '" step="' + DAY_BUDGET_STEP + '" value="' + Math.min(value, DAY_BUDGET_MAX) + '"' +
+            ' aria-label="Time available today, in minutes"' +
+            ' oninput="previewDayBudget(this.value)" onchange="setDayBudget(this.value)">' +
+          '<div class="day-budget-note' + (extra > 0 ? '' : ' over') + '" id="dayBudgetNote">' + note +
+            (override !== null ? ' <button class="day-budget-reset" onclick="clearDayBudget()">back to usual</button>' : '') +
+          '</div>'
+        : '');
+  }
+
+  // Opening must not re-deal, so this repaints the row only — renderAlina() would
+  // rebuild the whole list under her thumb for a disclosure toggle.
+  function toggleDayBudget() {
+    dayBudgetOpen = !dayBudgetOpen;
+    renderDayBudget();
   }
 
   // Dragging only repaints the two labels. Re-dealing on every input event would
@@ -2423,105 +2690,217 @@
     completeTask(id);
   }
 
-  function renderCard(task, canSwap) {
+  // ─── THE ROW (redesign 2026-08-09, mockup 3a) ──────────────────────────────
+  // Circle · name · one quiet meta line · time. Nothing else ever renders here:
+  // every action moved to the swipe rail (3b) or the sheet (3c). If you are about
+  // to add a button to this function, add a row to openTaskActions() instead —
+  // keeping the row pristine is the whole point of the redesign.
+  // opts.compact — Sprint's rows, which sit inside a block that already names the
+  // room, so the meta line would repeat it on every line. Same element structure
+  // either way, so swipe, long-press and the sheet work identically in both.
+  function renderCard(task, canSwap, opts) {
+    const compact = !!(opts && opts.compact);
     const isDone = wasCompletedToday(task);
     const overdue = task.oneOff ? 0 : daysOverdue(task);
 
-    const last = state.completions[task.id] || 0;
-    const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never';
-    const nextDue = new Date(last + task.freq * 86400000);
-
-    let overdueHtml = '';
-    if (!isDone && !task.oneOff) {
-      if (overdue >= 1) overdueHtml = '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>';
-      else if (overdue >= 0) overdueHtml = '<span class="task-overdue">due today</span>';
-      else {
-        const daysUntil = Math.ceil(-overdue);
-        overdueHtml = '<span class="task-notdue">in ' + daysUntil + 'd</span>';
-      }
-    }
-  
     const snoozeUntil = state.snoozed && state.snoozed[task.id];
     const isSnoozed = snoozeUntil && Date.now() < snoozeUntil;
-    if (!isDone && isSnoozed) {
-      const snoozeDate = new Date(snoozeUntil).toLocaleDateString('en-US', {month:'short', day:'numeric'});
-      overdueHtml = '<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>';
-    }
-
     const isInProgress = !!(state.inProgress && state.inProgress[task.id]);
-    const inProgressBadge = !isDone && isInProgress ? '<span class="task-snoozed">&#9203; in progress</span>' : '';
-
-    const cad = task.oneOff ? null : cadenceInfo(task);
-    const cadHtml = cad ? '<span style="font-size:var(--fs-label);color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>' : '';
-  
-    const ownerHtml = task.owner === 'bob' ? '<span class="owner-badge owner-bob">Bob</span>' : '';
-    const isPinned = state.pinnedIds && state.pinnedIds.includes(task.id);
-    const pinBadge = isPinned && !task.oneOff ? '<span class="pin-badge">&#128204;</span>' : '';
-    const oneOffBadge = task.oneOff ? '<span class="oneoff-badge">once</span>' : '';
-    const timerRunning = activeTimer && activeTimer.id === task.id;
-    const timerChip = timerRunning ? '<span id="timerElapsed_' + task.id + '" style="font-size:var(--fs-meta);font-weight:600;color:var(--green)">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>' : '';
+    const isPinned = !!(state.pinnedIds && state.pinnedIds.includes(task.id)) && !task.oneOff;
     const isFlagged = (state.flaggedIds || []).includes(task.id);
+    const timerRunning = activeTimer && activeTimer.id === task.id;
 
-    // D-6: at most two contextual buttons, chosen by state, then "⋯". Everything
-    // rare moved into the actions sheet — see openTaskActions().
-    const stop = 'event.stopPropagation();';
-    let cardBtns = '';
-    if (isDone) {
-      if (!task.oneOff) cardBtns += '<button class="task-btn" onclick="' + stop + 'uncompleteTask(\'' + task.id + '\')">undo</button>';
-    } else {
-      // Slot 1 — where this task is in its own lifecycle.
-      if (timerRunning) {
-        cardBtns += '<button class="task-btn" style="color:var(--green);border-color:var(--green)" onclick="' + stop + 'toggleTimer(\'' + task.id + '\')">stop ⏱</button>';
-      } else if (isInProgress) {
-        cardBtns += '<button class="task-btn" onclick="' + stop + 'toggleTimer(\'' + task.id + '\')">⏱ time it</button>';
+    // The meta line, in priority order — it ellipsizes, so what matters goes first.
+    const bits = [];
+    if (task.room) bits.push(task.room);
+    if (!task.oneOff) bits.push(freqLabel(task.freq));
+    if (task.oneOff) bits.push('one-off');
+    if (!isDone) {
+      if (isSnoozed) {
+        const snoozeDate = new Date(snoozeUntil).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+        bits.push('<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>');
       } else if (!task.oneOff) {
-        cardBtns += '<button class="task-btn" onclick="' + stop + 'toggleInProgress(\'' + task.id + '\')">started</button>';
+        // Only real lateness earns the red. "Due today" was true of every daily in
+        // the hand, so it read as nine alarms and told her nothing.
+        if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + ' day' + (Math.floor(overdue) === 1 ? '' : 's') + ' overdue</span>');
+        else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
       }
-      // Slot 2 — only when the task isn't due, where it's the one thing you'd want.
-      // A snoozed task gets un-snooze instead: "mark due" is the wrong verb for it,
-      // and the snooze was previously impossible to lift without completing it.
-      if (isSnoozed) {   // the local boolean above, not the global helper it shadows
-        cardBtns += '<button class="task-btn" onclick="' + stop + 'unsnoozeTask(\'' + task.id + '\')" title="Cancel the snooze">un-snooze</button>';
-      } else if (!isDue(task) && !task.oneOff) {
-        cardBtns += '<button class="task-btn" onclick="' + stop + 'markTaskDue(\'' + task.id + '\')" title="Mark as due (enters dealing pool without flag priority)">mark due</button>';
-      }
+      if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
+      if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
     }
-    const moreBtn = '<button class="task-btn task-more" onclick="' + stop + 'openTaskActions(\'' + task.id + '\',' + (canSwap ? 'true' : 'false') + ')" title="More actions" aria-label="More actions">&middot;&middot;&middot;</button>';
+    const cad = task.oneOff ? null : cadenceInfo(task);
+    if (cad) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>');
+    if (task.owner === 'bob') bits.push('<span class="owner-badge owner-bob">Bob</span>');
 
-    const dpId = 'dp_' + task.id;
+    // "Started" is a rule, not a badge — it has to survive the ellipsis.
+    const startedHtml = !isDone && isInProgress && !timerRunning
+      ? '<span class="task-started">Started</span>' : '';
 
-    return '<div class="task-card ' + (isDone?'done':'') + '" id="card_' + task.id + '">' +
+    const timeHtml = timerRunning
+      ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
+      : (isDone ? '' : '<span class="task-time">' + fmtMinutes(taskTime(task)) + '</span>');
+
+    const pinGlyph = isPinned && !isDone
+      ? '<span style="color:var(--amber);display:flex;flex-shrink:0">' + icon('pinFill', 12) + '</span>' : '';
+
+    // The rail only offers Remove where removing means something.
+    const inHand = !!(state.hand && state.hand.includes(task.id));
+    const q = "'" + task.id + "'";
+    let rail =
+      '<button class="sw-more" onclick="openTaskActions(' + q + ',' + (canSwap ? 'true' : 'false') + ')" aria-label="More actions">' +
+        icon('dots', 19) + '<span>More</span></button>';
+    if (!task.oneOff) {
+      rail += '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' +
+        icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>';
+    }
+    if (inHand && !isDone) {
+      rail += '<button class="sw-remove" onclick="removeFromHand(' + q + ')" aria-label="Remove from today">' +
+        icon('trash', 17) + '<span>Remove</span></button>';
+    }
+
+    return '<div class="task-card' + (isDone ? ' done' : '') + (compact ? ' compact' : '') + '" id="card_' + task.id + '" data-task-id="' + task.id + '" data-can-swap="' + (canSwap ? '1' : '0') + '">' +
+      '<div class="task-swipe">' + rail + '</div>' +
       '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
         '<div class="task-body">' +
-          '<div class="task-name">' + task.name + pinBadge + oneOffBadge + '</div>' +
+          '<div class="task-name">' + pinGlyph + '<span class="task-name-text">' + task.name + '</span>' +
+            (compact && startedHtml ? startedHtml : '') + '</div>' +
+          (compact ? '' :
           '<div class="task-meta">' +
-            (task.room ? '<span class="task-room">' + task.room + '</span>' : '') +
-            (!task.oneOff ? '<span class="task-freq">' + freqLabel(task.freq) + '</span>' : '') +
-            cadHtml +
-            '<span class="task-time">⏱ ' + fmtMinutes(taskTime(task)) + '</span>' +
-            timerChip +
-            inProgressBadge +
-            overdueHtml +
-            ownerHtml +
-          '</div>' +
+            '<span class="task-meta-main">' + bits.join(' · ') + '</span>' +
+            startedHtml +
+          '</div>') +
         '</div>' +
+        timeHtml +
+        // Invisible on touch — the row stays clean — but reachable by keyboard and
+        // revealed on hover, so the sheet isn't swipe-only.
+        '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',' + (canSwap ? 'true' : 'false') + ')" title="More actions" aria-label="More actions for ' + task.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
       '</div>' +
-      '<div class="task-detail">' +
-        (!task.oneOff ? '<div class="task-lastdone">' +
-          'Last done: ' + lastDate +
-          ' <button class="edit-btn" onclick="event.stopPropagation();toggleDatePicker(\'' + dpId + '\')">edit</button>' +
-        '</div>' +
-        '<div class="date-picker-row" id="' + dpId + '">' +
-          '<input type="date" class="date-input" id="input_' + task.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '" onclick="event.stopPropagation()">' +
-          '<button class="date-save-btn" onclick="event.stopPropagation();saveDate(\'' + task.id + '\')">Save</button>' +
-        '</div>' : '') +
-      '</div>' +
-      '<div class="task-actions">' + cardBtns + moreBtn + '</div>' +
     '</div>';
   }
   
   
+  // ─── SWIPE (redesign 2026-08-09, mockup 3b) ────────────────────────────────
+  // Drag a row left to reveal More / Pin / Remove; drag right to complete;
+  // long-press to open the sheet. Delegated from the document, so it survives
+  // every re-render without rebinding — the rows are innerHTML'd constantly.
+  (function initSwipe() {
+    const AXIS_LOCK = 8;    // px before we decide this is a swipe, not a scroll
+    const COMPLETE_AT = 64; // px right before a release counts as "done"
+    const LONG_PRESS = 500;
+    let g = null;           // the gesture in flight
+    let suppressClickUntil = 0;
+    let pressTimer = null;
+
+    const railWidth = card => {
+      const rail = card.querySelector('.task-swipe');
+      return rail ? rail.offsetWidth : 0;
+    };
+
+    function closeSwiped(except) {
+      document.querySelectorAll('.task-card.swiped').forEach(c => {
+        if (c === except) return;
+        c.classList.remove('swiped');
+        const m = c.querySelector('.task-main');
+        if (m) m.style.transform = '';
+      });
+    }
+    // Called by render() — an open row whose HTML is about to be replaced would
+    // otherwise leave .swiped on a card that no longer has the offset.
+    window.closeSwipedRows = () => closeSwiped(null);
+
+    function cancelPress() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+
+    document.addEventListener('pointerdown', e => {
+      const main = e.target.closest && e.target.closest('.task-main');
+      if (!main) { closeSwiped(null); return; }
+      // A press that lands on the rail or the ⋯ button is a click, not a drag.
+      if (e.target.closest('.task-swipe') || e.target.closest('.task-more-btn')) return;
+      const card = main.closest('.task-card');
+      if (!card) return;
+      g = {
+        card, main, startX: e.clientX, startY: e.clientY, axis: null, moved: false,
+        width: railWidth(card),
+        base: card.classList.contains('swiped') ? -railWidth(card) : 0
+      };
+      cancelPress();
+      pressTimer = setTimeout(() => {
+        if (!g || g.axis === 'x') return;
+        const id = card.dataset.taskId;
+        g = null;
+        suppressClickUntil = Date.now() + 400;
+        closeSwiped(null);
+        openTaskActions(id, card.dataset.canSwap === '1');
+      }, LONG_PRESS);
+    }, true);
+
+    document.addEventListener('pointermove', e => {
+      if (!g) return;
+      const dx = e.clientX - g.startX, dy = e.clientY - g.startY;
+      if (!g.axis) {
+        if (Math.abs(dx) < AXIS_LOCK && Math.abs(dy) < AXIS_LOCK) return;
+        cancelPress();
+        // Vertical wins: this is a scroll, let go of it entirely.
+        if (Math.abs(dy) >= Math.abs(dx)) { g = null; return; }
+        g.axis = 'x';
+        g.card.classList.add('dragging');
+        closeSwiped(g.card);
+      }
+      let x = g.base + dx;
+      // Rubber-band past each end so the row never detaches from the finger.
+      if (x < -g.width) x = -g.width + (x + g.width) * 0.25;
+      if (x > 0) x = Math.min(x * 0.85, 120);
+      g.main.style.transform = 'translateX(' + x + 'px)';
+      g.moved = true;
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false, capture: true });
+
+    function endGesture(e) {
+      cancelPress();
+      if (!g) return;
+      const s = g; g = null;
+      s.card.classList.remove('dragging');
+      if (s.axis !== 'x') return;
+      // A drag must never also fire the row's click (which completes the task).
+      if (s.moved) suppressClickUntil = Date.now() + 400;
+      const x = s.base + ((e.clientX || 0) - s.startX);
+      if (x > COMPLETE_AT && !s.card.classList.contains('done')) {
+        s.main.style.transform = '';
+        s.card.classList.remove('swiped');
+        toggleComplete(s.card.dataset.taskId);
+        return;
+      }
+      if (x < -s.width / 2 && s.width > 0) {
+        s.card.classList.add('swiped');
+        s.main.style.transform = 'translateX(' + (-s.width) + 'px)';
+      } else {
+        s.card.classList.remove('swiped');
+        s.main.style.transform = '';
+      }
+    }
+    document.addEventListener('pointerup', endGesture, true);
+    document.addEventListener('pointercancel', () => {
+      cancelPress();
+      if (g) { g.card.classList.remove('dragging'); g.main.style.transform = g.base ? 'translateX(' + g.base + 'px)' : ''; g = null; }
+    }, true);
+
+    document.addEventListener('click', e => {
+      if (Date.now() < suppressClickUntil) { e.stopPropagation(); e.preventDefault(); return; }
+      // With a row open, the next tap on it closes the rail instead of completing.
+      const main = e.target.closest && e.target.closest('.task-main');
+      if (main && !e.target.closest('.task-swipe')) {
+        const card = main.closest('.task-card');
+        if (card && card.classList.contains('swiped')) {
+          e.stopPropagation(); e.preventDefault();
+          closeSwiped(null);
+        }
+      }
+    }, true);
+
+    // Scrolling away from an open row should tidy it up.
+    window.addEventListener('scroll', () => closeSwiped(null), { passive: true });
+  })();
+
   // ─── WHY THIS TASK? ────────────────────────────────────────────────────────
 
   // ─── Sheet open/close (D-4) ───────────────────────────────────────────────
@@ -2583,26 +2962,26 @@
 
     let m = null;
     // First match wins, most-special first.
-    if (n === 1) m = fire('first:' + task.id, '&#127881; First time you\'ve logged ' + task.name + '.');
+    if (n === 1) m = fire('first:' + task.id, 'First time you\'ve logged ' + task.name + '.');
     if (!m && prevCompletion && (Date.now() - prevCompletion) / 86400000 >= 180) {
       m = fire('rescued:' + task.id + ':' + new Date().getFullYear(),
-               '&#128153; Rescued — ' + task.name + ' hadn\'t been done in ' + Math.floor((Date.now() - prevCompletion) / 86400000) + ' days.');
+               'Rescued — ' + task.name + ' hadn\'t been done in ' + Math.floor((Date.now() - prevCompletion) / 86400000) + ' days.');
     }
-    if (!m && MILESTONE_COUNTS.includes(n)) m = fire('count:' + task.id + ':' + n, '&#127942; ' + n + 'th time you\'ve done ' + task.name + '.');
+    if (!m && MILESTONE_COUNTS.includes(n)) m = fire('count:' + task.id + ':' + n, '' + n + 'th time you\'ve done ' + task.name + '.');
     if (!m) {
       // Room sweep: every in-season task in this room done at least once this season.
       const season = new Date().getFullYear() + '-' + Math.floor(new Date().getMonth() / 3);
       const roomTasks = getAllTasks().filter(t => t.room === task.room && !t.oneOff && inSeason(t));
       const cutoff = Date.now() - 90 * 86400000;
       if (roomTasks.length >= 3 && roomTasks.every(t => ((state.completionHistory || {})[t.id] || []).some(ts => ts >= cutoff))) {
-        m = fire('sweep:' + task.room + ':' + season, '&#129529; Room sweep — every task in ' + task.room + ' done this season.');
+        m = fire('sweep:' + task.room + ':' + season, 'Room sweep — every task in ' + task.room + ' done this season.');
       }
     }
     if (!m) {
       const st = currentStreak();
       if (st >= 5 && st > (state.bestStreak || 0)) {
         state.bestStreak = st;
-        m = fire('streak:' + st, '&#128293; ' + st + '-day streak — a new record.');
+        m = fire('streak:' + st, '' + st + '-day streak — a new record.');
       }
     }
     if (m) seen[m.key] = Date.now();
@@ -2633,20 +3012,61 @@
     const timerRunning = activeTimer && activeTimer.id === id;
     const snoozed = isSnoozed(id);
     const q = "'" + id + "'";
-    const btn = (label, onclick, cls) =>
-      '<button class="sheet-btn' + (cls ? ' ' + cls : '') + '" onclick="' + onclick + '">' + label + '</button>';
+    const last = state.completions[id] || 0;
+    const lastLabel = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'never';
 
-    let html = '<div class="sheet-actions">';
-    // The timer only appears here when the card isn't already showing it.
-    if (!isDone && !timerRunning && !isInProgress) html += btn('⏱ Time it', 'taskAction(toggleTimer,' + q + ')');
-    if (!isDone && !task.oneOff) html += btn(isPinned ? '📌 Unpin' : '📌 Pin', 'taskAction(togglePin,' + q + ')', isPinned ? 'on' : '');
-    if (!isDone && !task.oneOff) html += btn(isFlagged ? '🚩 Unflag' : '🚩 Flag', 'taskAction(' + (isFlagged ? 'unflagTask' : 'flagTask') + ',' + q + ')', isFlagged ? 'on' : '');
-    if (!isDone && snoozed) html += btn('⏰ Un-snooze', 'taskAction(unsnoozeTask,' + q + ')');
-    if (!isDone && !snoozed && !isDue(task) && !task.oneOff) html += btn('Mark due', 'taskAction(markTaskDue,' + q + ')');
-    if (canSwap && !isDone && !isPinned && !task.oneOff) html += btn('🔀 Swap', 'taskAction(swapTask,' + q + ')');
-    if (!task.oneOff) html += btn('Why this task?', 'closeTaskActions();showWhy(' + q + ')');
-    if (!isDone) html += btn('Remove from today', 'taskAction(removeFromHand,' + q + ')', 'danger wide');
-    html += '</div>';
+    // 3c: icon · title · one line of consequence. The subtitle is what makes this
+    // sheet legible where a grid of identical grey pills was not.
+    const row = (ic, title, desc, onclick, cls) =>
+      '<button class="sheet-row' + (cls ? ' ' + cls : '') + '" onclick="' + onclick + '">' +
+        '<span class="sheet-row-icon">' + icon(ic, 20) + '</span>' +
+        '<span class="sheet-row-body"><span class="sheet-row-title">' + title + '</span>' +
+        (desc ? '<span class="sheet-row-desc">' + desc + '</span>' : '') + '</span>' +
+      '</button>';
+
+    let html = '';
+    if (!isDone && !task.oneOff) {
+      html += row('pin', isPinned ? 'Unpin from every day' : 'Pin to every day',
+        isPinned ? 'Currently pinned to your hand' : 'Keep it in the hand until you unpin',
+        'taskAction(togglePin,' + q + ')', isPinned ? 'on' : '');
+    }
+    // The timer only appears here when the row isn't already showing it running.
+    if (!isDone && !timerRunning) {
+      html += row('play', isInProgress ? 'Time it' : 'Start now',
+        isInProgress ? 'Run the timer on this one' : 'Mark in progress &amp; run the timer',
+        'taskAction(' + (isInProgress ? 'toggleTimer' : 'toggleInProgress') + ',' + q + ')', 'go');
+    }
+    if (!isDone && timerRunning) {
+      html += row('clock', 'Stop the timer', 'Log how long it actually took',
+        'taskAction(toggleTimer,' + q + ')', 'go');
+    }
+    if (!isDone && !task.oneOff) {
+      html += row('flag', isFlagged ? 'Unflag' : 'Flag it',
+        isFlagged ? 'Stop forcing it to the top' : 'Surfaces first in every mode',
+        'taskAction(' + (isFlagged ? 'unflagTask' : 'flagTask') + ',' + q + ')', isFlagged ? 'on' : '');
+    }
+    if (!isDone && snoozed) {
+      html += row('clock', 'Un-snooze', 'Bring it back into the pool now',
+        'taskAction(unsnoozeTask,' + q + ')');
+    }
+    if (!isDone && !snoozed && !isDue(task) && !task.oneOff) {
+      html += row('clock', 'Mark due', 'Enters the pool without flag priority',
+        'taskAction(markTaskDue,' + q + ')');
+    }
+    if (canSwap && !isDone && !isPinned && !task.oneOff) {
+      html += row('refresh', 'Swap for another', 'Trade it for a different task of similar length',
+        'taskAction(swapTask,' + q + ')');
+    }
+    if (!task.oneOff) {
+      html += row('calendar', 'Edit last done', lastLabel + ' — fix if the schedule drifted',
+        'openSheetDatePicker(' + q + ')');
+      // Rendered collapsed; openSheetDatePicker swaps this in place.
+      html += '<div id="sheetDateRow" style="display:none;padding:0 12px 10px 47px">' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+          '<input type="date" class="date-input" id="sheetDateInput" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
+          '<button class="date-save-btn" onclick="saveSheetDate(' + q + ')">Save</button>' +
+        '</div></div>';
+    }
 
     if (!isDone && !isPinned && !task.oneOff) {
       html += '<div class="sheet-group"><div class="sheet-group-label">' + (snoozed ? 'Snooze further' : 'Snooze') + '</div><div class="sheet-chips">' +
@@ -2654,16 +3074,53 @@
       '</div></div>';
     }
     if (!isDone && !task.oneOff) {
-      // "Yesterday" is on the card as a one-tap action; the rarer offsets live here.
-      html += '<div class="sheet-group"><div class="sheet-group-label">Actually did it</div><div class="sheet-chips">' +
+      html += '<div class="sheet-group"><div class="sheet-group-label">Actually did it earlier</div><div class="sheet-chips">' +
         [1,2,3].map(d => '<button class="go" onclick="taskAction(completeEarlier,' + q + ',' + d + ')">' +
           (d === 1 ? 'Yesterday' : d + 'd ago') + '</button>').join('') +
       '</div></div>';
     }
 
+    if (!task.oneOff) {
+      html += row('info', 'Why this task?', 'The score that put it in your hand',
+        'closeTaskActions();showWhy(' + q + ')');
+    }
+    if (!isDone) {
+      html += row('trash', 'Remove from today', 'Back tomorrow when you redeal',
+        'taskAction(removeFromHand,' + q + ')', 'danger');
+    }
+
+    const foot = isDone
+      ? '<button class="sheet-primary" style="background:var(--bg2);color:var(--text)" onclick="taskAction(uncompleteTask,' + q + ')">' + icon('refresh', 17, 2.2) + 'Undo completion</button>'
+      : '<button class="sheet-primary" onclick="taskAction(completeTask,' + q + ')">' + icon('check', 17, 2.2) + 'Mark done</button>';
+
+    const metaBits = [];
+    if (task.room) metaBits.push(task.room);
+    if (!task.oneOff) metaBits.push(freqLabel(task.freq));
+    metaBits.push(fmtMinutes(taskTime(task)));
+    if (!task.oneOff) metaBits.push('last done ' + lastLabel);
     document.getElementById('taskActionsTitle').textContent = task.name;
+    document.getElementById('taskActionsMeta').textContent = metaBits.join(' · ');
     document.getElementById('taskActionsBody').innerHTML = html;
+    document.getElementById('taskActionsFoot').innerHTML = foot;
     showSheet('taskActionsModal');
+  }
+
+  // "Edit last done" opens in place rather than closing the sheet and reopening a
+  // second one — the sheet is already the place where this task's details live.
+  function openSheetDatePicker(id) {
+    const rowEl = document.getElementById('sheetDateRow');
+    if (!rowEl) return;
+    rowEl.style.display = rowEl.style.display === 'none' ? 'block' : 'none';
+    if (rowEl.style.display === 'block') {
+      const inp = document.getElementById('sheetDateInput');
+      if (inp) inp.focus();
+    }
+  }
+  function saveSheetDate(id) {
+    const inp = document.getElementById('sheetDateInput');
+    if (!inp || !inp.value) return;
+    closeTaskActions();
+    setLastDoneIfChanged(id, inp.value);
   }
 
   function closeTaskActions() {
@@ -2895,31 +3352,38 @@
     const doneMin = hand.filter(t => wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
     const leftMin = totalMin - doneMin;
   
-    let html = '<div class="sprint-progress">' +
-      '<div class="sprint-progress-stats">' +
-        '<span class="sprint-progress-label">Sprint</span>' +
+    // 3i: eyebrow + serif title, one pine band, two outline chips.
+    const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    let html = '<div class="screen-head">' +
+      '<div class="eyebrow">The Sprint · ' + dayName + '</div>' +
+      '<div class="screen-title">Work the house</div>' +
+      '<div class="sprint-progress">' +
         '<div class="sprint-progress-bar-wrap">' +
           '<div class="sprint-progress-bar" style="width:' + (hand.length ? Math.round(doneCount/hand.length*100) : 0) + '%"></div>' +
         '</div>' +
-        '<span class="sprint-progress-text">' + doneCount + ' / ' + hand.length + '</span>' +
+        '<span class="sprint-progress-text">' + doneCount + ' / ' + hand.length + ' · ' + fmtMinutes(leftMin) + ' left</span>' +
       '</div>' +
-      '<span class="sprint-time-left">~' + fmtMinutes(leftMin) + ' left</span>' +
-      '<button onclick="copySprint()" style="font-size:var(--fs-label);padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">📋 Copy</button>' +
-      '<button onclick="toggleSprintCompleted()" style="font-size:var(--fs-label);padding:2px 8px;border-radius:10px;border:0.5px solid var(--border2);background:' + (sprintHideCompleted ? 'var(--green-bg)' : 'transparent') + ';color:' + (sprintHideCompleted ? 'var(--green)' : 'var(--text3)') + ';cursor:pointer;white-space:nowrap;flex-shrink:0">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
-    '</div>';
-  
+      '<div class="sprint-chips">' +
+        '<button class="chip" onclick="copySprint()">' + icon('copy', 13, 1.8) + 'Copy list</button>' +
+        '<button class="chip' + (sprintHideCompleted ? ' on' : '') + '" onclick="toggleSprintCompleted()">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="rule" style="margin-top:0"></div>';
+
     sprintBlocks.forEach((block, blockIdx) => {
       if (blockIdx > 0) html += '<div class="sprint-block-divider"></div>';
       const allDone = block.tasks.every(t => wasCompletedToday(t));
       const blockHint = BLOCK_HINTS[block.label] || '';
       const blockLeftMin = block.tasks.filter(t => !wasCompletedToday(t)).reduce((s,t) => s + taskTime(t), 0);
+      // The numeral is pine while there is work left in the block and goes quiet
+      // once it's cleared — that colour IS the "where am I" cue in 3i.
       html += '<div class="sprint-block">' +
         '<div class="sprint-block-header">' +
-          '<span class="sprint-block-num">' + (blockIdx + 1) + '</span>' +
+          '<span class="sprint-block-num' + (allDone ? ' done' : '') + '">' + (blockIdx + 1) + '</span>' +
           '<div class="sprint-block-meta">' +
             '<div class="sprint-block-label-row">' +
               '<span class="sprint-block-label">' + block.label + '</span>' +
-              (allDone ? '<span class="sprint-done-badge">Done! ✓</span>' : '<span class="sprint-block-time">⏱ ~' + fmtMinutes(blockLeftMin) + '</span>') +
+              (allDone ? '<span class="sprint-done-badge">Done</span>' : '<span class="sprint-block-time">~' + fmtMinutes(blockLeftMin) + '</span>') +
             '</div>' +
             (blockHint ? '<div class="sprint-block-hint">' + blockHint + '</div>' : '') +
           '</div>' +
@@ -2927,37 +3391,11 @@
   
       const visibleTasks = sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
       if (sprintHideCompleted && visibleTasks.length === 0) { html += '</div>'; return; }
-      visibleTasks.forEach(t => {
-        const isDone = wasCompletedToday(t);
-        const sPinned = state.pinnedIds && state.pinnedIds.includes(t.id);
-        const sRunning = activeTimer && activeTimer.id === t.id;
-        const sInProgress = !!(state.inProgress && state.inProgress[t.id]);
-        const sProgressBtn = !isDone
-          ? '<button onclick="event.stopPropagation();toggleInProgress(\'' + t.id + '\')" title="' + (sInProgress ? 'Clear in progress' : 'Mark in progress') + '" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid ' + (sInProgress ? 'var(--amber)' : 'var(--border2)') + ';border-radius:6px;color:' + (sInProgress ? 'var(--amber)' : 'var(--text3)') + ';background:' + (sInProgress ? 'var(--amber-bg)' : 'transparent') + ';cursor:pointer;flex-shrink:0">&#9203;</button>'
-          : '';
-        const sTimerBtn = !isDone
-          ? '<button onclick="event.stopPropagation();toggleTimer(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid ' + (sRunning ? 'var(--red)' : 'var(--border2)') + ';border-radius:6px;color:' + (sRunning ? 'var(--red)' : 'var(--text3)') + ';background:transparent;cursor:pointer;flex-shrink:0">⏱</button>'
-          : '';
-        const sRemoveBtn = !isDone && !sPinned
-          ? '<button onclick="event.stopPropagation();removeFromHand(\'' + t.id + '\')" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-label);border:1px solid var(--red);border-radius:6px;color:var(--red);background:transparent;cursor:pointer;flex-shrink:0">✕</button>'
-          : '';
-        html += '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="toggleComplete(\'' + t.id + '\')">' +
-          '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
-          '<div class="sprint-card-body">' +
-            '<div class="sprint-card-top">' +
-              '<span class="sprint-card-name">' + t.name + (sPinned ? '<span class="sprint-pin">&#128204;</span>' : '') + (sInProgress ? ' <span style="font-size:var(--fs-label);color:var(--amber);background:var(--amber-bg);padding:1px 5px;border-radius:8px">&#9203; in progress</span>' : '') + '</span>' +
-              (sRunning
-                ? '<span class="sprint-card-time" id="timerElapsed_' + t.id + '" style="color:var(--green);font-weight:600">⏱ ' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
-                : '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>') +
-            '</div>' +
-          '</div>' +
-          sProgressBtn +
-          sTimerBtn +
-          sRemoveBtn +
-        '</div>';
-      });
-  
-      html += '</div>';
+      // Same row as My Hand. The timer, in-progress and remove buttons that used
+      // to sit on each line are all in the sheet now — swipe or long-press.
+      html += '<div class="sprint-rows">';
+      visibleTasks.forEach(t => { html += renderCard(t, false, { compact: true }); });
+      html += '</div></div>';
     });
   
     html += '<div class="bottom-pad"></div>';
@@ -3610,26 +4048,49 @@
     if (_autoClosedAny) saveState();
 
     function categoryHeader(label) {
-      return '<div style="font-size:var(--fs-label);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:24px 0 4px">' + label + '</div>';
+      return '<div class="eyebrow" style="padding:26px 0 6px">' + label + '</div>';
     }
 
     // `clear` is optional so this can also draw the plain two-button row used
     // by the legacy hand-crafted blocks below before they're updated.
     function loadBtns(loadAll, loadDue, clear) {
-      return '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-        '<button onclick="' + loadAll + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Load all →</button>' +
-        '<button onclick="' + loadDue + '" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Load due only →</button>' +
-        (clear ? '<button onclick="' + clear + '" title="Close this checklist without loading it" aria-label="Close" style="padding:10px 14px;background:transparent;border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text3)">✕</button>' : '') +
+      return '<div class="ed-card-btns" style="margin-bottom:14px">' +
+        '<button class="btn-fill" onclick="' + loadAll + '">Load all →</button>' +
+        '<button class="btn-line" style="flex:1;min-width:96px" onclick="' + loadDue + '">Load due only →</button>' +
+        (clear ? '<button class="btn-line" onclick="' + clear + '" title="Close this checklist without loading it" aria-label="Close">' + icon('close', 14, 2) + '</button>' : '') +
       '</div>';
     }
 
-    let html = '<div style="padding:0 24px 32px">';
+    // 3e: icon tile + serif name. Keyed by title so each of the real presets keeps
+    // its own mark without every card block having to carry markup for one.
+    const PRESET_ICONS = {
+      'Random Task': 'dice', 'Express Reset': 'bolt', 'Tidy Everywhere': 'home2',
+      'Weekly Reset': 'refresh', 'Full Reset': 'sparkle', 'Guest Prep': 'guests',
+      'Going Out of Town': 'bag', 'Return Home': 'door', 'Before Cleaners': 'calendar',
+      'Recovery Mode': 'clock', 'Post-Illness': 'heart', 'Evening Shutdown': 'moon',
+      'Seasonal Deep Clean': 'sun'
+    };
+    function presetTitle(name, sub) {
+      return '<div class="ed-card-head">' +
+        '<div class="ed-card-icon">' + icon(PRESET_ICONS[name] || 'grid', 20, 1.6) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="ed-card-title">' + name + '</div>' +
+          (sub ? '<div class="ed-card-sub">' + sub + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }
+
+    let html = '<div class="screen-head">' +
+        '<div class="eyebrow">Checklists for a moment</div>' +
+        '<div class="screen-title">Presets</div>' +
+      '</div>' +
+      '<div style="padding:0 26px 32px">';
 
     // ── RANDOM TASK ───────────────────────────────────────────────────────────
     const tierLabels = { all: 'All', A: 'Tier A', B: 'Tier B', C: 'Tier C' };
     const tierDescs  = { A: 'Daily & weekly', B: 'Every 2–8 weeks', C: 'Every 2+ months' };
     html += '<div class="settings-card" style="margin-top:4px">' +
-      '<div class="settings-card-title">Random Task</div>' +
+      presetTitle('Random Task') +
       '<div class="settings-card-desc">Pick a random due task. Good for when you have a free 10 minutes.</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:12px">';
     ['all','A','B','C'].forEach(tier => {
@@ -3670,7 +4131,7 @@
     const exTime = presetTotalTime(EXPRESS_RESET_SECTIONS);
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Express Reset</div>' +
+        presetTitle('Express Reset') +
         '<div class="settings-card-desc">Quick whole-house pass. ~' + fmtMinutes(exTime) + '. Kitchen, bathrooms, bedroom, living spaces, cat care.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (exActive ? '14px' : '0') + '" onclick="generateNewPreset(\'expressReset\')">Generate Express Reset</button>';
     if (exActive) {
@@ -3684,7 +4145,7 @@
     const teTime = presetTotalTime(TIDY_EVERYWHERE_SECTIONS);
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Tidy Everywhere</div>' +
+        presetTitle('Tidy Everywhere') +
         '<div class="settings-card-desc">Tidy every room in the house, plus unload the dishwasher and wipe counters. ~' + fmtMinutes(teTime) + '.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (teActive ? '14px' : '0') + '" onclick="generateNewPreset(\'tidyEverywhere\')">Generate Tidy Everywhere</button>';
     if (teActive) {
@@ -3698,7 +4159,7 @@
     const wrTime = presetTotalTime(WEEKLY_RESET_SECTIONS);
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Weekly Reset</div>' +
+        presetTitle('Weekly Reset') +
         '<div class="settings-card-desc">The classic weekly / Sunday reset. ~' + fmtMinutes(wrTime) + '. Sheets, bathroom, kitchen, vacuum + dust the living spaces, towels, cat care.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (wrActive ? '14px' : '0') + '" onclick="generateNewPreset(\'weeklyReset\')">Generate Weekly Reset</button>';
     if (wrActive) {
@@ -3710,7 +4171,7 @@
     // Full Reset
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Full Reset</div>' +
+        presetTitle('Full Reset') +
         '<div class="settings-card-desc">Complete whole-house clean. Expect 2–3 hours.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
     if (state.resetHand && state.resetHand.length) {
@@ -3735,7 +4196,7 @@
     const guestActive = state.guestHand && state.guestHand.length;
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Guest Prep</div>' +
+        presetTitle('Guest Prep') +
         '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
         '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
@@ -3764,7 +4225,7 @@
     const goingOutActive = state.goingOutHand && state.goingOutHand.length;
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Going Out of Town</div>' +
+        presetTitle('Going Out of Town') +
         '<div class="settings-card-desc">Leave the house in great shape before you go.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
     if (goingOutActive) {
@@ -3788,7 +4249,7 @@
     const rhTime = presetTotalTime(RETURN_HOME_SECTIONS);
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Return Home</div>' +
+        presetTitle('Return Home') +
         '<div class="settings-card-desc">Get the house back to baseline after travel. ~' + fmtMinutes(rhTime) + '. Fridge, cat care, laundry, bedroom.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (rhActive ? '14px' : '0') + '" onclick="generateNewPreset(\'returnHome\')">Generate Return Home</button>';
     if (rhActive) {
@@ -3805,7 +4266,7 @@
     const bcTime = presetTotalTime(BEFORE_CLEANERS_SECTIONS);
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Before Cleaners</div>' +
+        presetTitle('Before Cleaners') +
         '<div class="settings-card-desc">Prep so the professionals can do their best work. ~' + fmtMinutes(bcTime) + '. Declutter + cat care (cleaners won\'t touch it).</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (bcActive ? '14px' : '0') + '" onclick="generateNewPreset(\'beforeCleaners\')">Generate Before Cleaners</button>';
     if (bcActive) {
@@ -3819,7 +4280,7 @@
     const p1Time = presetTotalTime([RECOVERY_SECTIONS[0]]);
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Recovery Mode</div>' +
+        presetTitle('Recovery Mode') +
         '<div class="settings-card-desc">When things feel overwhelming. Start with Phase 1 — that\'s enough. Phase 1 is only ~' + fmtMinutes(p1Time) + '.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (recActive ? '14px' : '0') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
     if (recActive) {
@@ -3827,7 +4288,7 @@
         '<div style="display:flex;gap:8px;margin-bottom:14px">' +
           '<button onclick="loadRecoveryPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Phase 1 only →</button>' +
           '<button onclick="loadRecoveryPhase(3)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">All phases →</button>' +
-          '<button onclick="clearNewPreset(\'recovery\')" title="Close this checklist without loading it" aria-label="Close" style="padding:10px 14px;background:transparent;border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text3)">✕</button>' +
+          '<button class="btn-line" onclick="clearNewPreset(\'recovery\')" title="Close this checklist without loading it" aria-label="Close">' + icon('close', 14, 2) + '</button>' +
         '</div>';
       html += renderNewPresetChecklist(RECOVERY_SECTIONS);
     }
@@ -3838,7 +4299,7 @@
     const piP1Time = presetTotalTime([POST_ILLNESS_SECTIONS[0]]);
     html +=
       '<div class="settings-card">' +
-        '<div class="settings-card-title">Post-Illness</div>' +
+        presetTitle('Post-Illness') +
         '<div class="settings-card-desc">Sanitize high-touch surfaces first (~' + fmtMinutes(piP1Time) + '), then restore normal routines when you\'re ready.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (piActive ? '14px' : '0') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
     if (piActive) {
@@ -3846,7 +4307,7 @@
         '<div style="display:flex;gap:8px;margin-bottom:14px">' +
           '<button onclick="loadPostIllnessPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Sanitize only →</button>' +
           '<button onclick="loadPostIllnessPhase(2)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Full plan →</button>' +
-          '<button onclick="clearNewPreset(\'postIllness\')" title="Close this checklist without loading it" aria-label="Close" style="padding:10px 14px;background:transparent;border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text3)">✕</button>' +
+          '<button class="btn-line" onclick="clearNewPreset(\'postIllness\')" title="Close this checklist without loading it" aria-label="Close">' + icon('close', 14, 2) + '</button>' +
         '</div>';
       html += renderNewPresetChecklist(POST_ILLNESS_SECTIONS);
     }
@@ -3861,7 +4322,7 @@
     const selectedTidyTask = selectedTidyId ? allTasks.find(t => t.id === selectedTidyId) : null;
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Evening Shutdown</div>' +
+        presetTitle('Evening Shutdown') +
         '<div class="settings-card-desc">Dishes, counters, cat water + tonight\'s tidy room (picks whichever is most overdue). ~15–20 min.</div>' +
         (selectedTidyTask ? '<div style="font-size:var(--fs-meta);color:var(--amber);margin-bottom:10px">Tonight\'s tidy: ' + selectedTidyTask.room + '</div>' : '') +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (esActive ? '14px' : '0') + '" onclick="generateEveningShutdown()">Generate Evening Shutdown</button>';
@@ -3880,7 +4341,7 @@
     const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()];
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
-        '<div class="settings-card-title">Seasonal Deep Clean</div>' +
+        presetTitle('Seasonal Deep Clean') +
         '<div class="settings-card-desc">Spring-cleaning checklist: every in-season deep task (windows, baseboards, ceiling fans, behind furniture, appliances, grout…). Generate it, then chip away — or "Load due only" for just what\'s actually due now.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (sdActive ? '14px' : '0') + '" onclick="generateSeasonalDeepClean()">Generate ' + monthName + ' Deep Clean</button>';
     if (sdActive) {
@@ -4202,7 +4663,7 @@
     function cadenceRow(x) {
       const overdue = daysOverdue(x.t);
       const dueBadge = !inSeason(x.t)
-        ? '<span class="task-notdue">&#10052; off-season</span>'
+        ? '<span class="task-notdue">off-season</span>'
         : wasCompletedToday(x.t)
         ? '<span class="task-notdue">done today</span>'
         : overdue >= 1 ? '<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>'
@@ -4213,7 +4674,7 @@
       const todayBtn = inHand
         ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
         : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
-      const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + '">🚩</span></button>';
+      const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + ';display:flex">' + icon('flag', 14, 1.8) + '</span></button>';
       const adoptBtn = x.cad.color !== 'var(--green)' && x.cad.real !== x.t.freq
         ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
         : '';
@@ -4311,17 +4772,45 @@
       }).join('');
     })();
 
+    // 3f's hero: the three numbers set in serif, straight on the paper, with the
+    // seven-day bar row under them. The heatmap and everything else follow as cards.
+    const weekBars = (function() {
+      const counts = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = days[keyDaysAgo(i)];
+        counts.push({ n: (d && d.count) || 0, label: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', { weekday: 'narrow' }), today: i === 0 });
+      }
+      const max = Math.max(1, ...counts.map(c => c.n));
+      // A fixed-height row of 3px stubs is a lot of empty paper to spend on "no
+      // data yet" — say it in a line instead.
+      if (!counts.some(c => c.n > 0)) {
+        return '<div style="padding:4px 26px 16px;font-size:var(--fs-sub);color:var(--text3)">Nothing logged in the last seven days.</div>';
+      }
+      return '<div class="week-bars">' + counts.map(c =>
+        '<div class="week-bar"><div class="week-bar-fill' + (c.today ? ' today' : '') + '" style="height:' +
+          Math.max(3, Math.round(c.n / max * 96)) + 'px" title="' + c.n + ' done"></div>' +
+        '<span' + (c.today ? ' class="today"' : '') + '>' + c.label + '</span></div>').join('') + '</div>';
+    })();
+
     const html =
-      '<div style="padding-bottom:32px">' +
-      '<div class="settings-card">' +
-        '<div class="settings-card-title">This Week</div>' +
-        '<div class="settings-stats-grid">' +
-          '<div class="settings-stat-box"><div class="settings-stat-num">' + thisWeek.count + '</div><div class="settings-stat-label">done, last 7 days' + (lastWeek.count ? ' (prev: ' + lastWeek.count + ')' : '') + '</div></div>' +
-          '<div class="settings-stat-box"><div class="settings-stat-num">' + fmtMinutes(thisWeek.minutes) + '</div><div class="settings-stat-label">est. effort' + (lastWeek.minutes ? ' (prev: ' + fmtMinutes(lastWeek.minutes) + ')' : '') + '</div></div>' +
-          '<div class="settings-stat-box"><div class="settings-stat-num">' + streak + '</div><div class="settings-stat-label">day streak</div></div>' +
-          '<div class="settings-stat-box"><div class="settings-stat-num">' + ((days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count) || 0) + '</div><div class="settings-stat-label">done today</div></div>' +
-        '</div>' +
+      '<div class="screen-head" style="padding-bottom:8px">' +
+        '<div class="eyebrow">This week</div>' +
+        '<div class="screen-title">The upkeep</div>' +
       '</div>' +
+      '<div class="stat-hero">' +
+        '<div><div class="stat-hero-num" style="color:var(--green)">' + thisWeek.count + '</div><div class="stat-hero-label">tasks done' + (lastWeek.count ? ' (prev ' + lastWeek.count + ')' : '') + '</div></div>' +
+        '<div class="stat-hero-sep"></div>' +
+        '<div><div class="stat-hero-num">' + streak + '</div><div class="stat-hero-label">day streak</div></div>' +
+        '<div class="stat-hero-sep"></div>' +
+        '<div><div class="stat-hero-num">' + fmtMinutes(thisWeek.minutes) + '</div><div class="stat-hero-label">invested' + (lastWeek.minutes ? ' (prev ' + fmtMinutes(lastWeek.minutes) + ')' : '') + '</div></div>' +
+      '</div>' +
+      '<div class="rule"></div>' +
+      '<div class="section-label" style="padding-left:26px;padding-right:26px"><span>Last 7 days</span>' +
+        '<span class="section-label-time">' + ((days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count) || 0) + ' done today</span></div>' +
+      weekBars +
+      // Everything below is cards; they carry no horizontal margin of their own
+      // so that Presets can nest them inside its own padded column.
+      '<div style="padding:0 26px 32px">' +
       (function() {
         const bs = budgetSuggestion();
         function line(label, a, current, type) {
@@ -4334,7 +4823,7 @@
               '<button class="settings-save-btn" onclick="applyBudget(\'' + type + '\',' + a.target + ')">Apply</button>' +
             '</div>';
           } else {
-            html += '<div style="font-size:var(--fs-meta);color:var(--green);margin-top:2px">Budget matches your real pace 👍</div>';
+            html += '<div style="font-size:var(--fs-meta);color:var(--green);margin-top:2px">Budget matches your real pace.</div>';
           }
           return html + '</div>';
         }
@@ -4385,10 +4874,14 @@
     ];
   
     let html =
-      '<div style="padding-bottom:32px">' +
-  
+      '<div class="screen-head">' +
+        '<div class="eyebrow">Home Tasks · ' + APP_VERSION.split(' ').pop() + '</div>' +
+        '<div class="screen-title">Settings</div>' +
+      '</div>' +
+      '<div style="padding:0 26px 32px">' +
+
       // Card 1: Daily Time Budget
-      '<div class="settings-card">' +
+      '<div class="settings-card" style="margin-top:0">' +
         '<div class="settings-card-title">Daily Time Budget</div>' +
         '<div class="settings-card-desc">Tasks are selected until the target time is reached. Daily tasks are always included.</div>' +
         '<div class="settings-row">' +
@@ -4431,10 +4924,11 @@
         '</div>' +
       '</div>' +
   
-      // Card 4: How Scoring Works
-      '<div class="settings-card">' +
-        '<div class="settings-card-title">How Scoring Works</div>' +
-        '<div class="settings-card-desc">Lower score = higher priority.</div>' +
+      // Card 4: How Scoring Works — collapsed by default; it's a reference, and
+      // seven bullets of scoring rules is the longest thing on the tab.
+      '<details class="settings-card ed-details">' +
+        '<summary><span class="settings-card-title">How Scoring Works</span>' + icon('chevDown', 14, 1.8) + '</summary>' +
+        '<div class="settings-card-desc" style="margin-top:10px">Lower score = higher priority.</div>' +
         '<ul style="font-size:var(--fs-sub);color:var(--text2);line-height:1.8;padding-left:16px">' +
           '<li><b>Base score</b> = frequency in days (lower freq = higher priority)</li>' +
           '<li><b>Cat tasks</b>: −0.5 tiebreaker boost</li>' +
@@ -4444,13 +4938,15 @@
           '<li><b>Flagged</b>: −50, so a flagged task surfaces ahead of everything else</li>' +
           '<li><b>Heavy task cap</b>: max 2 tasks over 15m per hand</li>' +
         '</ul>' +
-      '</div>' +
-  
+      '</details>' +
+
       // Card 5: Activity Log
       (function() {
         const log = buildActivityLog();
         const hasAny = log.some(d => d.tasks.length > 0);
-        let logHtml = '<div class="settings-card"><div class="settings-card-title">Recent Activity</div>';
+        // Also collapsed: it lists every completion for the last fortnight.
+        let logHtml = '<details class="settings-card ed-details">' +
+          '<summary><span class="settings-card-title">Recent Activity</span>' + icon('chevDown', 14, 1.8) + '</summary>';
         if (!hasAny) {
           logHtml += '<div class="settings-card-desc">No history yet — completions will appear here as you check tasks off.</div>';
         } else {
@@ -4462,7 +4958,7 @@
             '</div>';
           });
         }
-        logHtml += '</div>';
+        logHtml += '</details>';
         return logHtml;
       })() +
   
@@ -4488,9 +4984,9 @@
           '</details>' +
           '<div class="settings-card-desc" style="margin:8px 0 12px">Change any task in its editor on the All Tasks tab.</div>' +
           (state.paused
-            ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">&#9208; Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
+            ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
               '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
-            : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">&#9208; Pause (going away)</button>') +
+            : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">Pause (going away)</button>') +
         '</div>';
       })() +
 
@@ -4499,7 +4995,7 @@
         '<div class="settings-card-title">Reload app</div>' +
         '<div class="settings-card-desc">Reloads the page to pick up the latest version. Your data is saved — nothing is lost. (This is not the same as redealing today\'s hand.)</div>' +
         '<div style="font-size:var(--fs-sub);color:var(--text2);margin-bottom:10px">Version: <b>' + APP_VERSION + '</b></div>' +
-        '<button class="add-btn" style="width:100%" onclick="location.reload()">&#8635; Reload app</button>' +
+        '<button class="add-btn" style="width:100%" onclick="location.reload()">Reload app</button>' +
       '</div>' +
 
       // Card: What's new — the only place a change is visible from inside the app
@@ -4541,7 +5037,7 @@
         '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
         '<div style="height:16px;border-top:0.5px solid var(--border);margin:16px -24px 0;padding-top:16px;margin-bottom:0"></div>' +
         '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
-        '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">⚠️ Overwrites all current data.</div>' +
+        '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">Overwrites all current data.</div>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">From an auto-backup file in Downloads:</div>' +
         '<input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">' +
         '<button class="add-btn" style="width:100%;margin-bottom:14px" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
@@ -4700,38 +5196,40 @@
     const searchWasFocused = document.activeElement && document.activeElement.classList.contains('search-input');
     const allTasks = getAllTasks();
     const rooms = [...new Set(allTasks.map(t => t.room))].sort();
-  
-    const roomOpts = rooms.map(r =>
-      '<option value="' + r + '"' + (manageRoomFilter === r ? ' selected' : '') + '>' + r + '</option>'
-    ).join('');
-  
+
+    // 3d: chips replace the three <select>s. Two rows as drawn — rooms, then
+    // status; the owner filter joins the status row after a divider so all three
+    // axes stay visible instead of one hiding in a menu.
+    const chip = (label, on, onclick) =>
+      '<button class="chip' + (on ? ' on' : '') + '" onclick="' + onclick + '">' + label + '</button>';
+
     let html =
-      '<div class="manage-header">' +
-        '<div class="manage-header-left">' +
-          '<div class="manage-title">All Tasks</div>' +
-          '<div class="manage-subtitle">' + allTasks.length + ' tasks · sorted by frequency</div>' +
+      '<div class="screen-head">' +
+        '<div class="screen-head-row">' +
+          '<div>' +
+            '<div class="eyebrow">' + allTasks.length + ' tasks · ' + rooms.length + ' rooms</div>' +
+            '<div class="screen-title">All Tasks</div>' +
+          '</div>' +
+          '<button class="round-add" onclick="openModal(null)" title="Add a task" aria-label="Add a task">' + icon('plus', 17, 2) + '</button>' +
         '</div>' +
-        '<button class="add-btn" onclick="openModal(null)">+ Add</button>' +
       '</div>' +
-      '<div class="manage-toolbar">' +
-        '<input class="search-input" placeholder="🔍 Search..." value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
-        '<select class="filter-select" onchange="manageOwnerFilter=this.value;renderManage()">' +
-          '<option value="all"' + (manageOwnerFilter==='all'?' selected':'') + '>All</option>' +
-          '<option value="alina"' + (manageOwnerFilter==='alina'?' selected':'') + '>Alina</option>' +
-          '<option value="bob"' + (manageOwnerFilter==='bob'?' selected':'') + '>Bob</option>' +
-          '<option value="either"' + (manageOwnerFilter==='either'?' selected':'') + '>Either</option>' +
-        '</select>' +
-        '<select class="filter-select" onchange="manageRoomFilter=this.value;renderManage()">' +
-          '<option value="all"' + (manageRoomFilter==='all'?' selected':'') + '>All rooms</option>' +
-          roomOpts +
-        '</select>' +
-        '<select class="filter-select" onchange="manageDueFilter=this.value;renderManage()">' +
-          '<option value="all"' + (manageDueFilter==='all'?' selected':'') + '>All status</option>' +
-          '<option value="due"' + (manageDueFilter==='due'?' selected':'') + '>Due now</option>' +
-          '<option value="notdue"' + (manageDueFilter==='notdue'?' selected':'') + '>Not due</option>' +
-        '</select>' +
+      '<div class="search-well">' + icon('search', 16, 1.8) +
+        '<input class="search-input" placeholder="Search tasks" value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
       '</div>' +
-      '<div class="manage-list">';
+      '<div class="chip-row">' +
+        chip('All rooms', manageRoomFilter === 'all', "manageRoomFilter='all';renderManage()") +
+        rooms.map(r => chip(r, manageRoomFilter === r, "manageRoomFilter='" + r.replace(/'/g,"\\'") + "';renderManage()")).join('') +
+      '</div>' +
+      '<div class="chip-row">' +
+        chip('All', manageDueFilter === 'all' && manageOwnerFilter === 'all', "manageDueFilter='all';manageOwnerFilter='all';renderManage()") +
+        chip('Due now', manageDueFilter === 'due', "manageDueFilter='due';renderManage()") +
+        chip('Not due', manageDueFilter === 'notdue', "manageDueFilter='notdue';renderManage()") +
+        '<span class="chip-sep"></span>' +
+        chip('Alina', manageOwnerFilter === 'alina', "manageOwnerFilter='alina';renderManage()") +
+        chip('Bob', manageOwnerFilter === 'bob', "manageOwnerFilter='bob';renderManage()") +
+        chip('Either', manageOwnerFilter === 'either', "manageOwnerFilter='either';renderManage()") +
+      '</div>' +
+      '';
   
     const search = manageSearch.toLowerCase();
     const filtered = allTasks.filter(t => {
@@ -4747,60 +5245,79 @@
       return true;
     }).sort((a,b) => a.freq - b.freq || a.name.localeCompare(b.name));
   
+    // 3d groups by room. Within a room the frequency sort still applies.
+    const byRoom = new Map();
     filtered.forEach(t => {
-      const isCustom = !!(state.customTasks && state.customTasks[t.id]);
-      const ownerLabel = t.owner === 'alina' ? 'Alina' : t.owner === 'bob' ? 'Bob' : 'Either';
-      const overdue = daysOverdue(t);
-      const statusHtml = !inSeason(t)
-        ? '<span class="status-ok">&#10052; off-season</span>'
-        : overdue >= 0
-        ? '<span class="status-due">Due</span>'
-        : '<span class="status-ok">in ' + Math.ceil(-overdue) + 'd</span>';
-      const isDoneToday = wasCompletedToday(t);
-      const last = state.completions[t.id] || 0;
-      const lastDate = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'never';
-      const mdpId = 'mdp_' + t.id;
-      const inHand = !!(state.hand && state.hand.includes(t.id));
-      const isFlagged = (state.flaggedIds || []).includes(t.id);
-      const isPinned = (state.pinnedIds || []).includes(t.id);
-      const cad = cadenceInfo(t);
-      const avgHint = cad !== null
-        ? ' · <span style="color:' + cad.color + '">~' + cad.real + 'd real</span>'
-        : '';
-      const samples = (state.actualTimes || {})[t.id] || [];
-      const learned = taskTime(t);
-      const timeHint = samples.length >= 3 && learned !== t.time
-        ? ' · <span style="color:var(--blue)">~' + learned + 'm (est ' + t.time + 'm, n=' + samples.length + ')</span>'
-        : '';
-      html +=
-        '<div class="manage-card' + (isDoneToday ? ' mc-done' : '') + '">' +
-          '<div class="manage-card-main">' +
-            '<button class="mc-check" onclick="' + (isDoneToday ? 'uncompleteTask' : 'completeTask') + '(\'' + t.id + '\')">' +
-              '<div class="mc-check-inner"></div>' +
-            '</button>' +
-            '<div class="manage-card-body">' +
-              '<div class="manage-card-name">' + t.name + (isCustom ? ' <span style="font-size:var(--fs-label);color:var(--blue)">custom</span>' : '') + '</div>' +
-              '<div class="manage-card-meta">' + t.room + ' · ' + freqLabel(t.freq) + avgHint + timeHint + ' · ' + ownerLabel + ' · ' + statusHtml + '</div>' +
-            '</div>' +
-            '<div class="manage-card-icons">' +
-              '<button class="icon-btn" onclick="togglePin(\'' + t.id + '\')" title="' + (isPinned ? 'Unpin' : 'Pin') + '" style="' + (isPinned ? '' : 'opacity:0.4') + '">&#128204;</button>' +
-              '<button class="icon-btn" onclick="openModal(\'' + t.id + '\')" title="Edit">&#9998;</button>' +
-              (overdue < 0 ? '<button class="icon-btn" onclick="markTaskDue(\'' + t.id + '\')" title="Mark as due">⏰</button>' : '') +
-              '<button class="icon-btn" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '" style="' + (isFlagged ? '' : 'opacity:0.4') + '">🚩</button>' +
-              '<button class="icon-btn danger" onclick="deleteTask(\'' + t.id + '\')" title="Delete">&#10005;</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="manage-card-foot">' +
-            '<span class="manage-card-last">Last: ' + lastDate + ' <button class="edit-btn" onclick="toggleManageDp(\'' + mdpId + '\')">edit</button></span>' +
-            '<button class="manage-hand-btn' + (inHand ? ' in-hand' : '') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(\'' + t.id + '\')">' + (inHand ? '✓ In hand' : '+ Today') + '</button>' +
-          '</div>' +
-          '<div class="manage-dp-row" id="' + mdpId + '">' +
-            '<input type="date" class="date-input" id="minput_' + t.id + '" value="' + (last ? new Date(last).toISOString().slice(0,10) : '') + '">' +
-            '<button class="date-save-btn" onclick="saveManageDate(\'' + t.id + '\')">Save</button>' +
-          '</div>' +
-        '</div>';
+      if (!byRoom.has(t.room)) byRoom.set(t.room, []);
+      byRoom.get(t.room).push(t);
     });
-  
+
+    if (!filtered.length) html += '<div class="empty">Nothing matches those filters.</div>';
+
+    [...byRoom.keys()].sort().forEach(room => {
+      const list = byRoom.get(room);
+      html += '<div class="section-label" style="padding-left:26px;padding-right:26px">' +
+        '<span>' + room + '</span>' +
+        '<span class="section-label-time">' + list.length + ' task' + (list.length === 1 ? '' : 's') + '</span>' +
+      '</div><div class="rowlist">';
+
+      list.forEach(t => {
+        const isCustom = !!(state.customTasks && state.customTasks[t.id]);
+        const overdue = daysOverdue(t);
+        const isDoneToday = wasCompletedToday(t);
+        const last = state.completions[t.id] || 0;
+        const inHand = !!(state.hand && state.hand.includes(t.id));
+        const isFlagged = (state.flaggedIds || []).includes(t.id);
+        const isPinned = (state.pinnedIds || []).includes(t.id);
+        const q = "'" + t.id + "'";
+
+        // One quiet line: cadence, then the single most useful fact about state.
+        const bits = [freqLabel(t.freq).replace(/^./, c => c.toUpperCase())];
+        if (!inSeason(t)) bits.push('<span class="task-notdue">off-season</span>');
+        else if (isDoneToday) bits.push('done today');
+        else if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + ' day' + (Math.floor(overdue) === 1 ? '' : 's') + ' overdue</span>');
+        else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
+        // Nothing for "due now": with a due filter right above the list, saying it
+        // on most of 186 rows is noise, and "last done" already implies it.
+        bits.push('last done ' + (last ? relativeDay(last) : 'never'));
+        if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
+        if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
+        if (t.owner === 'bob') bits.push('Bob');
+        if (isCustom) bits.push('<span style="color:var(--blue)">custom</span>');
+        const cad = cadenceInfo(t);
+        if (cad !== null) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + t.freq + 'd">~' + cad.real + 'd real</span>');
+        const samples = (state.actualTimes || {})[t.id] || [];
+        const learned = taskTime(t);
+        if (samples.length >= 3 && learned !== t.time) {
+          bits.push('<span style="color:var(--blue)" title="learned from ' + samples.length + ' timed runs">~' + learned + 'm real (est ' + t.time + 'm)</span>');
+        }
+
+        html +=
+          '<div class="task-card manage-row" data-task-id="' + t.id + '" data-can-swap="0">' +
+            '<div class="task-swipe">' +
+              '<button class="sw-more" onclick="openTaskActions(' + q + ',false)" aria-label="More actions">' + icon('dots', 19) + '<span>More</span></button>' +
+              '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' + icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>' +
+              '<button class="' + (inHand ? 'sw-remove' : 'sw-today') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(' + q + ')" aria-label="' + (inHand ? 'Remove from today' : 'Add to today') + '">' +
+                icon(inHand ? 'trash' : 'plus', 17) + '<span>' + (inHand ? 'Remove' : 'Today') + '</span></button>' +
+            '</div>' +
+            // Tap opens the editor: this is the library, and editing is what it's for.
+            '<div class="task-main" onclick="openModal(' + q + ')">' +
+              '<div class="task-body">' +
+                '<div class="task-name">' +
+                  (isPinned ? '<span style="color:var(--amber);display:flex;flex-shrink:0">' + icon('pinFill', 12) + '</span>' : '') +
+                  '<span class="task-name-text">' + t.name + '</span>' +
+                  (inHand ? '<span class="in-hand-dot" title="In today\'s hand"></span>' : '') +
+                '</div>' +
+                '<div class="task-meta"><span class="task-meta-main">' + bits.join(' · ') + '</span></div>' +
+              '</div>' +
+              '<span class="task-time">' + fmtMinutes(learned) + '</span>' +
+              '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',false)" title="More actions" aria-label="More actions for ' + t.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
+            '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    });
+
     html += '</div><div class="bottom-pad"></div>';
     document.getElementById('manageTaskList').innerHTML = html;
     if (manageSearch && searchWasFocused) {
@@ -4861,6 +5378,8 @@
     editingId = id;
     const modal = document.getElementById('taskModal');
     document.getElementById('modalTitle').textContent = id ? 'Edit task' : 'Add task';
+    // Nothing to delete when the task doesn't exist yet.
+    document.getElementById('modalDelete').style.display = id ? '' : 'none';
 
     editingMonths = new Set(id ? ((state.taskMonths || {})[id] || []) : []);
     renderMonthChips();
@@ -4965,7 +5484,9 @@
   }
   
   function deleteTask(id) {
+    if (!id) return;
     if (!confirm('Delete this task?')) return;
+    closeModal();   // it is only ever reached from the editor now
     if (!state.deletedIds) state.deletedIds = [];
     if (!state.customTasks) state.customTasks = {};
     if (state.customTasks[id]) {
@@ -4993,25 +5514,6 @@
   }
   
   // removeFromHand is defined earlier near swapTask — this duplicate is removed
-  
-  function toggleManageDp(dpId) {
-    if (!document.getElementById(dpId)) return;
-    const isOpen = document.getElementById(dpId).classList.contains('open');
-    document.querySelectorAll('.manage-dp-row.open').forEach(r => {
-      r.classList.remove('open');
-      saveManageDate(r.id.replace(/^mdp_/, ''));   // may re-render and detach `r`
-    });
-    // Re-query: a save above re-renders the list, so the element captured before
-    // the loop is detached and opening it would silently do nothing.
-    const row = document.getElementById(dpId);
-    if (row && !isOpen) row.classList.add('open');
-  }
-
-  function saveManageDate(taskId) {
-    const input = document.getElementById('minput_' + taskId);
-    if (!input) return;
-    setLastDoneIfChanged(taskId, input.value);
-  }
   
   function saveZone() {
     const v = document.getElementById('zoneSelect').value;
@@ -5055,17 +5557,6 @@
     renderSprint();
   }
   
-  function toggleDatePicker(dpId) {
-    if (!document.getElementById(dpId)) return;
-    const isOpen = document.getElementById(dpId).classList.contains('open');
-    document.querySelectorAll('.date-picker-row.open').forEach(r => {
-      r.classList.remove('open');
-      saveDate(r.id.replace(/^dp_/, ''));          // may re-render and detach `r`
-    });
-    const row = document.getElementById(dpId);     // see toggleManageDp
-    if (row && !isOpen) row.classList.add('open');
-  }
-  
   function snoozeTask(id, days) {
     state.snoozed = state.snoozed || {};
     state.snoozed[id] = Date.now() + days * 86400000;
@@ -5075,12 +5566,6 @@
     saveState();
     render();
     showToast('Snoozed ' + days + 'd');
-  }
-  
-  function saveDate(taskId) {
-    const input = document.getElementById('input_' + taskId);
-    if (!input) return;
-    setLastDoneIfChanged(taskId, input.value);
   }
   
   let toastTimer;

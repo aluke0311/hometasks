@@ -1185,14 +1185,20 @@ test('sprint and preset checklist cards toggle rather than only complete', () =>
     switchTabQuiet('sprint');
     G('render')();
     const sprintHtml = G('document').getElementById('sprintContent').innerHTML;
-    ok(/class="sprint-card[^"]*"[^>]*onclick="toggleComplete\(/.test(sprintHtml),
-       'a sprint card is still wired straight to completeTask');
-    ok(!/class="sprint-card[^"]*"[^>]*onclick="completeTask\(/.test(sprintHtml),
-       'a sprint card is still wired straight to completeTask');
+    // The 2026-08-09 redesign moved Sprint onto the shared task row, so the tick
+    // is .task-main rather than .sprint-card. The invariant is unchanged: the row
+    // must toggle, never fire completeTask directly.
+    ok(/class="task-main" onclick="toggleComplete\(/.test(sprintHtml),
+       'no sprint row is wired to toggleComplete — did the row markup change?');
+    ok(!/onclick="completeTask\(/.test(sprintHtml),
+       'a sprint row is still wired straight to completeTask');
 
     G('generateNewPreset')('expressReset');
     switchTabQuiet('presets');
     const presetHtml = G('document').getElementById('presetsContent').innerHTML;
+    // Preset checklists still build .sprint-card by hand — they aren't hand tasks.
+    ok(/class="sprint-card[^"]*"[^>]*onclick="toggleComplete\(/.test(presetHtml),
+       'no preset checklist card is wired to toggleComplete');
     ok(!/class="sprint-card[^"]*"[^>]*onclick="completeTask\(/.test(presetHtml),
        'a preset checklist card is still wired straight to completeTask');
   });
