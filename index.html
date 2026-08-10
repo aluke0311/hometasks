@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-09 v18">
+  <meta name="app-version" content="2026-08-10 v19">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -543,6 +543,19 @@
     .search-well svg { flex-shrink: 0; color: var(--eyebrow); }
     .search-well .search-input { flex: 1; border: none; background: transparent; padding: 10px 0; border-radius: 0; min-width: 0; }
     .search-well .search-input:focus { outline: none; }
+
+    /* Filter select — same filled well as the search field, so the two read as one
+       control group. The caret is a background image because `input, select
+       { appearance: none }` up top strips the native one. */
+    .select-well { margin: 0 26px 14px; background: var(--bg2); border-radius: var(--radius); }
+    .room-select { width: 100%; border: none; background: transparent; color: var(--text);
+      font-size: 16px; padding: 11px 36px 11px 13px; border-radius: var(--radius); cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%237d6839' stroke-width='1.6'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center; }
+    .room-select:focus { outline: none; }
+    @media (prefers-color-scheme: dark) {
+      .room-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23a89a6f' stroke-width='1.6'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E"); }
+    }
 
     /* Round + button used by All Tasks. */
     .round-add { width: 36px; height: 36px; border-radius: 50%; background: var(--green); border: none; color: var(--on-accent); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
@@ -1248,12 +1261,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-09 v18';
+  const APP_VERSION = '2026-08-10 v19';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-10 v19', notes: [
+      'Rooms on All Tasks are a dropdown again, with a task count beside each one. As a scrolling chip strip, 15 of the 18 rooms sat off-screen.',
+    ]},
     { v: '2026-08-09 v18', notes: [
       'A full redesign. Warm paper instead of grey, one deep-green accent, serif headings, and line icons everywhere in place of the emoji.',
       'Tasks are now hairline-separated rows rather than boxes: a circle, the name, one quiet line of detail, and the time. Nothing else sits on the row.',
@@ -5197,11 +5213,20 @@
     const allTasks = getAllTasks();
     const rooms = [...new Set(allTasks.map(t => t.room))].sort();
 
-    // 3d: chips replace the three <select>s. Two rows as drawn — rooms, then
-    // status; the owner filter joins the status row after a divider so all three
-    // axes stay visible instead of one hiding in a menu.
+    // 3d draws rooms as a chip strip, but there are 18 of them: all but three
+    // scroll off-screen, so picking a room meant swiping blind through a rail.
+    // Rooms are a select; status and owner stay as chips, where the whole set
+    // is visible at once and the strip earns its place.
     const chip = (label, on, onclick) =>
       '<button class="chip' + (on ? ' on' : '') + '" onclick="' + onclick + '">' + label + '</button>';
+
+    const esc = v => String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const roomCounts = {};
+    allTasks.forEach(t => { if (!t.oneOff) roomCounts[t.room] = (roomCounts[t.room] || 0) + 1; });
+    const roomOptions =
+      '<option value="all"' + (manageRoomFilter === 'all' ? ' selected' : '') + '>All rooms</option>' +
+      rooms.map(r => '<option value="' + esc(r) + '"' + (manageRoomFilter === r ? ' selected' : '') + '>' +
+        r + ' (' + (roomCounts[r] || 0) + ')</option>').join('');
 
     let html =
       '<div class="screen-head">' +
@@ -5216,9 +5241,10 @@
       '<div class="search-well">' + icon('search', 16, 1.8) +
         '<input class="search-input" placeholder="Search tasks" value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
       '</div>' +
-      '<div class="chip-row">' +
-        chip('All rooms', manageRoomFilter === 'all', "manageRoomFilter='all';renderManage()") +
-        rooms.map(r => chip(r, manageRoomFilter === r, "manageRoomFilter='" + r.replace(/'/g,"\\'") + "';renderManage()")).join('') +
+      '<div class="select-well">' +
+        '<select class="room-select" aria-label="Filter by room" onchange="manageRoomFilter=this.value;renderManage()">' +
+          roomOptions +
+        '</select>' +
       '</div>' +
       '<div class="chip-row">' +
         chip('All', manageDueFilter === 'all' && manageOwnerFilter === 'all', "manageDueFilter='all';manageOwnerFilter='all';renderManage()") +
