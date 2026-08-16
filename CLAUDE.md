@@ -21,9 +21,9 @@ Each task has:
 - `owner` — `'alina'`, `'bob'`, or `'either'`
 - `cat` — boolean, true for cat-care tasks (minor score boost)
 
-The base task list lives in the `TASKS` array (~line 667, 186 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
+The base task list lives in the `TASKS` array (186 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
 
-### Scoring (`scoreTask` ~line 1015, `scoreTaskParts` ~line 993)
+### Scoring (`scoreTask`, `scoreTaskParts`)
 
 Lower score = higher priority. `scoreTaskParts` returns the labeled component breakdown (used by the "why?" modal); `scoreTask` sums them and adds jitter. Components:
 - Base score = `task.freq` (lower frequency → lower base → higher priority)
@@ -34,7 +34,7 @@ Lower score = higher priority. `scoreTaskParts` returns the labeled component br
 - Cat tasks: `-0.5` tiebreaker
 - Jitter: tasks with `freq > 60` get `±1` random added in `scoreTask` (not `scoreTaskParts`) for deep-clean variety
 
-### `getTaskTier(task)` (~line 1043)
+### `getTaskTier(task)`
 
 ```javascript
 function getTaskTier(task) {
@@ -46,7 +46,7 @@ function getTaskTier(task) {
 
 Tiers are used only for the `_dealPreferTier` feature (redeal with a tier preference) — they do **not** drive separate quota or bypass logic inside `dealHand`.
 
-### Hand Dealing (`dealHand`, ~line 1049)
+### Hand Dealing (`dealHand`)
 
 **Always-assigned (bypass budget):**
 - `c_fountain` — always appears when due, regardless of mode
@@ -94,18 +94,19 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `tierCLastDate` — vestigial field kept for migration safety; no longer used in dealing logic
 - `_dealPreferTier` — transient; set before redeal to float a tier, deleted immediately after
 - `pinnedIds`, `flaggedIds`, `snoozed`, `deletedIds`, `customTasks`
-- `guestHand`, `resetHand`, `goingOutHand` — legacy preset checklist state (Presets tab); all other presets live in `presetHands`
-- `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Express Reset, Weekly Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, Seasonal Deep Clean, room presets)
+- `guestHand`, `resetHand`, `goingOutHand` — **retired 2026-08-16.** They now migrate into `presetHands` under the keys `guest`/`reset`/`goingout` via `migrateLegacyPresets()`, which runs on every load (not behind a flag) so an old export still converts. The fields stay in `defaultState()` and are always left `null`. Every preset runs on one code path now
+- `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Full Reset, Guest Prep, Going Out of Town, Express Reset, Weekly Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, Seasonal Deep Clean, room presets)
 - `removedToday` / `removedTodayDate` — task ids removed from the hand today; excluded from redeals and "give me more" until the next calendar day (unless completed today)
 - `lastBackupDate` — ISO date of last backup download (auto-download fires weekly on load)
 - `zoneMode` — `'auto'` (default; zone follows day-of-month: 1–7→Z1 … 29+→Z5 via `autoZone()`/`effectiveZone()`) | `'manual'`
 - `paused` / `pausedAt` — vacation mode; while paused no dealing or starvation ticks. On resume each pre-pause completion shifts forward by `pauseDuration × VAC_SHIFT[vacMode(id)]` — see below. Completions logged *during* the pause are never shifted (a sitter's work, or something done the morning you left)
 - `taskVac` — `{taskId: 'freeze'|'half'|'full'}` per-task vacation decay. `VAC_SHIFT` is the **share of the pause given back**: `freeze` 1 (didn't age at all), `half` 0.5, `full` 0 (aged exactly as if home). `vacMode()` returns `'freeze'` for anything unset, which is precisely how vacation mode behaved before this existed. `DEFAULT_VAC` (built from `VAC_HALF`/`VAC_FULL`) is applied once via the `vacDefaultsApplied` migration; edits in the task editor win after that. Currently 113 freeze / 61 half / 12 full. **Keyed by id, deliberately not stored on the task** — `saveTask` rebuilds a custom task from an explicit field list and would strip it (see the `load: true` watch-out below)
 - `taskMonths` — `{taskId: [1..12]}` seasonal windows; out-of-season tasks are excluded from dealing pools and starvation. `seasonalDefaultsApplied` guards the one-time defaults migration (porch tasks Mar–Nov, window-cleaning Apr–Oct)
-- `actualTimes` — `{taskId: minutes[]}` (last 10); fed by the timer (stop or check-off opens a confirm/adjust modal) or manual entry (⏲ icon in Manage); `taskTime()` returns the median of 3+ samples (else static `time`) and drives budget filling and time displays
+- `actualTimes` — `{taskId: minutes[]}` (last 10); fed by the timer (stop or check-off opens a confirm/adjust modal) or manual entry (⏲ icon in Manage); `taskTime()` shrinks the observed **median** toward the static `time` with weight `n/(n+2)`, so one sample moves the estimate a third of the way and it never lurches; it drives budget filling and every time display. The median (not the mean) is deliberate — a forgotten timer is one wild high sample
 - `derivedSince` — timestamp stamped on first load after 2026-08-04. A year is only derived (`yearIsDerivable`) if this precedes its start; earlier years fall back to the stored `yearStats` bucket. **Don't infer derivability from the data** — a twice-yearly task's old entries would certify a year whose daily tasks were truncated
 - `milestones` — `{key: timestamp}` seen-set; each milestone key fires once ever. `bestStreak` backs the streak rung. Undo un-spends both
 - `seenVersion` — last `APP_VERSION` whose what's-new toast has been shown
+- `activeTimer` — `{id, startedAt}` of the running per-task timer, or `null`. **Persisted deliberately**: it used to be an in-memory variable, so backgrounding the tab — what happens when the phone goes in a pocket mid-task — destroyed the timer and its elapsed time silently. A run over 3h is flagged as forgotten rather than logged; over 12h it is discarded on next load
 - `inProgress` — `{taskId: timestamp}` started-but-unfinished tasks (e.g. cat fountain in the dishwasher); carried into every new hand by `dealHand` until completed; cleared on complete/snooze/remove, restored by undo
 
 ### UI Tabs
@@ -149,13 +150,11 @@ Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
 ## Repository Files
 
-- `index.html` — the entire app (HTML + CSS + JS in one file, ~3960 lines)
+- `index.html` — the entire app (HTML + CSS + JS in one file, ~5960 lines). **Line-number anchors rot within weeks — name the function and grep for it, never cite a line**
 - `CLAUDE.md` — this file: working instructions + architecture summary for Claude
 - `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
 - `AUDITS.md` — the seven audit lenses (Flow, Behaviour, State, Surface, Content, Coherence, Opportunity), each with its own method, evidence bar, severity scale and traps. Read the relevant section **before** starting any audit or review; the `app-update` skill's Mode B carries the operational side (what to request from her, reproduce-before-reporting, report-don't-fix). Behaviour, Content and Opportunity need a fresh state export to be worth running
-- `IMPROVEMENT_PLAN.md` — historical plan for the 9 features shipped in June 2026; **all 9 are now implemented** (auto-backup, undo/backdating, quick-log, Stats tab, "why?" breakdown, zone auto-rotation, vacation mode, seasonal months, per-task timer). Its line-number anchors are stale; keep only as a record of intent
-- `PLAN_2026-08.md` — the August 2026 hardening + delight plan, **fully implemented and closed out** (2026-08-04). Bob doesn't use the app (F-7 closed, no build needed), weather stays out (F-6 declined — the app's zero-external-connections property was worth more), and Fix 7's starvation measurement is deferred, not a defect. Part 3.5 holds review amendments, Part 4 the judgment-density sequencing, Part 6 the final outcome
-- `selftest.html` — the test harness, 62 cases. Serve the folder and open it over **http** (`preview_start` with the `hometasks` launch config, then `http://localhost:7821/selftest.html?cb=N`); it loads `index.html` into an isolated iframe (memory-backed storage, so it can never touch live data) and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked — mutate by copying a broken `index.html` into the repo folder and loading `?src=<that file>`. **Don't run it over `file://`**: the preview pane serves a stale snapshot and strips the query string, so both `?cb=` and `?src=` are silently ignored and a mutation check will report a false green
+- `selftest.html` — the test harness, 63 cases. Serve the folder and open it over **http** (`preview_start` with the `hometasks` launch config, then `http://localhost:7821/selftest.html?cb=N`); it loads `index.html` into an isolated iframe (memory-backed storage, so it can never touch live data) and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked — mutate by copying a broken `index.html` into the repo folder and loading `?src=<that file>`. **Don't run it over `file://`**: the preview pane serves a stale snapshot and strips the query string, so both `?cb=` and `?src=` are silently ignored and a mutation check will report a false green
 
 ## Known Issues / Watch-outs
 
@@ -164,7 +163,7 @@ The June 2026 review bugs — dead preset task ids (`k_backsplash`, `dsb_exhaust
 Editing pitfalls that remain true (also encoded in the `app-update` skill):
 - **Preset task ids** in lists that render via `getAllTasks()` (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_*`) must exist in `TASKS`, or they silently vanish; `completeTask` returns early for unknown ids, so a phantom checklist item can never be checked off. `selftest.html` case 3 now pins this.
 - **`saveTask` rebuilds a custom task from an explicit field list**, so any new task-level flag must be added there *and* to the editor form, or editing a task silently strips it. `load: true` is the live example: without the `f_load` checkbox, changing a wash task's frequency would have dropped it out of the laundry slot with no visible cause. Case 12 pins the flag set being populated — note it also guards the two laundry cases below it, which go vacuously green when no task carries the flag.
-- **`input { appearance: none }` (~line 84) is a blanket reset**, so a checkbox has no visual unless it is drawn by hand. `.field-check` does this; the cat checkbox had been invisible since it was added.
+- **`input { appearance: none }` is a blanket reset**, so a checkbox has no visual unless it is drawn by hand. `.field-check` does this; the cat checkbox had been invisible since it was added.
 - **Every path that ends a task must clear `state.inProgress[id]`.** `dealHand` carries in-progress tasks into every hand *including when they are not due* (the fountain is in the dishwasher; the task was last completed four days ago), so a leftover flag is a task that returns forever with no way to shake it off. `completeTask`, `snoozeTask`, `removeTask` and `completeEarlier` all clear it; case 17 pins the backdating path, case 16 pins the not-due carry-over that stops you from "fixing" this by dropping stale flags in `dealHand`.
 
 Patterns found by the 2026-08-08 audit, all fixed — but the shapes recur:

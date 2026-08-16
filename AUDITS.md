@@ -540,12 +540,13 @@ docs noticing.
 **(c) Files that have outlived their purpose.** Every file gets one of three verdicts —
 **keep**, **revise**, or **remove** — and "remove" must be a live option or this sweep does
 nothing. Candidates by type:
-- *Closed plans.* `IMPROVEMENT_PLAN.md` (all 9 shipped) and `PLAN_2026-08.md` (closed 2026-08-04)
-  are finished work. A closed plan is a historical record, which is a real reason to keep it —
-  but it should say so at the top, in one line, so nobody reads it as current intent.
-- *Consumed handoffs.* `app-design-revision/` is a Claude Design bundle whose redesign shipped
-  in `9407a44`. Its README instructs any coding agent that reads it to implement the designs —
-  advice that is now actively wrong, and untracked, so it is invisible to review.
+- *Closed plans.* Both `IMPROVEMENT_PLAN.md` and `PLAN_2026-08.md` were removed on 2026-08-16;
+  their work had shipped and git history holds them. A closed plan kept in the folder must say
+  so in its first line, or it reads as current intent.
+- *Consumed handoffs.* `app-design-revision/` was a Claude Design bundle whose redesign shipped
+  in `9407a44`, and whose README still told any coding agent to go and implement it. Removed
+  2026-08-16. **It was untracked, so it was committed once before being deleted** — that is the
+  pattern for removing anything git has never seen, or the removal cannot be undone.
 - *Duplication between docs.* `CLAUDE.md` and `DOCUMENTATION.md` overlap heavily. Where they
   disagree, one is wrong; where they agree, one is redundant. The split should be a real one
   (working reference vs full reference) and each fact should have one home.
