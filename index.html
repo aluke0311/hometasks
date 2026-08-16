@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v2">
+  <meta name="app-version" content="2026-08-16 v3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1303,12 +1303,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v2';
+  const APP_VERSION = '2026-08-16 v3';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v3', notes: [
+      'Housekeeping under the hood: the collapsing sections on My Hand, Sprint and Settings all ran through five copies of the same four lines. Now one. Nothing should look or behave differently — if a section stops opening, that is this.',
+    ]},
     { v: '2026-08-16 v2', notes: [
       'Sheets can be swiped down to dismiss, which is what the handle at the top always looked like it did. Tapping the handle closes them too — before, that only worked on one of the five sheets.',
       'A tall sheet no longer traps you. It was sized against a viewport height that ignores Safari\'s URL bar, so the strip of backdrop you tap to get out could end up off-screen.',
@@ -1520,9 +1523,25 @@
   let state = defaultState(); // placeholder until async load
   let currentTab = 'alina';
   let overflowOpen = false;
-  let dailiesOpen = true;
-  let otherTasksOpen = true;
-  let completedOpen = false;
+
+  // C-5 (2026-08-16 coherence audit). These were five near-identical functions
+  // added across five months — toggleDailies (05-11), toggleSprintCompleted
+  // (06-01), toggleOtherTasks and toggleCompleted (06-08), toggleChangelog
+  // (08-04) — each one copying the last instead of generalising it. One registry,
+  // one toggle.
+  //
+  // overflowOpen above is deliberately NOT in here, and that is a decision rather
+  // than a leftover: toggleOverflow flips `display` on the list directly instead
+  // of re-rendering, because tasks with freq > 60 get random jitter and a real
+  // re-render reshuffles the overflow list under her every time she opens it.
+  const sectionOpen = {
+    dailies: true, otherTasks: true, completed: false,
+    sprintHideCompleted: false, changelog: false,
+  };
+  function toggleSection(key, rerender) {
+    sectionOpen[key] = !sectionOpen[key];
+    (rerender || render)();
+  }
   // The slider is collapsed behind its own row (3a). Session-only, like the rest
   // of these — an expanded slider is not worth persisting.
   let dayBudgetOpen = false;
@@ -2521,13 +2540,13 @@
       const dailiesUndone = dailies.filter(t => !wasCompletedToday(t));
       const dailyLeftMin = dailiesUndone.reduce((s,t) => s + taskTime(t), 0);
       html += '<div class="section"><div class="section-label">' +
-        '<button class="section-label-btn' + (dailiesOpen ? ' open' : '') + '" onclick="toggleDailies()">' +
+        '<button class="section-label-btn' + (sectionOpen.dailies ? ' open' : '') + '" onclick="toggleSection(\'dailies\', renderAlina)">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
           'Daily' +
         '</button>' +
         '<span class="section-label-time">' + dailiesUndone.length + ' left · ~' + fmtMinutes(dailyLeftMin) + '</span>' +
       '</div>' +
-      '<div id="dailiesList" style="display:' + (dailiesOpen ? 'block' : 'none') + '">';
+      '<div id="dailiesList" style="display:' + (sectionOpen.dailies ? 'block' : 'none') + '">';
       dailiesUndone.forEach(t => html += renderCard(t, false));
       html += '</div></div>';
     }
@@ -2536,13 +2555,13 @@
       const cappedUndone = capped.filter(t => !wasCompletedToday(t));
       const otherLeftMin = cappedUndone.reduce((s,t) => s + taskTime(t), 0);
       html += '<div class="section"><div class="section-label">' +
-        '<button class="section-label-btn' + (otherTasksOpen ? ' open' : '') + '" id="otherTasksToggle" onclick="toggleOtherTasks()">' +
+        '<button class="section-label-btn' + (sectionOpen.otherTasks ? ' open' : '') + '" id="otherTasksToggle" onclick="toggleSection(\'otherTasks\', renderAlina)">' +
           '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
           'The rest' +
         '</button>' +
         '<span class="section-label-time">' + cappedUndone.length + ' left · ~' + fmtMinutes(otherLeftMin) + '</span>' +
       '</div>' +
-      '<div id="otherTasksList" style="display:' + (otherTasksOpen ? 'block' : 'none') + '">';
+      '<div id="otherTasksList" style="display:' + (sectionOpen.otherTasks ? 'block' : 'none') + '">';
       cappedUndone.forEach(t => html += renderCard(t, true));
       html += '</div></div>';
     }
@@ -2550,11 +2569,11 @@
     const completedTasks = hand.filter(t => wasCompletedToday(t));
     if (completedTasks.length) {
       html += '<div class="overflow-section" style="margin-top:8px">' +
-        '<button class="overflow-toggle' + (completedOpen ? ' open' : '') + '" id="completedToggle" onclick="toggleCompleted()">' +
+        '<button class="overflow-toggle' + (sectionOpen.completed ? ' open' : '') + '" id="completedToggle" onclick="toggleSection(\'completed\', renderAlina)">' +
           '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
           'Completed (' + completedTasks.length + ')' +
         '</button>' +
-        '<div id="completedList" style="display:' + (completedOpen ? 'block' : 'none') + '">' +
+        '<div id="completedList" style="display:' + (sectionOpen.completed ? 'block' : 'none') + '">' +
         '<div class="section" style="margin-top:8px">';
       completedTasks.forEach(t => html += renderCard(t, false));
       html += '</div></div></div>';
@@ -3142,8 +3161,6 @@
   // Not persisted — deliberately resets on reload. See renderPresets()'s
   // auto-close pass for why this exists.
   const _seenActivePresetKeys = new Set();
-  let changelogExpanded = false;
-  function toggleChangelog() { changelogExpanded = !changelogExpanded; render(); }
 
   let _taskActionsId = null;
 
@@ -3511,7 +3528,7 @@
       '</div>' +
       '<div class="sprint-chips">' +
         '<button class="chip" onclick="copySprint()">' + icon('copy', 13, 1.8) + 'Copy list</button>' +
-        '<button class="chip' + (sprintHideCompleted ? ' on' : '') + '" onclick="toggleSprintCompleted()">' + (sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
+        '<button class="chip' + (sectionOpen.sprintHideCompleted ? ' on' : '') + '" onclick="toggleSection(\'sprintHideCompleted\', renderSprint)">' + (sectionOpen.sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
       '</div>' +
     '</div>' +
     '<div class="rule" style="margin-top:0"></div>';
@@ -3535,8 +3552,8 @@
           '</div>' +
         '</div>';
   
-      const visibleTasks = sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
-      if (sprintHideCompleted && visibleTasks.length === 0) { html += '</div>'; return; }
+      const visibleTasks = sectionOpen.sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
+      if (sectionOpen.sprintHideCompleted && visibleTasks.length === 0) { html += '</div>'; return; }
       // Same row as My Hand. The timer, in-progress and remove buttons that used
       // to sit on each line are all in the sheet now — swipe or long-press.
       html += '<div class="sprint-rows">';
@@ -3564,7 +3581,7 @@
 
     let n = 0;
     blocks.forEach(block => {
-      const tasks = sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
+      const tasks = sectionOpen.sprintHideCompleted ? block.tasks.filter(t => !wasCompletedToday(t)) : block.tasks;
       if (!tasks.length) return;
       n++;
       const blockMin = tasks.reduce((s, t) => s + taskTime(t), 0);
@@ -5178,7 +5195,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">What\'s new</div>' +
         '<div class="settings-card-desc">Recent updates to the app, newest first.</div>' +
-        CHANGELOG.slice(0, changelogExpanded ? CHANGELOG.length : 3).map(entry =>
+        CHANGELOG.slice(0, sectionOpen.changelog ? CHANGELOG.length : 3).map(entry =>
           '<div style="margin-bottom:12px">' +
             '<div style="font-size:var(--fs-label);text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-weight:600;margin-bottom:5px">' +
               entry.v + (entry.v === APP_VERSION ? ' &middot; you\'re on this' : '') +
@@ -5190,8 +5207,8 @@
           '</div>'
         ).join('') +
         (CHANGELOG.length > 3
-          ? '<button class="add-btn" style="width:100%;background:transparent;color:var(--text2);border:0.5px solid var(--border2)" onclick="toggleChangelog()">' +
-              (changelogExpanded ? 'Show less' : 'Show all ' + CHANGELOG.length + ' updates') +
+          ? '<button class="add-btn" style="width:100%;background:transparent;color:var(--text2);border:0.5px solid var(--border2)" onclick="toggleSection(\'changelog\')">' +
+              (sectionOpen.changelog ? 'Show less' : 'Show all ' + CHANGELOG.length + ' updates') +
             '</button>'
           : '') +
       '</div>' +
@@ -5366,7 +5383,6 @@
   let manageDueFilter = 'all';
   let manageSearch = '';
   let editingId = null;
-  let sprintHideCompleted = false;
   
   function renderManage() {
     const searchWasFocused = document.activeElement && document.activeElement.classList.contains('search-input');
@@ -5723,25 +5739,6 @@
     btn.classList.toggle('open', overflowOpen);
   }
   
-  function toggleDailies() {
-    dailiesOpen = !dailiesOpen;
-    renderAlina();
-  }
-
-  function toggleOtherTasks() {
-    otherTasksOpen = !otherTasksOpen;
-    renderAlina();
-  }
-
-  function toggleCompleted() {
-    completedOpen = !completedOpen;
-    renderAlina();
-  }
-
-  function toggleSprintCompleted() {
-    sprintHideCompleted = !sprintHideCompleted;
-    renderSprint();
-  }
   
   function snoozeTask(id, days) {
     state.snoozed = state.snoozed || {};
