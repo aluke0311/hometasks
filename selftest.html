@@ -282,20 +282,32 @@ test('starvation reduction is capped at freq * 0.15', () => {
 // and 6 — it could not be dealt at any level of neglect. These cases pin the new
 // cap AND the property that made the change necessary: the floor is the same for
 // every interval.
-test('overdue relief stops at freq - NEGLECT_FLOOR, giving every task one floor', () => {
-  withState(st => { st.completions['zz_probe'] = Date.now() - 5000 * DAY; }, () => {
+test('catch-up gives every task the same floor, whatever its interval', () => {
+  withState(st => { st.mode = 'catchup'; st.completions['zz_probe'] = Date.now() - 5000 * DAY; }, () => {
     near(G('scoreTaskParts')(T({ freq: 10 }), 0).overdue, -7, 0.001, 'freq 10 -> 10 - 3');
     near(G('scoreTaskParts')(T({ freq: 90 }), 0).overdue, -87, 0.001, 'freq 90 -> 90 - 3');
-    // The property, not just the arithmetic: a totally neglected task lands on the
-    // same floor whatever its interval, and that floor is inside the range routine
-    // work occupies, so it can actually be reached.
+    // The property that made the change necessary: the floor no longer scales with
+    // the interval, so a 365-day task can reach the range routine work occupies.
     const floors = [7, 30, 90, 180, 365].map(f => {
       const p = G('scoreTaskParts')(T({ freq: f }), 0);
       return p.base + p.overdue;
     });
-    floors.forEach(v => near(v, 3, 0.001, 'floor should be NEGLECT_FLOOR for every interval'));
-    ok(Math.max(...floors) - Math.min(...floors) < 0.001, 'the floor still varies with freq');
+    floors.forEach(v => near(v, 3, 0.001, 'catch-up floor should be NEGLECT_FLOOR for every interval'));
     ok(floors[0] < 6, 'floor must sit inside the range routine tasks score in');
+  });
+});
+
+// Keep Up deliberately keeps the old proportional limit. Two attempts to give it
+// the absolute floor were measured against real data and both made the everyday
+// hand worse — tier A fell from 6 tasks to 2, because badly neglected tier B and C
+// tasks are heavy and a few of them eat a budget that held six small routine ones.
+// If this case ever fails, someone has given Keep Up the floor again; check the
+// everyday hand before deciding that is what you want.
+test('keep-up keeps the proportional limit, so the everyday hand is unchanged', () => {
+  withState(st => { st.mode = 'maintenance'; st.completions['zz_probe'] = Date.now() - 5000 * DAY; }, () => {
+    near(G('scoreTaskParts')(T({ freq: 10 }), 0).overdue, -8, 0.001, 'freq 10 -> 10 * 0.8');
+    const floor365 = (() => { const p = G('scoreTaskParts')(T({ freq: 365 }), 0); return p.base + p.overdue; })();
+    near(floor365, 73, 0.001, 'a 365-day task still floors far above routine work in keep-up');
   });
 });
 

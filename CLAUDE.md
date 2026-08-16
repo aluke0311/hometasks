@@ -27,7 +27,11 @@ The base task list lives in the `TASKS` array (186 entries). Users can add custo
 
 Lower score = higher priority. `scoreTaskParts` returns the labeled component breakdown (used by the "why?" modal); `scoreTask` sums them and adds jitter. Components:
 - Base score = `task.freq` (lower frequency → lower base → higher priority)
-- Overdue penalty: reduces score based on how overdue the task is, capped at **`freq - NEGLECT_FLOOR`** (`NEGLECT_FLOOR = 3`); weight is `0.5` normally, `0.8` in Catch Up mode. **The cap is a floor, not a proportion, and that is load-bearing**: it used to be `freq * 0.8`, which left every task a best-possible score of `freq * 0.05` — a floor that scaled with the interval, so a 365-day task could never score below 18.25 while routine work sits between 0.5 and 6 and therefore could never be dealt at all. 68 of 182 tasks had never been completed once. Every task now reaches the same floor at roughly 2× its own interval in Keep Up, 1.25× in Catch Up — which is also what makes the two modes differ, since the old shared cap made them score identically once past it
+- Overdue penalty: reduces score based on how overdue the task is; weight is `0.5` normally, `0.8` in Catch Up. **The cap is mode-dependent (`overdueCap`) and that is the whole difference between the two modes:**
+  - **Catch Up** caps at `freq − NEGLECT_FLOOR` (`NEGLECT_FLOOR = 3`) — an *absolute* floor, so every task reaches 3 at ~1.25× its own interval whatever the interval is
+  - **Keep Up / By Freq** keep the original `freq * 0.8`, which leaves a floor of `freq * 0.05` that scales with the interval
+  - Before this split, both modes used `freq * 0.8` and so scored any well-overdue task identically — Catch Up was a second copy of Keep Up. It also meant a 365-day task could never score below 18.25 while routine work sits between 0.5 and 6, so tier C could never be dealt **in any mode**: 68 of 182 tasks had never been completed once, and the simulator measured 0% tier C coverage everywhere
+  - **Keep Up deliberately did not get the floor.** Two attempts were measured against real state and both made the everyday hand worse (tier A fell from 6 tasks to 2), because badly neglected tier B/C tasks are *heavy* and a few of them consume a budget that previously held six small routine ones. Raising the floor to 6 changed nothing, which is what proved the cause was task weight rather than the floor value. Frequent tasks really are more important; backlog work belongs in Catch Up
 - Starvation: the `starvation` counter ticks `+1` per calendar day a task is due but not dealt; the score reduction is `-0.3 * count`, **capped at `freq * 0.15`** (this cap is critical — without it, long-interval tasks accumulate infinite priority and dominate the hand)
 - Flagged tasks: `-50` (always surfaces first)
 - Zone bonus: `-2` if task is in the active zone
@@ -58,8 +62,8 @@ Tiers are used only for the `_dealPreferTier` feature (redeal with a tier prefer
 
 | Mode | Pool sort | Fill rule |
 |------|-----------|-----------|
-| **Keep Up** | Score (overdue weight 0.5) | Fill budget in score order; heavy tasks (>15 min) capped at 2 per hand; **tier C capped at 1 per hand** (`DEEP_MAX`) |
-| **Catch Up** | Score (overdue weight 0.8) | Same as Keep Up but **no tier-C cap** — clearing the backlog is the mode's job |
+| **Keep Up** | Score (overdue weight 0.5, cap `freq*0.8`) | Fill budget in score order; heavy tasks (>15 min) capped at 2 per hand |
+| **Catch Up** | Score (overdue weight 0.8, cap `freq-3`) | Same fill, but the absolute floor lets long-neglected tier C tasks reach the top |
 | **By Freq** | Raw frequency, shuffle within same-freq | Fill budget in freq order |
 
 If `_dealPreferTier` is set (via redeal with tier button), tasks of that tier float to the top of the pool for that deal only, then the field is deleted.

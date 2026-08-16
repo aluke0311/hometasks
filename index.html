@@ -1326,10 +1326,9 @@
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
     { v: '2026-08-16 v7', notes: [
-      'Deep-clean tasks can finally be dealt. A task could never score better than 5% of its interval, so a yearly job could never beat a daily one no matter how long you left it — 68 tasks had never come up once. Every task now reaches the same floor at about twice its interval.',
-      'Keep up takes at most one deep-clean task a day, so the routine still comes first.',
-      'Catch up is now genuinely different from Keep up. Both used to hit the same limit and score overdue tasks identically. Catch up now goes after the backlog properly.',
-      'By freq is unchanged.',
+      'Catch up is now a real deep-clean mode. It used to give almost the same hand as Keep up. It now goes after the jobs you have not done in months — windows, air filters, walls, the freezer.',
+      'Those jobs could not be dealt at all before, in any mode. A task could never score better than 5% of its interval, so a yearly job could never beat a daily one no matter how long you left it. 68 of your tasks had never come up once.',
+      'Keep up and By freq are unchanged. I tried giving Keep up the same fix and it made your everyday hand worse, so it keeps the old rule. Backlog work lives in Catch up now.',
     ]},
     { v: '2026-08-16 v6', notes: [
       'Tidy-up only: spacing, corners and small text sizes now come from one set of values instead of being written by hand in 150 places. A few things move by one pixel. Nothing should look wrong — if something does, it is this.',
@@ -1801,7 +1800,32 @@
   // of how long its interval is. Set just above a routine 3-day tidy that is one
   // day late (2.50), so a totally neglected deep-clean task surfaces on a day when
   // the routine is in good shape, and yields to it when it is not.
+  // The relief limit, and the whole reason Catch Up now differs from Keep Up.
+  //
+  // The old limit was `freq * 0.8` in every mode. That left each task a best score
+  // of `freq * 0.05` — a floor that scaled with the interval — so a 365-day task
+  // could never score below 18.25 while routine work sits between 0.5 and 6, and
+  // could never be dealt at all. 68 of 182 tasks had never been completed once.
+  //
+  // Catch Up replaces that limit with an absolute floor: every task reaches 3 at
+  // roughly 1.25x its own interval, whatever the interval is. Deep-clean work
+  // becomes reachable in the mode whose job is reaching it.
+  //
+  // Keep Up deliberately keeps the old limit. Two attempts to give it the floor
+  // were measured against real data and both made the everyday hand worse: at a
+  // floor of 3 it dropped the hall tidy, both cat water bowls and the living-room
+  // dust for a 20-minute washing machine and two blinds jobs, and tier A fell from
+  // 6 tasks to 2; at a floor of 6 the hand was unchanged from that, because the
+  // problem is not the floor value but that badly neglected tier B and C tasks are
+  // HEAVY, so a few of them consume a budget that previously held six small
+  // routine ones. Keep Up is the everyday mode and frequent tasks are genuinely
+  // more important, so it stays as it was. Backlog work belongs in Catch Up.
   const NEGLECT_FLOOR = 3;
+  function overdueCap(task) {
+    return state.mode === 'catchup'
+      ? Math.max(0, task.freq - NEGLECT_FLOOR)
+      : task.freq * 0.8;
+  }
 
   function scoreTaskParts(task, zone) {
     const zoneRooms = ZONE_ROOMS[zone] || [];
@@ -1831,7 +1855,7 @@
       // modes hit the old cap at the same point and scored identically from there
       // on. With the floor as the limit, the 0.8 weight reaches it at ~1.25x the
       // interval against Keep Up's ~2x, so the two modes finally differ.
-      overdue: -Math.min(overdueRatio * task.freq * overdueWeight, Math.max(0, task.freq - NEGLECT_FLOOR)),
+      overdue: -Math.min(overdueRatio * task.freq * overdueWeight, overdueCap(task)),
       starvation: -Math.min(starvation * 0.3, task.freq * 0.15),
       flagged: (state.flaggedIds || []).includes(task.id) ? -50 : 0,
       overdueDays: overdue,
@@ -1958,7 +1982,7 @@
     // is for, and one deep task a day still clears the backlog faster than the
     // zero it managed before. Catch Up has no limit, because clearing the backlog
     // IS its job, and By Freq never reaches them anyway.
-    const DEEP_MAX = mode === 'catchup' ? Infinity : 1;
+    const DEEP_MAX = Infinity;  // tier C only reaches the hand in catch-up, which wants them all
     let deepCount = 0;
     const isDeep = t => getTaskTier(t) === 'C';
     const mine = t => t.owner === 'alina' || t.owner === 'either';
