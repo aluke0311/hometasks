@@ -65,6 +65,16 @@ if you cannot get there by tapping, that *is* the finding. Journeys to walk:
 7. **The sprint.** Run a room-by-room walkthrough end to end, then copy it out.
 8. **The unusual task.** Add a one-off, do it, and confirm it does not haunt the pool.
 9. **Curiosity.** "Why is *this* on my list today?" — reach the score breakdown from a cold start.
+10. **The escape.** From every sheet, modal and generated checklist: get back to where you
+    were. Try the gesture the affordance implies *before* looking for a button.
+
+**Every journey has an exit leg.** Journeys 1–9 were originally written as one-way trips — how
+to get *in* to a thing — and a spec that never tests the way out cannot find a screen you
+can't leave. This is not hypothetical: the task-actions sheet shipped with a grab handle that
+looked draggable and wasn't, tappable on one of five sheets, above a backdrop strip that iOS
+Safari could push off-screen. Three faults, all on the exit, none reachable by any journey that
+stops when the sheet opens. So: for each journey, the last step is always *get back out*, and
+the affordance is tested by the gesture it advertises, not by the handler that happens to exist.
 
 **Evidence bar.** A screenshot at the moment of failure plus the exact tap sequence that got
 there. Tap counts are recorded for every journey even when nothing fails — the count *is* the
@@ -149,6 +159,16 @@ and assert on the *diff*, not on what the UI says happened.
 - **The two undos.** `undoComplete` (toast) and `uncompleteTask` (card / All Tasks / Sprint)
   restore *different* things. Probe both on a task with real history and on one with none —
   neither may ever fabricate `now − freq`. On a 180-day task that quietly destroys half a year.
+- **Every writer of `state.completions`, enumerated and compared.** Not just the undos — grep
+  the whole family (`completeTask`, `completeEarlier`, `setLastDone`, `quickLogComplete`,
+  `markTaskDue`, …), list what each one does to the *satellite* state a completion implies —
+  `inProgress`, `snoozed`, `starvation`, `flaggedIds`, `completionHistory`, hand membership,
+  pins — and put it in a table. Any blank cell is the finding. `setLastDone` sat in that table
+  with five blanks for months: it wrote the date and nothing else, so a task marked "started"
+  rode back into every hand forever (`dealHand` carries in-progress tasks in *even when not
+  due*), starvation kept climbing on a task just done, and nothing reached
+  `completionHistory`, so Stats and real-cadence silently missed every completion recorded
+  that way. One writer being right is not evidence; the audit is the comparison.
 - **Double-completion.** Same task twice in a day, then undo once. Then undo again.
 - **Clock.** Cross midnight mid-session. Cross a DST boundary. Change the device timezone
   between two completions. Anything comparing calendar days is suspect here.
@@ -282,9 +302,15 @@ a time. Where a problem was solved by *adding* rather than *changing*, what did 
 behind — and does the app still hang together as one thing?
 
 **Scope.** Internal self-consistency, everywhere: visual constants, interaction grammar, naming,
-and the shape of the code. This is the audit where **everything it finds already works.** Nothing
-here is a bug; it is all tax — paid on every future edit, and eventually paid by her when two
-paths that were supposed to agree quietly stop agreeing.
+and the shape of the code. **Most** of what it finds already works: it is tax, paid on every
+future edit.
+
+But not all of it, and the spec used to say otherwise. When the two diverging paths both *write
+user data*, the divergence is not tax — it is a live bug that has simply not been noticed yet,
+because the impoverished path looks like it succeeded. `setLastDone` and `completeEarlier` meant
+the same thing and did a third of the same work; the gap was a task that could never leave the
+hand. The severity mapping below already promotes that case to S1, and the promotion is not
+theoretical — reach for it. The rest of the audit is where "it works, it's just untidy" applies.
 
 **The distinguishing question**, applied to every divergence found: *was this decided, or did it
 accumulate?* A decided difference is fine and gets one line of documentation. An accumulated one
