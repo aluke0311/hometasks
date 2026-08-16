@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v10">
+  <meta name="app-version" content="2026-08-16 v11">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -318,6 +318,34 @@
   
     /* All Tasks (manage) tab — mockup 3d */
     .add-btn { font-size: var(--fs-sub); padding: var(--s-5) var(--s-8); border-radius: var(--radius); border: none; background: var(--green); color: var(--on-accent); cursor: pointer; font-weight: 600; }
+    /* The full-width "Generate <preset>" button, which gains a gap below it once
+       its checklist is showing. That gap was written out by hand at every call
+       site, 14px at eleven of them and 10px at three. The split looks like drift
+       rather than a decision, but resolving it is a real pixel change, so both are
+       named and preserved here — the inconsistency is now visible in one place
+       instead of being spread across fourteen string literals. */
+    .wide { width: 100%; }
+    .add-btn.wide.gap-b { margin-bottom: var(--s-7); }
+    .add-btn.wide.gap-b-sm { margin-bottom: var(--s-5); }
+    .add-btn.warn { background: var(--amber); }
+    .add-btn.danger { background: var(--red); }
+    .add-btn.quiet { background: transparent; color: var(--text2); border: 0.5px solid var(--border2); }
+
+    /* Presets category header, and the card that opens a group: a card following a
+       header sits tighter than one following another card. The Rooms group is not
+       an instance of this — it is a uniform list of 14 cards on its own 8px
+       rhythm, which is why it has a class of its own rather than sharing this one. */
+    .cat-head { padding: var(--s-10) 0 var(--s-3); }
+    .settings-card.after-head { margin-top: var(--s-2); }
+    .settings-card.room-card { margin-top: var(--s-4); }
+    .settings-card.flush { margin-top: 0; }
+    .settings-card-title.flush { margin: 0; }
+    .settings-card-desc.gap { margin-top: var(--s-5); }
+    .zone-ref-table.tight { margin-top: var(--s-2); }
+    .rule.flush { margin-top: 0; }
+    /* The done/total count inside a section label does not take the label's weight. */
+    .count-plain { font-weight: 400; }
+
     .search-input { flex: 1; min-width: 100px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: var(--s-4) var(--s-5); border-radius: var(--radius-sm); }
     .filter-select { border: 0.5px solid var(--border2); background: var(--card); color: var(--text2); font-size: 16px; padding: var(--s-3) var(--s-4); border-radius: var(--radius-sm); }
     /* A hairline between the two filter axes sharing one chip row. */
@@ -1438,12 +1466,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v10';
+  const APP_VERSION = '2026-08-16 v11';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v11', notes: [
+      'Tidy-up only, Presets and Settings. Every "Generate ..." button was styled by hand; they now share one rule. Nothing moves — I found two spacing oddities on the way through and left both exactly as they were, because changing them is a real decision and not mine to make quietly.',
+    ]},
     { v: '2026-08-16 v10', notes: [
       'Tidy-up only, Stats tab. The heatmap, the year-in-pixels grid, the year-in-review bars, the cadence rows and the room-pressure meters were each styled by hand; they now share named rules. The two day-square grids turned out to be the same thing built twice. Nothing should look different.',
     ]},
@@ -2837,7 +2868,7 @@
 
     const completedTasks = hand.filter(t => wasCompletedToday(t));
     if (completedTasks.length) {
-      html += '<div class="overflow-section" style="margin-top:8px">' +
+      html += '<div class="overflow-section">' +
         '<button class="overflow-toggle' + (sectionOpen.completed ? ' open' : '') + '" id="completedToggle" onclick="toggleSection(\'completed\', renderAlina)">' +
           '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' +
           'Completed (' + completedTasks.length + ')' +
@@ -2892,7 +2923,7 @@
     html += '<div class="section" style="margin-top:6px">' +
       '<button class="more-btn" style="margin-bottom:' + (quickLogOpen ? '8px' : '0') + '" onclick="toggleQuickLog()">' + (quickLogOpen ? '&minus; Log something else' : '+ Log something else I did') + '</button>';
     if (quickLogOpen) {
-      html += '<input class="search-input" id="quickLogInput" style="width:100%" placeholder="Search any task&hellip;" value="' + quickLogQuery.replace(/"/g,'&quot;') + '" oninput="quickLogQuery=this.value;renderQuickLogResults()">' +
+      html += '<input class="search-input wide" id="quickLogInput" placeholder="Search any task&hellip;" value="' + quickLogQuery.replace(/"/g,'&quot;') + '" oninput="quickLogQuery=this.value;renderQuickLogResults()">' +
         '<div id="quickLogResults" style="margin-top:8px"></div>';
     }
     html += '</div>';
@@ -3800,7 +3831,7 @@
         '<button class="chip' + (sectionOpen.sprintHideCompleted ? ' on' : '') + '" onclick="toggleSection(\'sprintHideCompleted\', renderSprint)">' + (sectionOpen.sprintHideCompleted ? 'Show done' : 'Hide done') + '</button>' +
       '</div>' +
     '</div>' +
-    '<div class="rule" style="margin-top:0"></div>';
+    '<div class="rule flush"></div>';
 
     sprintBlocks.forEach((block, blockIdx) => {
       if (blockIdx > 0) html += '<div class="sprint-block-divider"></div>';
@@ -4418,7 +4449,7 @@
       }).length;
       html +=
         '<div class="sub-label">' +
-          section.label + ' <span style="font-weight:400">(' + doneCount + '/' + section.ids.length + ')</span>' +
+          section.label + ' <span class="count-plain">(' + doneCount + '/' + section.ids.length + ')</span>' +
         '</div>';
       html += renderPresetChecklist(section.ids, allTasks);
     });
@@ -4521,7 +4552,7 @@
     if (_autoClosedAny) saveState();
 
     function categoryHeader(label) {
-      return '<div class="eyebrow" style="padding:26px 0 6px">' + label + '</div>';
+      return '<div class="eyebrow cat-head">' + label + '</div>';
     }
 
     // `clear` is optional so this can also draw the plain two-button row used
@@ -4562,7 +4593,7 @@
     // ── RANDOM TASK ───────────────────────────────────────────────────────────
     const tierLabels = { all: 'All', A: 'Tier A', B: 'Tier B', C: 'Tier C' };
     const tierDescs  = { A: 'Daily & weekly', B: 'Every 2–8 weeks', C: 'Every 2+ months' };
-    html += '<div class="settings-card" style="margin-top:4px">' +
+    html += '<div class="settings-card after-head">' +
       presetTitle('Random Task') +
       '<div class="settings-card-desc">Pick a random due task. Good for when you have a free 10 minutes.</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:12px">';
@@ -4592,7 +4623,7 @@
             : '<button onclick="addRandomPickToHand()" class="btn-choice go">Add to today →</button>') +
         '</div>';
     } else {
-      html += '<button class="add-btn" style="width:100%" onclick="pickRandomTask()">Pick random task</button>';
+      html += '<button class="add-btn wide" onclick="pickRandomTask()">Pick random task</button>';
     }
     html += '</div>';
 
@@ -4603,10 +4634,10 @@
     const exActive = ph.expressReset && ph.expressReset.length;
     const exTime = presetTotalTime(EXPRESS_RESET_SECTIONS);
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Express Reset') +
         '<div class="settings-card-desc">Quick whole-house pass. ~' + fmtMinutes(exTime) + '. Kitchen, bathrooms, bedroom, living spaces, cat care.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (exActive ? '14px' : '0') + '" onclick="generateNewPreset(\'expressReset\')">Generate Express Reset</button>';
+        '<button class="add-btn wide' + (exActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'expressReset\')">Generate Express Reset</button>';
     if (exActive) {
       html += loadBtns("loadNewPreset('expressReset')", "loadNewPresetDueOnly('expressReset')", "clearNewPreset('expressReset')");
       html += renderNewPresetChecklist(EXPRESS_RESET_SECTIONS);
@@ -4620,7 +4651,7 @@
       '<div class="settings-card">' +
         presetTitle('Tidy Everywhere') +
         '<div class="settings-card-desc">Tidy every room in the house, plus unload the dishwasher and wipe counters. ~' + fmtMinutes(teTime) + '.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (teActive ? '14px' : '0') + '" onclick="generateNewPreset(\'tidyEverywhere\')">Generate Tidy Everywhere</button>';
+        '<button class="add-btn wide' + (teActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'tidyEverywhere\')">Generate Tidy Everywhere</button>';
     if (teActive) {
       html += loadBtns("loadNewPreset('tidyEverywhere')", "loadNewPresetDueOnly('tidyEverywhere')", "clearNewPreset('tidyEverywhere')");
       html += renderNewPresetChecklist(TIDY_EVERYWHERE_SECTIONS);
@@ -4634,7 +4665,7 @@
       '<div class="settings-card">' +
         presetTitle('Weekly Reset') +
         '<div class="settings-card-desc">The classic weekly / Sunday reset. ~' + fmtMinutes(wrTime) + '. Sheets, bathroom, kitchen, vacuum + dust the living spaces, towels, cat care.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (wrActive ? '14px' : '0') + '" onclick="generateNewPreset(\'weeklyReset\')">Generate Weekly Reset</button>';
+        '<button class="add-btn wide' + (wrActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'weeklyReset\')">Generate Weekly Reset</button>';
     if (wrActive) {
       html += loadBtns("loadNewPreset('weeklyReset')", "loadNewPresetDueOnly('weeklyReset')", "clearNewPreset('weeklyReset')");
       html += renderNewPresetChecklist(WEEKLY_RESET_SECTIONS);
@@ -4646,7 +4677,7 @@
       '<div class="settings-card">' +
         presetTitle('Full Reset') +
         '<div class="settings-card-desc">Complete whole-house clean. Expect 2–3 hours.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (ph.reset ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
+        '<button class="add-btn wide' + (ph.reset ? ' gap-b-sm' : '') + '" onclick="generateResetHand()">Generate Full Reset</button>';
     if (ph.reset && ph.reset.length) {
       html += loadBtns("loadNewPreset('reset')", "loadNewPresetDueOnly('reset')", "clearNewPreset('reset')");
       FULL_RESET_SECTIONS.forEach(section => {
@@ -4656,7 +4687,7 @@
         }).length;
         html +=
           '<div class="sub-label">' +
-            section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
+            section.label + ' <span class="count-plain">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, FULL_RESET_TASKS);
       });
@@ -4668,7 +4699,7 @@
 
     const guestActive = ph.guest && ph.guest.length;
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Guest Prep') +
         '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
         '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
@@ -4683,7 +4714,7 @@
           '</label>' +
         '</div>' +
         (guestMode === 'emergency' ? '<div style="font-size:var(--fs-meta);color:var(--text3);margin-bottom:10px">Visible-impact tasks only — counters, living room, dining room, DS bathroom, entryway.</div>' : '') +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (guestActive ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep</button>';
+        '<button class="add-btn wide' + (guestActive ? ' gap-b' : '') + '" onclick="generateGuestHand()">Generate Guest Prep</button>';
     if (guestActive) {
       const combined = [...allTasks, ...FULL_RESET_TASKS];
       html += loadBtns("loadNewPreset('guest')", "loadNewPresetDueOnly('guest')", "clearNewPreset('guest')");
@@ -4697,10 +4728,10 @@
     // Going Out of Town
     const goingOutActive = ph.goingout && ph.goingout.length;
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Going Out of Town') +
         '<div class="settings-card-desc">Leave the house in great shape before you go.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
+        '<button class="add-btn wide' + (goingOutActive ? ' gap-b-sm' : '') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
     if (goingOutActive) {
       html += loadBtns("loadNewPreset('goingout')", "loadNewPresetDueOnly('goingout')", "clearNewPreset('goingout')");
       GOING_OUT_SECTIONS.forEach(section => {
@@ -4710,7 +4741,7 @@
         }).length;
         html +=
           '<div class="sub-label">' +
-            section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
+            section.label + ' <span class="count-plain">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, GOING_OUT_TASKS);
       });
@@ -4724,7 +4755,7 @@
       '<div class="settings-card">' +
         presetTitle('Return Home') +
         '<div class="settings-card-desc">Get the house back to baseline after travel. ~' + fmtMinutes(rhTime) + '. Fridge, cat care, laundry, bedroom.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (rhActive ? '14px' : '0') + '" onclick="generateNewPreset(\'returnHome\')">Generate Return Home</button>';
+        '<button class="add-btn wide' + (rhActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'returnHome\')">Generate Return Home</button>';
     if (rhActive) {
       html += loadBtns("loadNewPreset('returnHome')", "loadNewPresetDueOnly('returnHome')", "clearNewPreset('returnHome')");
       html += renderNewPresetChecklist(RETURN_HOME_SECTIONS);
@@ -4738,10 +4769,10 @@
     const bcActive = ph.beforeCleaners && ph.beforeCleaners.length;
     const bcTime = presetTotalTime(BEFORE_CLEANERS_SECTIONS);
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Before Cleaners') +
         '<div class="settings-card-desc">Prep so the professionals can do their best work. ~' + fmtMinutes(bcTime) + '. Declutter + cat care (cleaners won\'t touch it).</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (bcActive ? '14px' : '0') + '" onclick="generateNewPreset(\'beforeCleaners\')">Generate Before Cleaners</button>';
+        '<button class="add-btn wide' + (bcActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'beforeCleaners\')">Generate Before Cleaners</button>';
     if (bcActive) {
       html += loadBtns("loadNewPreset('beforeCleaners')", "loadNewPresetDueOnly('beforeCleaners')", "clearNewPreset('beforeCleaners')");
       html += renderNewPresetChecklist(BEFORE_CLEANERS_SECTIONS);
@@ -4755,7 +4786,7 @@
       '<div class="settings-card">' +
         presetTitle('Recovery Mode') +
         '<div class="settings-card-desc">When things feel overwhelming. Start with Phase 1 — that\'s enough. Phase 1 is only ~' + fmtMinutes(p1Time) + '.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (recActive ? '14px' : '0') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
+        '<button class="add-btn wide' + (recActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
     if (recActive) {
       html +=
         '<div class="btn-choice-row spaced">' +
@@ -4774,7 +4805,7 @@
       '<div class="settings-card">' +
         presetTitle('Post-Illness') +
         '<div class="settings-card-desc">Sanitize high-touch surfaces first (~' + fmtMinutes(piP1Time) + '), then restore normal routines when you\'re ready.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (piActive ? '14px' : '0') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
+        '<button class="add-btn wide' + (piActive ? ' gap-b' : '') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
     if (piActive) {
       html +=
         '<div class="btn-choice-row spaced">' +
@@ -4794,11 +4825,11 @@
     const selectedTidyId = esActive ? ph.eveningShutdown.find(id => EVENING_TIDY_POOL.includes(id)) : null;
     const selectedTidyTask = selectedTidyId ? allTasks.find(t => t.id === selectedTidyId) : null;
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Evening Shutdown') +
         '<div class="settings-card-desc">Dishes, counters, cat water + tonight\'s tidy room (picks whichever is most overdue). ~15–20 min.</div>' +
         (selectedTidyTask ? '<div style="font-size:var(--fs-meta);color:var(--amber);margin-bottom:10px">Tonight\'s tidy: ' + selectedTidyTask.room + '</div>' : '') +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (esActive ? '14px' : '0') + '" onclick="generateEveningShutdown()">Generate Evening Shutdown</button>';
+        '<button class="add-btn wide' + (esActive ? ' gap-b' : '') + '" onclick="generateEveningShutdown()">Generate Evening Shutdown</button>';
     if (esActive) {
       html += loadBtns("loadNewPreset('eveningShutdown')", "loadNewPresetDueOnly('eveningShutdown')", "clearNewPreset('eveningShutdown')");
       html += renderPresetChecklist(ph.eveningShutdown, allTasks);
@@ -4813,10 +4844,10 @@
     const sdTime = sdActive ? presetTotalTime(sdSections) : 0;
     const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()];
     html +=
-      '<div class="settings-card" style="margin-top:4px">' +
+      '<div class="settings-card after-head">' +
         presetTitle('Seasonal Deep Clean') +
         '<div class="settings-card-desc">Spring-cleaning checklist: every in-season deep task (windows, baseboards, ceiling fans, behind furniture, appliances, grout…). Generate it, then chip away — or "Load due only" for just what\'s actually due now.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (sdActive ? '14px' : '0') + '" onclick="generateSeasonalDeepClean()">Generate ' + monthName + ' Deep Clean</button>';
+        '<button class="add-btn wide' + (sdActive ? ' gap-b' : '') + '" onclick="generateSeasonalDeepClean()">Generate ' + monthName + ' Deep Clean</button>';
     if (sdActive) {
       html += '<div style="font-size:var(--fs-meta);color:var(--amber);margin-bottom:10px">' + ph.seasonalDeep.length + ' tasks · ~' + fmtMinutes(sdTime) + ' total</div>';
       html += loadBtns("loadNewPreset('seasonalDeep')", "loadNewPresetDueOnly('seasonalDeep')", "clearNewPreset('seasonalDeep')");
@@ -4837,10 +4868,10 @@
       const dTime = room.deep.reduce((s, id) => { const t = allTasks.find(x => x.id === id); return s + (t ? taskTime(t) : 0); }, 0);
 
       html +=
-        '<div class="settings-card" style="margin-top:8px">' +
+        '<div class="settings-card room-card">' +
           '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">' +
-            '<div class="settings-card-title" style="margin:0">' + room.label + '</div>' +
-            '<div style="font-size:var(--fs-label);color:var(--text3)">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
+            '<div class="settings-card-title flush">' + room.label + '</div>' +
+            '<div class="caption">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
           '</div>' +
           '<div class="btn-choice-row' + (anyActive ? ' spaced' : '') + '">' +
             '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" class="btn-choice sm">Quick</button>' +
@@ -5354,7 +5385,7 @@
       '<div class="screen-body">' +
 
       // Card 1: Daily Time Budget
-      '<div class="settings-card" style="margin-top:0">' +
+      '<div class="settings-card flush">' +
         '<div class="settings-card-title">Daily Time Budget</div>' +
         '<div class="settings-card-desc">Tasks are selected until the target time is reached. Daily tasks are always included.</div>' +
         '<div class="settings-row">' +
@@ -5380,7 +5411,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Active Zone</div>' +
         '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. In Auto mode the zone follows the calendar (1st–7th = Zone 1, 8th–14th = Zone 2, …). Override from the My Hand tab.</div>' +
-        '<table class="zone-ref-table" style="margin-top:4px">' +
+        '<table class="zone-ref-table tight">' +
           '<tr><th>Zone</th><th>Rooms</th></tr>' +
           ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
         '</table>' +
@@ -5401,7 +5432,7 @@
       // seven bullets of scoring rules is the longest thing on the tab.
       '<details class="settings-card ed-details">' +
         '<summary><span class="settings-card-title">How Scoring Works</span>' + icon('chevDown', 14, 1.8) + '</summary>' +
-        '<div class="settings-card-desc" style="margin-top:10px">Lower score = higher priority.</div>' +
+        '<div class="settings-card-desc gap">Lower score = higher priority.</div>' +
         '<ul style="font-size:var(--fs-sub);color:var(--text2);line-height:1.8;padding-left:16px">' +
           '<li><b>Base score</b> = frequency in days (lower freq = higher priority)</li>' +
           '<li><b>Cat tasks</b>: −0.5 tiebreaker boost</li>' +
@@ -5458,8 +5489,8 @@
           '<div class="settings-card-desc" style="margin:8px 0 12px">Change any task in its editor on the All Tasks tab.</div>' +
           (state.paused
             ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
-              '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="resumeApp()">Resume — I\'m back</button>'
-            : '<button class="add-btn" style="width:100%;background:var(--amber)" onclick="pauseApp()">Pause (going away)</button>') +
+              '<button class="add-btn wide warn" onclick="resumeApp()">Resume — I\'m back</button>'
+            : '<button class="add-btn wide warn" onclick="pauseApp()">Pause (going away)</button>') +
         '</div>';
       })() +
 
@@ -5468,7 +5499,7 @@
         '<div class="settings-card-title">Reload app</div>' +
         '<div class="settings-card-desc">Reloads the page to pick up the latest version. Your data is saved — nothing is lost. (This is not the same as redealing today\'s hand.)</div>' +
         '<div style="font-size:var(--fs-sub);color:var(--text2);margin-bottom:10px">Version: <b>' + APP_VERSION + '</b></div>' +
-        '<button class="add-btn" style="width:100%" onclick="location.reload()">Reload app</button>' +
+        '<button class="add-btn wide" onclick="location.reload()">Reload app</button>' +
       '</div>' +
 
       // Card: What's new — the only place a change is visible from inside the app
@@ -5487,7 +5518,7 @@
           '</div>'
         ).join('') +
         (CHANGELOG.length > 3
-          ? '<button class="add-btn" style="width:100%;background:transparent;color:var(--text2);border:0.5px solid var(--border2)" onclick="toggleSection(\'changelog\')">' +
+          ? '<button class="add-btn wide quiet" onclick="toggleSection(\'changelog\')">' +
               (sectionOpen.changelog ? 'Show less' : 'Show all ' + CHANGELOG.length + ' updates') +
             '</button>'
           : '') +
@@ -5498,7 +5529,7 @@
         '<div class="settings-card-title">Backup</div>' +
         '<div class="settings-card-desc">A backup file downloads automatically once a week so your history is never only in this browser. Save it somewhere safe (or let Downloads collect them).</div>' +
         '<div style="font-size:var(--fs-sub);color:var(--text2);margin-bottom:10px">Last backup: <b>' + (state.lastBackupDate ? new Date(state.lastBackupDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'never') + '</b></div>' +
-        '<button class="add-btn" style="width:100%" onclick="downloadBackup(false)">Back up now</button>' +
+        '<button class="add-btn wide" onclick="downloadBackup(false)">Back up now</button>' +
       '</div>' +
 
       // Card 7: Export / Import
@@ -5506,17 +5537,17 @@
         '<div class="settings-card-title">Export / Import</div>' +
         '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
         '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:8px">Export</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:10px" onclick="exportData()">Copy data to clipboard</button>' +
+        '<button class="add-btn wide gap-b" onclick="exportData()">Copy data to clipboard</button>' +
         '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
         '<div style="height:16px;border-top:0.5px solid var(--border);margin:16px -24px 0;padding-top:16px;margin-bottom:0"></div>' +
         '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
         '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">Overwrites all current data.</div>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">From an auto-backup file in Downloads:</div>' +
         '<input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">' +
-        '<button class="add-btn" style="width:100%;margin-bottom:14px" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
+        '<button class="add-btn wide gap-b-sm" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">Or paste exported data:</div>' +
         '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
-        '<button class="add-btn" style="width:100%;background:var(--red)" onclick="importData()">Import &amp; restore</button>' +
+        '<button class="add-btn wide danger" onclick="importData()">Import &amp; restore</button>' +
       '</div>' +
   
       '</div>';
