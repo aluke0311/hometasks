@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-11 v20">
+  <meta name="app-version" content="2026-08-16 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -68,6 +68,18 @@
          this app has zero external requests and that is worth protecting. */
       --serif: Georgia, 'Times New Roman', serif;
       --radius: 10px; --radius-sm: 6px;
+      /* C-3: 8/9/10px were three spellings of one corner. --radius is that corner;
+         --radius-xs is the hairline chip, --radius-lg the sheet. Anything round
+         still uses 50% directly — that's a shape, not a size. */
+      --radius-xs: 3px; --radius-lg: 16px;
+      /* C-2 (2026-08-16 coherence audit). Spacing was the one constant with no
+         token at all: every padding/gap/margin in the app was a literal, and
+         7px/11px existed purely as one-off nudges. The steps below are chosen so
+         the values already in use map EXACTLY — converting a site is a no-op
+         visually, which is what makes the sweep safe to do incrementally.
+         3/7/11px snap to their neighbour; those were accidents, not decisions. */
+      --s-1: 2px;  --s-2: 4px;  --s-3: 6px;  --s-4: 8px;  --s-5: 10px;
+      --s-6: 12px; --s-7: 14px; --s-8: 16px; --s-9: 20px; --s-10: 26px;
       --safe-top: env(safe-area-inset-top);
       --safe-bottom: env(safe-area-inset-bottom);
       --nav-height: 49px;
@@ -308,6 +320,17 @@
     .in-hand-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: var(--fs-sub); display: flex; align-items: center; justify-content: center; }
     .icon-btn.danger { color: var(--red); border-color: var(--red); }
+    .icon-btn.on { color: var(--green); border-color: var(--green); }
+    /* Preset row actions: add-to-hand / flag / pin. 26px here rather than the
+       28px of a bare .icon-btn — three of them plus the check and the time have
+       to clear 375px without the task name losing more than it can spare. */
+    .preset-row-acts { display: flex; gap: var(--s-2); flex-shrink: 0; margin-left: var(--s-2); }
+    .preset-row-acts .icon-btn { width: 26px; height: 26px; }
+    .preset-row { margin: 0 0 var(--s-3); }
+    .preset-row .sprint-card-name { overflow: hidden; text-overflow: ellipsis; }
+    .preset-row-room { font-size: var(--fs-label); color: var(--text3); margin-top: 1px; }
+    .preset-row-dot { opacity: 0.5; }
+    .preset-due-chip { font-size: var(--fs-label); padding: 1px var(--s-2); }
     .manage-hand-btn { font-size: var(--fs-meta); padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
     .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
     /* ── D-2: serif headings ─────────────────────────────────────────────── */
@@ -1266,12 +1289,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-11 v20';
+  const APP_VERSION = '2026-08-16 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v1', notes: [
+      'Preset checklists now have three buttons on every task: add to today\'s hand, flag, and pin. The time moved down next to the room to make space, so task names get the full width.',
+    ]},
     { v: '2026-08-11 v20', notes: [
       'The buttons revealed by swiping a row left now actually work. Tapping Pin, More or Remove used to snap the row shut first, so the tap landed on the row instead and marked the task done or opened the sheet.',
       'Press-and-hold no longer leaves the task name half-highlighted when the sheet opens.',
@@ -4022,6 +4048,30 @@
   // Ticks here toggle, like the ones on My Hand. They used to only ever complete,
   // so a mis-tap in a checklist was uncorrectable once the undo toast expired —
   // tapping the ticked card just re-fired the completion.
+  // Add-to-hand / flag / pin, on each preset row. Only drawn for tasks that exist
+  // in TASKS: the legacy checklists (FULL_RESET_TASKS, GOING_OUT_TASKS) carry rows
+  // that have no real task behind them, and addToHand/togglePin would no-op on
+  // those while still looking tappable.
+  //
+  // stopPropagation is load-bearing — the whole row is a toggleComplete target, so
+  // without it every one of these would also tick the task off.
+  function presetRowActions(task) {
+    const q = '\'' + task.id + '\'';
+    const stop = 'event.stopPropagation();';
+    const inHand = (state.hand || []).includes(task.id);
+    const flagged = (state.flaggedIds || []).includes(task.id);
+    const pinned = (state.pinnedIds || []).includes(task.id);
+    const btn = (ic, on, click, label) =>
+      '<button class="icon-btn' + (on ? ' on' : '') + '" onclick="' + stop + click + '"' +
+        ' title="' + label + '" aria-label="' + label + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+        icon(ic, 14, 1.8) + '</button>';
+    return '<div class="preset-row-acts">' +
+      btn('plus', inHand, 'addToHand(' + q + ')', inHand ? 'Already in today\'s hand' : 'Add to today\'s hand') +
+      btn('flag', flagged, (flagged ? 'unflagTask' : 'flagTask') + '(' + q + ')', flagged ? 'Unflag' : 'Flag it') +
+      btn('pin', pinned, 'togglePin(' + q + ')', pinned ? 'Unpin' : 'Pin to the hand') +
+    '</div>';
+  }
+
   function renderPresetChecklist(taskIds, taskSource) {
     const allRealTasks = getAllTasks();
     let html = '';
@@ -4031,17 +4081,23 @@
       const isDone = wasCompletedToday(t);
       const realTask = allRealTasks.find(x => x.id === id);
       const taskDue = realTask && !isDone && isDue(realTask);
-      const dueHtml = taskDue ? ' <span class="task-overdue" style="font-size:var(--fs-label);padding:1px 5px">due</span>' : '';
+      const dueHtml = taskDue ? ' <span class="task-overdue preset-due-chip">due</span>' : '';
       html +=
-        '<div class="sprint-card ' + (isDone ? 'done' : '') + '" onclick="toggleComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
+        '<div class="sprint-card preset-row ' + (isDone ? 'done' : '') + '" onclick="toggleComplete(\'' + t.id + '\')">' +
           '<div class="sprint-check"><div class="sprint-check-inner"></div></div>' +
           '<div class="sprint-card-body">' +
             '<div class="sprint-card-top">' +
               '<span class="sprint-card-name">' + t.name + dueHtml + '</span>' +
-              '<span class="sprint-card-time">' + fmtMinutes(taskTime(t)) + '</span>' +
             '</div>' +
-            '<div style="font-size:var(--fs-label);color:var(--text3);margin-top:1px">' + t.room + '</div>' +
+            // Time moves down beside the room rather than sitting in the name row.
+            // Three action buttons cost ~90px, and taking it out of the name wrapped
+            // every second task onto two lines; the meta line had the room and
+            // nothing else, so the space was already there.
+            '<div class="preset-row-room">' + t.room +
+              ' <span class="preset-row-dot">·</span> ' + fmtMinutes(taskTime(t)) +
+            '</div>' +
           '</div>' +
+          (realTask && !isDone ? presetRowActions(realTask) : '') +
         '</div>';
     });
     return html;
