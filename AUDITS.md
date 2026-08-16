@@ -1,6 +1,6 @@
 # Audit Types
 
-Five audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
+Six audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
 uses different tooling, and accepts different evidence. They are designed not to overlap: a
 finding that shows up in two of them means one of the specs is drifting.
 
@@ -16,6 +16,7 @@ reproduced by the means that audit specifies. Reading the code and inferring a b
 | 3 | **State** | Can the data be lost, corrupted, or silently rewritten? | localStorage, import/export, clock | Before/after state diffs |
 | 4 | **Surface** | Does it look like one app in both themes? | Computed styles, both colour schemes | Computed values + paired screenshots |
 | 5 | **Content** | Is the task pool itself sound? | `TASKS`, presets, `actualTimes`, copy | Arithmetic over the pool |
+| 6 | **Coherence** | Did fixing things in layers leave it misaligned? | Whole file + git history | Both sites side by side, dated |
 
 ---
 
@@ -203,6 +204,12 @@ contrast and hit-target failure lists, and the theme-pair contact sheet.
 invisible, and has been before. The three theme states (explicit light, explicit dark, unset)
 are not two; a page that only handles `prefers-color-scheme` is broken for one of them.
 
+**Handoff to audit 6.** This audit *measures against external standards* — WCAG, 44px, 16px —
+and produces the inventories. It does not judge whether eleven type sizes should be eleven. That
+question is internal self-consistency and belongs to Coherence, which consumes these inventories
+rather than recomputing them. Rule of thumb: if a lone designer on a lone screen could still get
+it wrong, it is Surface; if it is only wrong *relative to the rest of the app*, it is Coherence.
+
 ---
 
 ## 5. Content Audit — the pool and the words
@@ -263,7 +270,106 @@ not demanded year-round and should be prorated, or the utilisation figure runs h
 
 ---
 
-## What these five do not cover
+## 6. Coherence Audit — accretion and alignment
+
+**Question.** The app was built in layers, over many sessions, mostly by solving one problem at
+a time. Where a problem was solved by *adding* rather than *changing*, what did that leave
+behind — and does the app still hang together as one thing?
+
+**Scope.** Internal self-consistency, everywhere: visual constants, interaction grammar, naming,
+and the shape of the code. This is the audit where **everything it finds already works.** Nothing
+here is a bug; it is all tax — paid on every future edit, and eventually paid by her when two
+paths that were supposed to agree quietly stop agreeing.
+
+**The distinguishing question**, applied to every divergence found: *was this decided, or did it
+accumulate?* A decided difference is fine and gets one line of documentation. An accumulated one
+gets converged. That question is the whole audit; everything below is a way of generating
+candidates for it.
+
+**Method.** Four sweeps.
+
+**(a) Constants that forked.** Inventory every visual constant and sort by how many uses escape
+the token. *Run at the time of writing:*
+
+| Constant | Via token | Literal uses | Distinct literal values |
+|---|---|---|---|
+| `font-size` | 151 | 19 | 10 (+ `16px`, which is deliberate) |
+| `border-radius` | 22 | 58 | 11 real corner sizes |
+
+The font scale is mostly holding — seven tokens carry 151 uses — but `13.5px`, `13px` and
+`12.5px` all exist, which is three sizes nobody chose and no eye can tell apart. Corners are the
+opposite: the tokens are barely used, and `8px` / `9px` / `10px` between them account for 26 uses
+of what is obviously meant to be one corner. Neither is a rendering fault, so audit 4 will not
+raise them; both mean the next screen has no single right answer to copy.
+
+**(b) Behaviours that forked.** For each verb the user can perform, list every code path that
+implements it and diff their semantics. The preset system is the worked example, and it is the
+clearest accretion scar in the app — the function names admit it out loud:
+
+- `clearLegacyPreset` **/** `clearNewPreset`
+- `renderPresetChecklist` **/** `renderNewPresetChecklist`
+- `loadPresetIntoHand`, `loadPresetDueOnly` **/** `loadNewPreset`, `loadNewPresetDueOnly`
+- state: `guestHand`, `resetHand`, `goingOutHand` **/** the generic `presetHands` map
+
+A general mechanism was built; the three originals were never migrated onto it; so every preset
+operation now exists twice and every future preset change costs double. The same shape, milder,
+in the six near-identical section collapsers (`toggleOverflow`, `toggleDailies`,
+`toggleOtherTasks`, `toggleCompleted`, `toggleSprintCompleted`, `toggleChangelog`) — one
+parameterised function wearing six coats.
+
+Then the interaction grammar, which is the user-visible half of the same sweep: does a tick mean
+the same thing on My Hand, Sprint, a preset checklist and All Tasks? Does "remove" mean removed
+from today, or removed from the pool — and does it mean that consistently? Do the same three
+icons appear in the same order on every card? Where two surfaces show the same task, do they
+agree on what its buttons do?
+
+**(c) Fixes that patched the symptom.** Read the watch-out list in `CLAUDE.md` and treat every
+entry as a finding, because **a rule you have to remember is a design that failed to enforce
+itself.** Three of them are load-bearing right now:
+
+- *"`saveTask` rebuilds a custom task from an explicit field list, so any new flag must be added
+  there too"* — the data model is defined in two places that must be kept in sync by memory.
+- *"Every path that ends a task must clear `state.inProgress[id]`"* — a lifecycle invariant
+  enforced by four separate call sites remembering to.
+- *"`renderCard` has a local `isSnoozed` that shadows the global helper"* — a name collision
+  documented instead of renamed.
+
+For each, the audit asks what structural change would make the rule unnecessary, and what that
+would cost. Some will be worth leaving — but leaving it should be a decision, not the default.
+
+**(d) Things that stopped being true.** Vestigial state (`tierCLastDate` is flagged as such in
+the docs and still ships), names that outlived their meaning (`openRoomPressurePreset` —
+"pressure" appears in no current concept), comments describing older behaviour, and stale
+anchors in the docs themselves. Currently `CLAUDE.md` says `index.html` is ~3,960 lines when it
+is **5,719**, and puts `TASKS` at line 667 when it is at **945** — the docs have accreted too.
+
+**Evidence bar.** Every finding shows all the diverging sites *side by side in one block* — the
+divergence is invisible unless the reader sees them together, which is exactly why it survived.
+Then, uniquely to this audit, **`git log` for each site**: two things introduced in the same
+commit were probably designed that way; two introduced eight months apart accumulated. That date
+gap is the difference between a finding and a matter of taste, and no other audit uses history
+as evidence.
+
+**Output.** A convergence list ranked by **cost of divergence** — how many future edits pay the
+tax, and how likely the paths are to drift apart — never by how ugly it looks. Each entry: the
+sites, the dates, decided-or-accumulated, and the cost to converge. Plus the running trend
+numbers (literal-vs-token ratios, duplicate path count), so the next audit can see the direction
+of travel.
+
+**Severity mapping.** Most of this is S3, correctly — it is tax, not damage. Two exceptions
+promote to S1: two paths that can write *different things* to the same user data (the two undo
+paths are the standing example, which is why they are pinned by tests), and any invariant held
+together only by a rule in a document, where forgetting it corrupts history rather than throwing.
+
+**Traps.** The temptation is to converge everything at once, in one heroic pass; that produces a
+diff nobody can review against an app with one user and no staging. Convergence work ships in
+small pieces, each with the selftest green. And divergence is not automatically wrong — the
+legacy preset fields hold *live user state*, so converging them needs a migration, which may
+well cost more than the duplication does. Say so when that is the answer.
+
+---
+
+## What these six do not cover
 
 Deliberate omissions, so the gap is a decision rather than an oversight:
 
@@ -277,8 +383,18 @@ Deliberate omissions, so the gap is a decision rather than an oversight:
 
 ## Suggested rotation
 
-Not all five, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
+Not all six, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
 runs after any change to scoring or dealing. **State** runs before any change to the storage
 schema and after any change to import/export. **Flow** and **Surface** run together after visual
-work, because a redesign moves both. A full sweep of all five is a session of its own, and the
-order above is roughly the order of judgment density — do Behaviour and State while fresh.
+work, because a redesign moves both.
+
+**Coherence is the odd one out** and should run on a *time* cadence rather than a change
+cadence — roughly every 8–10 sessions, or after any stretch of consecutive bug-fixing. Accretion
+is invisible from inside the session that creates it: each individual fix was the right call at
+the time, and only the accumulation is wrong. That is precisely why it needs its own scheduled
+pass instead of vigilance during the work. Run it *before* a redesign, never after — it tells you
+which divergences are load-bearing, and a redesign that starts without knowing that just adds a
+seventh layer.
+
+A full sweep of all six is a session of its own, and the order above is roughly the order of
+judgment density — do Behaviour, State and Coherence while fresh.
