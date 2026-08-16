@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v8">
+  <meta name="app-version" content="2026-08-16 v9">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -355,6 +355,8 @@
     .preset-due-chip { font-size: var(--fs-label); padding: 1px var(--s-2); }
     .manage-hand-btn { font-size: var(--fs-meta); padding: 5px var(--s-6); border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; min-height: 32px; }
     .manage-hand-btn.in-hand { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    /* All Tasks packs three of these into a row, so they shrink below the default. */
+    .manage-hand-btn.sm { min-height: 26px; padding: 3px 9px; }
     /* ── D-2: serif headings ─────────────────────────────────────────────── */
     .view-hero-title, .manage-title, .settings-card-title, .modal-title,
     .settings-stat-num, .sprint-block-label, .empty b {
@@ -651,6 +653,42 @@
     .btn-fill { background: var(--green); color: var(--on-accent); border: none; border-radius: var(--radius); padding: var(--s-5) var(--s-7); font-size: var(--fs-sub); font-weight: 600; cursor: pointer; flex: 1; min-width: 96px; }
     .btn-line { background: none; border: 1px solid var(--border2); border-radius: var(--radius); padding: var(--s-5) var(--s-8); font-size: var(--fs-sub); color: var(--text2); cursor: pointer; }
     .btn-line.danger { color: var(--red); border-color: var(--red); }
+
+    /* C-7. Paired "choose one" buttons — Presets uses these for Phase 1 / All
+       phases, Quick / Deep, Pick another / Add to today. A filled well rather
+       than .btn-line's outline, and flex:1 so the pair splits the row evenly.
+       Eight copies of this lived inline; the 8px radius in two of them was one
+       of the three spellings of --radius that C-3 collapsed. */
+    .btn-choice-row { display: flex; gap: var(--s-4); }
+    .btn-choice-row.spaced { margin-bottom: var(--s-7); }
+    .btn-choice { flex: 1; padding: var(--s-5); background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: var(--fs-sub); color: var(--text); cursor: pointer; }
+    .btn-choice.sm { padding: var(--s-4); }
+    .btn-choice.off { color: var(--text3); cursor: default; }
+    .btn-choice.go { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
+
+    /* A label INSIDE a card, quieter than .section-label, which is the screen-level
+       one. The room preset cards use the smaller step — .xs — because they sit two
+       levels deep. .tight drops the top margin when the label opens its card. */
+    .sub-label { font-size: var(--fs-meta); font-weight: 600; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.05em; margin: var(--s-7) 0 var(--s-3); }
+    .sub-label.xs { font-size: var(--fs-label); }
+    .sub-label.tight { margin-top: 0; }
+
+    /* The standard gutter plus enough bottom room to clear the fixed nav. */
+    .screen-body { padding: 0 var(--s-10) 32px; }
+
+    /* A checkbox or radio and its text on one line. The blanket
+       `input { appearance: none }` reset leaves a radio 0x0 and completely
+       invisible — the same way it ate the cat checkbox — so Guest Prep showed
+       three bare labels with no way to see which variant was selected. Drawn by
+       hand here, the way .field-check draws the checkbox. */
+    .opt-label { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-sub); cursor: pointer; }
+    .opt-label input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; margin: 0; cursor: pointer;
+      border: 1.5px solid var(--border2); border-radius: 50%; background: var(--card); position: relative; }
+    .opt-label input[type="radio"]:checked { border-color: var(--green); }
+    .opt-label input[type="radio"]:checked::after { content: ''; position: absolute; inset: 3px;
+      border-radius: 50%; background: var(--green); }
 
     /* Dashed "add" affordance. */
     .btn-dashed { width: 100%; border: 1px dashed var(--border2); border-radius: var(--radius); padding: var(--s-5); font-size: var(--fs-sub); color: var(--text2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: var(--s-3); }
@@ -1329,12 +1367,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v8';
+  const APP_VERSION = '2026-08-16 v9';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v9', notes: [
+      'Fixed: the three Guest Prep buttons (Emergency / Day guests / Overnight) had no circle to click and no way to see which one was chosen. The circles were there in the code but were being drawn at zero size. Same fault the cat checkbox had.',
+      'Tidy-up otherwise. The paired buttons on Presets (Quick / Deep, Phase 1 / All phases) and a few small labels now come from shared rules instead of being styled one by one. The Quick and Deep buttons get the same rounded corner as every other button — that is the only other visible change.',
+    ]},
     { v: '2026-08-16 v8', notes: [
       'Tidy-up only, part two. Another 60 spacing values and the four big number sizes now come from the one shared set instead of being typed by hand. Nothing moves — every value is the same number it was. If something does look wrong, it is this.',
     ]},
@@ -4301,7 +4343,7 @@
         return t && wasCompletedToday(t);
       }).length;
       html +=
-        '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+        '<div class="sub-label">' +
           section.label + ' <span style="font-weight:400">(' + doneCount + '/' + section.ids.length + ')</span>' +
         '</div>';
       html += renderPresetChecklist(section.ids, allTasks);
@@ -4441,7 +4483,7 @@
         '<div class="eyebrow">Checklists for a moment</div>' +
         '<div class="screen-title">Presets</div>' +
       '</div>' +
-      '<div style="padding:0 26px 32px">';
+      '<div class="screen-body">';
 
     // ── RANDOM TASK ───────────────────────────────────────────────────────────
     const tierLabels = { all: 'All', A: 'Tier A', B: 'Tier B', C: 'Tier C' };
@@ -4469,11 +4511,11 @@
             fmtMinutes(taskTime(randomPick)) +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;gap:8px">' +
-          '<button onclick="pickRandomTask()" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Pick another</button>' +
+        '<div class="btn-choice-row">' +
+          '<button onclick="pickRandomTask()" class="btn-choice">Pick another</button>' +
           (alreadyInHand
-            ? '<button style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);color:var(--text3);cursor:default">Already in today</button>'
-            : '<button onclick="addRandomPickToHand()" style="flex:1;padding:10px;background:var(--green);border:none;border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--on-accent);font-weight:600">Add to today →</button>') +
+            ? '<button class="btn-choice off">Already in today</button>'
+            : '<button onclick="addRandomPickToHand()" class="btn-choice go">Add to today →</button>') +
         '</div>';
     } else {
       html += '<button class="add-btn" style="width:100%" onclick="pickRandomTask()">Pick random task</button>';
@@ -4539,7 +4581,7 @@
           return t && wasCompletedToday(t);
         }).length;
         html +=
-          '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          '<div class="sub-label">' +
             section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, FULL_RESET_TASKS);
@@ -4556,13 +4598,13 @@
         presetTitle('Guest Prep') +
         '<div class="settings-card-desc">Get the house ready for visitors.</div>' +
         '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
+          '<label class="opt-label">' +
             '<input type="radio" name="guestMode" value="emergency"' + (guestMode==='emergency'?' checked':'') + ' onchange="guestMode=\'emergency\';renderPresets()"> Emergency (~15 min)' +
           '</label>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
+          '<label class="opt-label">' +
             '<input type="radio" name="guestMode" value="day"' + (guestMode==='day'?' checked':'') + ' onchange="guestMode=\'day\';renderPresets()"> Day guests' +
           '</label>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sub);cursor:pointer">' +
+          '<label class="opt-label">' +
             '<input type="radio" name="guestMode" value="overnight"' + (guestMode==='overnight'?' checked':'') + ' onchange="guestMode=\'overnight\';renderPresets()"> Overnight' +
           '</label>' +
         '</div>' +
@@ -4593,7 +4635,7 @@
           return t && wasCompletedToday(t);
         }).length;
         html +=
-          '<div style="font-size:var(--fs-meta);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">' +
+          '<div class="sub-label">' +
             section.label + ' <span style="font-weight:400">(' + done + '/' + section.ids.length + ')</span>' +
           '</div>';
         html += renderPresetChecklist(section.ids, GOING_OUT_TASKS);
@@ -4642,9 +4684,9 @@
         '<button class="add-btn" style="width:100%;margin-bottom:' + (recActive ? '14px' : '0') + '" onclick="generateNewPreset(\'recovery\')">Generate Recovery Plan</button>';
     if (recActive) {
       html +=
-        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadRecoveryPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Phase 1 only →</button>' +
-          '<button onclick="loadRecoveryPhase(3)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">All phases →</button>' +
+        '<div class="btn-choice-row spaced">' +
+          '<button onclick="loadRecoveryPhase(1)" class="btn-choice">Phase 1 only →</button>' +
+          '<button onclick="loadRecoveryPhase(3)" class="btn-choice">All phases →</button>' +
           '<button class="btn-line" onclick="clearNewPreset(\'recovery\')" title="Close this checklist without loading it" aria-label="Close">' + icon('close', 14, 2) + '</button>' +
         '</div>';
       html += renderNewPresetChecklist(RECOVERY_SECTIONS);
@@ -4661,9 +4703,9 @@
         '<button class="add-btn" style="width:100%;margin-bottom:' + (piActive ? '14px' : '0') + '" onclick="generateNewPreset(\'postIllness\')">Generate Post-Illness Plan</button>';
     if (piActive) {
       html +=
-        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
-          '<button onclick="loadPostIllnessPhase(1)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Sanitize only →</button>' +
-          '<button onclick="loadPostIllnessPhase(2)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Full plan →</button>' +
+        '<div class="btn-choice-row spaced">' +
+          '<button onclick="loadPostIllnessPhase(1)" class="btn-choice">Sanitize only →</button>' +
+          '<button onclick="loadPostIllnessPhase(2)" class="btn-choice">Full plan →</button>' +
           '<button class="btn-line" onclick="clearNewPreset(\'postIllness\')" title="Close this checklist without loading it" aria-label="Close">' + icon('close', 14, 2) + '</button>' +
         '</div>';
       html += renderNewPresetChecklist(POST_ILLNESS_SECTIONS);
@@ -4726,18 +4768,18 @@
             '<div class="settings-card-title" style="margin:0">' + room.label + '</div>' +
             '<div style="font-size:var(--fs-label);color:var(--text3)">Quick ' + fmtMinutes(qTime) + ' · Deep ' + fmtMinutes(dTime) + '</div>' +
           '</div>' +
-          '<div style="display:flex;gap:8px;margin-bottom:' + (anyActive ? '14px' : '0') + '">' +
-            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Quick</button>' +
-            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'deep\')" style="flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sub);cursor:pointer;color:var(--text)">Deep</button>' +
+          '<div class="btn-choice-row' + (anyActive ? ' spaced' : '') + '">' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'quick\')" class="btn-choice sm">Quick</button>' +
+            '<button onclick="generateRoomPreset(\'' + room.id + '\',\'deep\')" class="btn-choice sm">Deep</button>' +
           '</div>';
 
       if (qActive) {
-        html += '<div style="font-size:var(--fs-label);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Quick</div>';
+        html += '<div class="sub-label xs tight">Quick</div>';
         html += loadBtns("loadRoomPreset('" + room.id + "','quick')", "loadRoomPresetDueOnly('" + room.id + "','quick')", "clearNewPreset('" + qKey + "')");
         html += renderPresetChecklist(ph[qKey], allTasks);
       }
       if (dActive) {
-        html += '<div style="font-size:var(--fs-label);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:' + (qActive ? '14px' : '0') + ' 0 6px">Deep</div>';
+        html += '<div class="sub-label xs' + (qActive ? '' : ' tight') + '">Deep</div>';
         html += loadBtns("loadRoomPreset('" + room.id + "','deep')", "loadRoomPresetDueOnly('" + room.id + "','deep')", "clearNewPreset('" + dKey + "')");
         html += renderPresetChecklist(ph[dKey], allTasks);
       }
@@ -5029,14 +5071,14 @@
       const inHand = !!(state.hand && state.hand.includes(x.t.id));
       const isFlagged = (state.flaggedIds || []).includes(x.t.id);
       const todayBtn = inHand
-        ? '<button class="manage-hand-btn in-hand" style="min-height:26px;padding:3px 9px" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
-        : '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
+        ? '<button class="manage-hand-btn in-hand sm" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
+        : '<button class="manage-hand-btn sm" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
       const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + ';display:flex">' + icon('flag', 14, 1.8) + '</span></button>';
       const adoptBtn = x.cad.color !== 'var(--green)' && x.cad.real !== x.t.freq
         ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
         : '';
       const markDueCadBtn = overdue < 0
-        ? '<button class="manage-hand-btn" style="min-height:26px;padding:3px 9px" onclick="markTaskDue(\'' + x.t.id + '\')">mark due</button>'
+        ? '<button class="manage-hand-btn sm" onclick="markTaskDue(\'' + x.t.id + '\')">mark due</button>'
         : '';
       return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
@@ -5167,7 +5209,7 @@
       weekBars +
       // Everything below is cards; they carry no horizontal margin of their own
       // so that Presets can nest them inside its own padded column.
-      '<div style="padding:0 26px 32px">' +
+      '<div class="screen-body">' +
       (function() {
         const bs = budgetSuggestion();
         function line(label, a, current, type) {
@@ -5235,7 +5277,7 @@
         '<div class="eyebrow">Home Tasks · ' + APP_VERSION.split(' ').pop() + '</div>' +
         '<div class="screen-title">Settings</div>' +
       '</div>' +
-      '<div style="padding:0 26px 32px">' +
+      '<div class="screen-body">' +
 
       // Card 1: Daily Time Budget
       '<div class="settings-card" style="margin-top:0">' +
