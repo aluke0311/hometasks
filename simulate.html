@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home Tasks — day simulator</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 24px; max-width: 1100px; color: #23211c; background: #faf8f3; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #6b665c; margin-bottom: 18px; }
+  iframe { width: 380px; height: 220px; border: 1px solid #ddd; position: absolute; left: -9999px; }
+  table { border-collapse: collapse; margin: 10px 0 26px; font-size: 13px; width: 100%; }
+  th, td { border-bottom: 1px solid #e5e1d8; padding: 5px 9px; text-align: left; }
+  th { background: #f0ece3; font-weight: 600; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .bad { color: #a33; font-weight: 600; }
+  .good { color: #2c6e49; font-weight: 600; }
+  h2 { font-size: 15px; margin: 26px 0 2px; }
+  .note { color: #6b665c; font-size: 12px; margin: 0 0 8px; }
+  #status { padding: 10px 12px; background: #f0ece3; border-radius: 6px; }
+  code { background: #f0ece3; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Day simulator</h1>
+<div class="sub">
+  Runs the real <code>dealHand</code> forward N days against a controllable clock, then measures what
+  the algorithm actually does over time. Storage inside the frame is memory-backed, so this can
+  never touch live data.
+</div>
+<div id="status">Loading…</div>
+<div id="out"></div>
+<iframe id="frame"></iframe>
+
+<script>
+// The bridge is the selftest's, plus a clock. The app reads Date.now() and
+// `new Date()` everywhere, so a simulated day is just an offset both of them
+// honour — no code in the app has to know it is being simulated.
+const BRIDGE = `<script>
+(function () {
+  function makeStore() {
+    const mem = Object.create(null);
+    return { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); },
+             removeItem: k => { delete mem[k]; }, clear: () => { for (const k in mem) delete mem[k]; },
+             key: i => { const ks = Object.keys(mem); return i < ks.length ? ks[i] : null; },
+             get length() { return Object.keys(mem).length; } };
+  }
+  Object.defineProperty(window, 'localStorage',   { value: makeStore(), configurable: true });
+  Object.defineProperty(window, 'sessionStorage', { value: makeStore(), configurable: true });
+
+  const RealDate = Date;
+  window.__clockOffset = 0;
+  function ShimDate(...args) {
+    if (args.length === 0) return new RealDate(RealDate.now() + window.__clockOffset);
+    return new RealDate(...args);
+  }
+  ShimDate.prototype = RealDate.prototype;
+  ShimDate.now   = () => RealDate.now() + window.__clockOffset;
+  ShimDate.parse = RealDate.parse;
+  ShimDate.UTC   = RealDate.UTC;
+  window.Date = ShimDate;
+
+  window.__get = expr => eval(expr);
+  window.__set = (lhs, val) => { window.__inbound = val; try { eval(lhs + ' = window.__inbound'); } finally { delete window.__inbound; } };
+  window.confirm = () => true;
+  window.alert = () => {};
+  window.__bridged = true;
+})();
+<\/script>`;
+
+const DAY = 86400000;
+let W, G, S;
+
+async function boot(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('fetch ' + url + ' failed: HTTP ' + res.status);
+  const src = await res.text();
+  const injected = src.replace(/<head>/i, '<head>' + BRIDGE);
+  if (injected === src) throw new Error('bridge injection failed');
+  const frame = document.getElementById('frame');
+  await new Promise((resolve, reject) => {
+    frame.addEventListener('load', resolve, { once: true });
+    setTimeout(() => reject(new Error('iframe load timed out')), 15000);
+    frame.srcdoc = injected;
+  });
+  W = frame.contentWindow;
+  if (!W.__bridged) throw new Error('bridge did not run');
+  G = expr => W.__get(expr);
+  S = (lhs, val) => W.__set(lhs, val);
+  await new Promise(r => setTimeout(r, 400));   // let init() finish
+}
+
+const median = a => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1;
+                      return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; };
+const pct = (a, p) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y);
+                        return s[Math.min(s.length - 1, Math.floor(p / 100 * s.length))]; };
+
+// Completion policies. The interesting failures are policy-dependent, so a run
+// that only models a perfectly compliant user measures the ceiling and nothing else.
+const POLICIES = {
+  compliant: { label: 'Compliant — does everything dealt',
+    pick: hand => hand },
+  realistic: { label: 'Realistic — does ~75%, skips the longest',
+    pick: (hand, times) => {
+      const sorted = [...hand].sort((a, b) => times[b] - times[a]);
+      return sorted.slice(Math.ceil(sorted.length * 0.25));
+    } },
+  sporadic:  { label: 'Sporadic — 3 days on, 4 off',
+    pick: (hand, times, day) => (day % 7 < 3 ? hand : []) },
+};
+
+function runSim({ days, policy, mode, budgetWeekday, budgetWeekend }) {
+  // Reset the clock BEFORE building the state, not after. defaultState() backfills
+  // every completion to `now - freq`, so building it while the clock still sat at
+  // the end of the previous run dated every task into the future and nothing was
+  // ever due again — every scenario after the first dealt empty hands and the
+  // whole table looked identical. The symptom read like a finding about the app.
+  W.__clockOffset = 0;
+  const st = G('defaultState')();
+  st.mode = mode;
+  st.budgetWeekday = budgetWeekday;
+  st.budgetWeekend = budgetWeekend;
+  st.seasonalDefaultsApplied = true;   // don't let the migration fire mid-run
+  st.vacDefaultsApplied = true;
+  S('state', st);
+
+  const tasks = G('getAllTasks')().filter(t => !t.oneOff);
+  const byId = {}; tasks.forEach(t => { byId[t.id] = t; });
+  const mine = tasks.filter(t => t.owner !== 'bob');
+  const dailyIds = new Set(G('getDailies')().map(t => t.id));
+
+  const dealtCount = {};       // id -> times dealt
+  const doneDays   = {};       // id -> [day index]
+  const handSizes = [], handMinutes = [], budgets = [];
+  let repeatNum = 0, repeatDen = 0;
+  let prevUncompleted = [];
+
+  for (let day = 0; day < days; day++) {
+    W.__clockOffset = day * DAY;
+    S('state.hand', null);
+    S('state.handDate', null);
+    G('dealHand')();
+    const hand = (G('state').hand || []).slice();
+
+    const times = {};
+    hand.forEach(id => { const t = byId[id]; times[id] = t ? G('taskTime')(t) : 0; });
+
+    hand.forEach(id => { dealtCount[id] = (dealtCount[id] || 0) + 1; });
+    handSizes.push(hand.length);
+    // budgetWeekday/budgetWeekend cover NON-DAILY time only — dailies are forced in
+    // on top. Comparing the whole hand against the budget therefore always shows a
+    // large fake overshoot (about 48 minutes of dailies), which reads like a finding
+    // and is not one. Only the non-daily part is comparable.
+    handMinutes.push(hand.filter(id => !dailyIds.has(id))
+                         .reduce((s, id) => s + (times[id] || 0), 0));
+    const isWeekend = [0, 6].includes(new Date(Date.now() + day * DAY).getDay());
+    budgets.push(isWeekend ? budgetWeekend : budgetWeekday);
+
+    // repeat rate: of the tasks left undone yesterday, how many came back today?
+    if (prevUncompleted.length) {
+      repeatDen += prevUncompleted.length;
+      repeatNum += prevUncompleted.filter(id => hand.includes(id)).length;
+    }
+
+    const done = POLICIES[policy].pick(hand, times, day);
+    done.forEach(id => { G('completeTask')(id); (doneDays[id] = doneDays[id] || []).push(day); });
+    prevUncompleted = hand.filter(id => !done.includes(id));
+  }
+
+  const finalState = G('state');
+  const starv = finalState.starvation || {};
+  const liveStarv = mine.map(t => starv[t.id] || 0);
+
+  // Service interval: mean gap between completions, as a ratio to the target freq.
+  const intervals = [];
+  mine.forEach(t => {
+    const d = doneDays[t.id] || [];
+    if (d.length < 2) return;
+    const gaps = d.slice(1).map((x, i) => x - d[i]);
+    intervals.push({ id: t.id, name: t.name, freq: t.freq, ratio: median(gaps) / t.freq });
+  });
+
+  const tierOf = t => G('getTaskTier')(t);
+  const cover = list => list.length ? list.filter(t => dealtCount[t.id]).length / list.length : 1;
+
+  return {
+    days, policy, mode, budgetWeekday, budgetWeekend,
+    poolSize: mine.length,
+    coverage:  cover(mine),
+    coverageA: cover(mine.filter(t => tierOf(t) === 'A')),
+    coverageB: cover(mine.filter(t => tierOf(t) === 'B')),
+    coverageC: cover(mine.filter(t => tierOf(t) === 'C')),
+    neverDealt: mine.filter(t => !dealtCount[t.id]).length,
+    starvMedian: median(liveStarv), starvP95: pct(liveStarv, 95), starvMax: Math.max(...liveStarv),
+    starvOver100: liveStarv.filter(v => v >= 100).length,
+    handMedian: median(handSizes),
+    minutesMedian: median(handMinutes),
+    budgetMedian: median(budgets),
+    overshoot: median(handMinutes) - median(budgets),
+    repeatRate: repeatDen ? repeatNum / repeatDen : 0,
+    worstIntervals: intervals.sort((a, b) => b.ratio - a.ratio).slice(0, 8),
+  };
+}
+
+function fmtPct(x) { return (x * 100).toFixed(0) + '%'; }
+function cls(v, goodBelow) { return v <= goodBelow ? 'good' : 'bad'; }
+
+function render(runs) {
+  let h = '<h2>Coverage — does every task ever get dealt?</h2>' +
+    '<p class="note">Share of her pool (alina + either) dealt at least once in the run. Tier A ≤ 7d, B ≤ 60d, C &gt; 60d.</p>' +
+    '<table><tr><th>Mode</th><th>Policy</th><th>Budget</th><th>All</th><th>Tier A</th><th>Tier B</th><th>Tier C</th><th>Never dealt</th></tr>';
+  runs.forEach(r => {
+    h += '<tr><td>' + r.mode + '</td><td>' + r.policy + '</td><td class="n">' + r.budgetWeekday + '/' + r.budgetWeekend + '</td>' +
+      '<td class="n">' + fmtPct(r.coverage) + '</td><td class="n">' + fmtPct(r.coverageA) + '</td>' +
+      '<td class="n">' + fmtPct(r.coverageB) + '</td>' +
+      '<td class="n ' + (r.coverageC > 0.8 ? 'good' : 'bad') + '">' + fmtPct(r.coverageC) + '</td>' +
+      '<td class="n">' + r.neverDealt + '</td></tr>';
+  });
+  h += '</table>';
+
+  h += '<h2>Starvation — days due but not dealt, at the end of the run</h2>' +
+    '<table><tr><th>Mode</th><th>Policy</th><th>Budget</th><th>Median</th><th>P95</th><th>Max</th><th>≥100 days</th></tr>';
+  runs.forEach(r => {
+    h += '<tr><td>' + r.mode + '</td><td>' + r.policy + '</td><td class="n">' + r.budgetWeekday + '/' + r.budgetWeekend + '</td>' +
+      '<td class="n">' + r.starvMedian + '</td><td class="n">' + r.starvP95 + '</td>' +
+      '<td class="n">' + r.starvMax + '</td>' +
+      '<td class="n ' + (r.starvOver100 ? 'bad' : 'good') + '">' + r.starvOver100 + '</td></tr>';
+  });
+  h += '</table>';
+
+  h += '<h2>Budget — is the dealt hand the size it promised?</h2>' +
+    '<table><tr><th>Mode</th><th>Policy</th><th>Budget</th><th>Median hand</th><th>Non-daily min</th><th>vs budget</th><th>Repeat rate</th></tr>';
+  runs.forEach(r => {
+    h += '<tr><td>' + r.mode + '</td><td>' + r.policy + '</td><td class="n">' + r.budgetWeekday + '/' + r.budgetWeekend + '</td>' +
+      '<td class="n">' + r.handMedian + '</td><td class="n">' + r.minutesMedian + '</td>' +
+      '<td class="n">' + (r.overshoot >= 0 ? '+' : '') + r.overshoot + '</td>' +
+      '<td class="n">' + fmtPct(r.repeatRate) + '</td></tr>';
+  });
+  h += '</table>';
+
+  const worst = runs[0];
+  h += '<h2>Worst service intervals — ' + worst.mode + ' / ' + worst.policy + '</h2>' +
+    '<p class="note">Median gap between completions, divided by the task\'s target. 1.0 means it is serviced on schedule.</p>' +
+    '<table><tr><th>Task</th><th>Target</th><th>Ratio</th></tr>';
+  worst.worstIntervals.forEach(i => {
+    h += '<tr><td>' + i.name + '</td><td class="n">' + i.freq + 'd</td>' +
+      '<td class="n ' + cls(i.ratio, 1.5) + '">' + i.ratio.toFixed(1) + '×</td></tr>';
+  });
+  h += '</table>';
+  document.getElementById('out').innerHTML = h;
+}
+
+(async function main() {
+  const status = document.getElementById('status');
+  try {
+    const params = new URLSearchParams(location.search);
+    const days = parseInt(params.get('days') || '365', 10);
+    await boot(params.get('src') || 'index.html');
+    status.textContent = 'Running ' + days + ' days per scenario…';
+
+    const runs = [];
+    const scenarios = [
+      // Her real settings first — 30/60 in byfreq is what the app is doing today.
+      { mode: 'byfreq',      policy: 'realistic', budgetWeekday: 30, budgetWeekend: 60 },
+      { mode: 'maintenance', policy: 'realistic', budgetWeekday: 30, budgetWeekend: 60 },
+      { mode: 'catchup',     policy: 'realistic', budgetWeekday: 30, budgetWeekend: 60 },
+      // Same three at the defaults, to separate "the mode" from "the budget".
+      { mode: 'byfreq',      policy: 'realistic', budgetWeekday: 45, budgetWeekend: 90 },
+      { mode: 'maintenance', policy: 'realistic', budgetWeekday: 45, budgetWeekend: 90 },
+      // And the ceiling: perfect compliance, generous budget.
+      { mode: 'maintenance', policy: 'compliant', budgetWeekday: 90, budgetWeekend: 120 },
+      { mode: 'maintenance', policy: 'sporadic',  budgetWeekday: 45, budgetWeekend: 90 },
+    ];
+    for (const s of scenarios) {
+      status.textContent = 'Running ' + s.mode + ' / ' + s.policy + ' at ' + s.budgetWeekday + '/' + s.budgetWeekend + '…';
+      await new Promise(r => setTimeout(r, 0));
+      runs.push(runSim({ days, ...s }));
+    }
+    status.innerHTML = '<b>Done.</b> ' + days + ' simulated days × ' + scenarios.length + ' scenarios.';
+    render(runs);
+    window.__runs = runs;   // so the parent can read the numbers out
+  } catch (e) {
+    status.innerHTML = '<b style="color:#a33">Simulator failed:</b> ' + e.message;
+    throw e;
+  }
+})();
+</script>
+</body>
+</html>
