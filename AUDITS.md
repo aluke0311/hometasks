@@ -1,12 +1,13 @@
 # Audit Types
 
-Seven audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
+Eight audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
 uses different tooling, and accepts different evidence. They are designed not to overlap: a
 finding that shows up in two of them means one of the specs is drifting.
 
 Six of them are diagnostic — they find the gap between what the app is and what it should
-already be. The seventh is generative: it looks for what is not there at all. It runs last, and
-on the other six's output.
+already be. The seventh is generative: it looks for what is not there at all, and runs last, on
+the other six's output. The eighth reads neither the app nor its absences but the *folder* —
+whether the files still describe the thing they claim to.
 
 The unifying rule, inherited from the 2026-08-08 round: **a green selftest proves nothing.**
 Every audit below states its own evidence bar, and no finding is reported until it has been
@@ -22,12 +23,14 @@ reproduced by the means that audit specifies. Reading the code and inferring a b
 | 5 | **Content** | Is the task pool itself sound? | `TASKS`, presets, `actualTimes`, copy | Arithmetic over the pool |
 | 6 | **Coherence** | Did fixing things in layers leave it misaligned? | Whole file + git history | Both sites side by side, dated |
 | 7 | **Opportunity** | What is missing that would make it better? | Her real data + audits 1–6 | Evidence of the need, not the idea |
+| 8 | **Housekeeping** | Do the files still describe the app that exists? | Every file in the folder | The claim next to the code that disproves it |
 
 ---
 
 ## Shared severity rubric
 
-Used by all five so findings are comparable across audits.
+Used by audits 1–6 and 8, so findings are comparable across lenses. Audit 7 is generative and
+has its own P1–P4 scale — ideas are not damage and must never be reported as severities.
 
 - **S1 — Data loss or lies.** Destroys real history, or shows a number that is wrong in a way
   she would act on. Fix before anything else ships.
@@ -502,7 +505,81 @@ alone and it degrades into exactly the generic product brainstorm the gates exis
 
 ---
 
-## What these seven do not cover
+## 8. Housekeeping Audit — the folder itself
+
+**Question.** Does every file in the repo still describe the app that exists — and does every
+file still deserve to be here at all?
+
+**Scope.** Not the app: the *folder*. `CLAUDE.md`, `DOCUMENTATION.md`, `IMPROVEMENT_PLAN.md`,
+`PLAN_2026-08.md`, `AUDITS.md`, `selftest.html`, `.claude/skills/`, and any stray bundle or
+export sitting in the directory. Every one of them makes claims about the app, and every claim
+was true when written. Code moves; prose does not move with it.
+
+**Why it is its own lens.** The other seven read the app. This one reads what the app *says
+about itself* — and that matters more here than in most projects, because those files are the
+working context every future session starts from. A stale line in `CLAUDE.md` is not a
+cosmetic problem: it is a wrong instruction that will be followed. This is also the only audit
+whose output is **edits rather than findings** — it fixes as it goes.
+
+**Method.** Four sweeps, in order.
+
+**(a) Claims against code.** Take every factual assertion in the docs and check it. Line
+anchors (`~line 667`), file sizes, counts ("186 entries", "62 cases", "~3960 lines"), function
+names, state field names, defaults. The cheap ones are mechanical — grep the anchor, count the
+array — and they are also the ones that rot fastest. Anything that names a function, flag or
+file must be verified to still exist, not assumed.
+
+**(b) Behaviour drift.** Harder and more valuable: passages that describe how something *works*
+where the code has since changed. These do not look stale — they read fluently and say the
+wrong thing. Cross-check every algorithm description against the function it documents. A live
+example from 2026-08-16: `CLAUDE.md` described `taskTime()` as returning "the median of 3+
+samples", which had by then become a shrinkage blend from the first sample; and the Stats tab
+section listed four features while the app had five, having gained Room Pressure without the
+docs noticing.
+
+**(c) Files that have outlived their purpose.** Every file gets one of three verdicts —
+**keep**, **revise**, or **remove** — and "remove" must be a live option or this sweep does
+nothing. Candidates by type:
+- *Closed plans.* `IMPROVEMENT_PLAN.md` (all 9 shipped) and `PLAN_2026-08.md` (closed 2026-08-04)
+  are finished work. A closed plan is a historical record, which is a real reason to keep it —
+  but it should say so at the top, in one line, so nobody reads it as current intent.
+- *Consumed handoffs.* `app-design-revision/` is a Claude Design bundle whose redesign shipped
+  in `9407a44`. Its README instructs any coding agent that reads it to implement the designs —
+  advice that is now actively wrong, and untracked, so it is invisible to review.
+- *Duplication between docs.* `CLAUDE.md` and `DOCUMENTATION.md` overlap heavily. Where they
+  disagree, one is wrong; where they agree, one is redundant. The split should be a real one
+  (working reference vs full reference) and each fact should have one home.
+- *Noise.* `.DS_Store` files, stray exports, editor droppings.
+
+**(d) The instructions themselves.** `.claude/skills/` and the memory files tell a future
+session how to work. Check that every step still matches reality: a procedure that names a file
+layout, a command, or a gate that has moved is worse than no procedure. Delete watch-outs whose
+hazard a structural change has removed — a warning that no longer describes a real danger
+trains the reader to skim the list, which is how the real warnings get missed.
+
+**Evidence bar.** For every finding, the claim and the code that disproves it, side by side.
+For every proposed removal, why the file no longer earns its place *and* what would be lost —
+a closed plan carries history that a deletion throws away, and that trade is hers to make, so
+removals are proposed, not performed. Revisions to plainly stale facts are just applied.
+
+**Output.** A table: file, verdict (keep / revise / remove), what changed, and — for removals —
+what is lost. Plus the corrected files themselves, committed.
+
+**Cadence.** Run at **close-out**, every time, and as a full sweep roughly quarterly. The
+close-out pass is cheap because the session knows what it changed; the quarterly pass catches
+what close-out missed, which is mostly category (b), since nobody notices prose that still
+reads well.
+
+**Traps.** Do not "fix" a doc to match code that is itself wrong — check which one is right
+first; a doc describing intended behaviour that the code violates is a *code* bug and belongs
+to another audit. Line anchors will rot again within weeks, so prefer naming the function to
+citing its line. And resist rewriting for tone: this audit corrects facts and removes dead
+weight. Wholesale re-drafting buries the real corrections in noise and makes the diff
+unreviewable.
+
+---
+
+## What these eight do not cover
 
 Deliberate omissions, so the gap is a decision rather than an oversight:
 
@@ -516,7 +593,7 @@ Deliberate omissions, so the gap is a decision rather than an oversight:
 
 ## Suggested rotation
 
-Not all seven, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
+Not all eight, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
 runs after any change to scoring or dealing. **State** runs before any change to the storage
 schema and after any change to import/export. **Flow** and **Surface** run together after visual
 work, because a redesign moves both.
@@ -535,6 +612,6 @@ fills with generic product ideas. Pair it with whichever diagnostic audits just 
 their findings feed it. Twice a year for a full generative pass is plenty; the slate is capped at
 twelve regardless.
 
-A full sweep of all seven is a session of its own, and the order above is roughly the order of
+A full sweep of all eight is a session of its own, and the order above is roughly the order of
 judgment density — do Behaviour, State and Coherence while fresh, and Opportunity while the
 findings are still on the table.
