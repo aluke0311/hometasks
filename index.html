@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v9">
+  <meta name="app-version" content="2026-08-16 v10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -690,6 +690,77 @@
     .opt-label input[type="radio"]:checked::after { content: ''; position: absolute; inset: 3px;
       border-radius: 50%; background: var(--green); }
 
+    /* ── Stats tab components ──────────────────────────────────────────────
+       These were built entirely from inline styles, which hid the fact that they
+       are five distinct things. Anything that encodes DATA — a bar's height, a
+       meter's width, the colour that says how far off pace a task is — stays
+       inline, because it is computed per row and does not belong in a stylesheet. */
+
+    /* One square per day. This is ONE component that had been written twice: the
+       13-week activity heatmap (12px cells) and Year in Pixels (11px). The cell
+       sizes are off the spacing scale on purpose — they are set by how many weeks
+       have to fit across a phone, not by the layout rhythm. */
+    .daygrid { display: flex; gap: 3px; overflow-x: auto; padding-bottom: var(--s-3); }
+    .daygrid.wk { justify-content: flex-start; padding-bottom: var(--s-2); }
+    .daygrid-col { display: flex; flex-direction: column; gap: 3px; flex: 0 0 auto; }
+    .daygrid-cell { width: 11px; height: 11px; border-radius: 2px; }
+    .daygrid.wk .daygrid-cell { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* Year in review: twelve month bars. */
+    .yr-months { display: flex; align-items: flex-end; gap: var(--s-2); height: 52px; margin-top: var(--s-2); }
+    .yr-month { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .yr-month-fill { width: 100%; background: var(--green); border-radius: 2px; }
+    /* 9px is the only type in the app below --fs-label, and it is one letter per
+       month. Named rather than tokenised so the Surface audit can rule on it. */
+    .yr-month-label { font-size: 9px; color: var(--text3); }
+    .yr-rows { margin-top: var(--s-6); }
+    .yr-pixels { margin-top: var(--s-7); }
+
+    /* Label left, value right — the year-in-review facts list. */
+    .stat-line { display: flex; justify-content: space-between; gap: var(--s-6); padding: 7px 0; border-bottom: 0.5px solid var(--border); }
+    .stat-line-label { font-size: var(--fs-sub); color: var(--text2); }
+    .stat-line-val { font-size: var(--fs-sub); color: var(--text); font-weight: 600; text-align: right; }
+
+    /* Completion cadence row: name + real interval, then a wrapping action strip. */
+    .cad-lede { font-size: var(--fs-body); color: var(--text); margin-bottom: var(--s-5); }
+    .cad-row { padding: var(--s-4) 0; border-bottom: 0.5px solid var(--border); }
+    .cad-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-5); }
+    .cad-name-wrap { min-width: 0; }
+    /* Underlined to say it is tappable — the tap opens the task editor. */
+    .cad-name { font-size: var(--fs-sub); color: var(--text); cursor: pointer; text-decoration: underline;
+      text-decoration-color: var(--border2); text-underline-offset: 3px; }
+    .cad-sub { font-size: var(--fs-label); color: var(--text3); }
+    .cad-real { font-size: var(--fs-meta); white-space: nowrap; }
+    .cad-acts { display: flex; align-items: center; gap: var(--s-3); margin-top: 5px; flex-wrap: wrap; }
+    .cad-acts-spacer { flex: 1; }
+    .cad-group { margin-top: var(--s-7); }
+    .cad-group.wide { margin-top: 18px; }
+    .cad-group-note { margin: var(--s-1) 0 var(--s-3); }
+
+    /* Room pressure: a labelled row over a filled meter. */
+    .rp-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); padding-top: var(--s-4); }
+    .rp-room { font-size: var(--fs-sub); color: var(--text); min-width: 0; }
+    .rp-val { font-size: var(--fs-meta); white-space: nowrap; }
+    .rp-zone { font-size: var(--fs-label); color: var(--text2); background: var(--bg3);
+      border-radius: var(--radius); padding: 1px var(--s-3); }
+    .meter { height: 6px; background: var(--bg3); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+    .meter-fill { height: 100%; border-radius: 3px; }
+
+    .week-bars-empty { padding: var(--s-2) var(--s-10) var(--s-8); font-size: var(--fs-sub); color: var(--text3); }
+
+    /* Shared quiet text. .muted is the one-property exception worth having: it is
+       the same "this is secondary" instruction in a dozen unrelated places. */
+    .caption { font-size: var(--fs-label); color: var(--text3); }
+    .caption.gap { margin-top: var(--s-3); }
+    .muted { color: var(--text3); }
+    .icon-btn.sm { width: 26px; height: 26px; }
+    .settings-save-btn.quiet { border-color: var(--border2); color: var(--text2); }
+    .settings-card-desc.flush { margin-bottom: 0; }
+    .screen-head.tight { padding-bottom: var(--s-4); }
+    /* The flag icon dims rather than disappearing when the task is not flagged. */
+    .flag-mark { display: flex; }
+    .flag-mark.off { opacity: 0.35; }
+
     /* Dashed "add" affordance. */
     .btn-dashed { width: 100%; border: 1px dashed var(--border2); border-radius: var(--radius); padding: var(--s-5); font-size: var(--fs-sub); color: var(--text2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: var(--s-3); }
     .btn-dashed:active { background: var(--bg2); }
@@ -1367,12 +1438,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v9';
+  const APP_VERSION = '2026-08-16 v10';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v10', notes: [
+      'Tidy-up only, Stats tab. The heatmap, the year-in-pixels grid, the year-in-review bars, the cadence rows and the room-pressure meters were each styled by hand; they now share named rules. The two day-square grids turned out to be the same thing built twice. Nothing should look different.',
+    ]},
     { v: '2026-08-16 v9', notes: [
       'Fixed: the three Guest Prep buttons (Emergency / Day guests / Overnight) had no circle to click and no way to see which one was chosen. The circles were there in the code but were being drawn at zero size. Same fault the cat checkbox had.',
       'Tidy-up otherwise. The paired buttons on Presets (Quick / Deep, Phase 1 / All phases) and a few small labels now come from shared rules instead of being styled one by one. The Quick and Deep buttons get the same rounded corner as every other button — that is the only other visible change.',
@@ -4957,16 +5031,16 @@
       const op = count <= 2 ? 0.3 : count <= 4 ? 0.55 : count <= 7 ? 0.8 : 1;
       return 'background:var(--green);opacity:' + op;
     }
-    let heatHtml = '<div style="display:flex;gap:3px;justify-content:flex-start;overflow-x:auto;padding-bottom:4px">';
+    let heatHtml = '<div class="daygrid wk">';
     weeks.forEach(week => {
-      heatHtml += '<div style="display:flex;flex-direction:column;gap:3px">';
+      heatHtml += '<div class="daygrid-col">';
       week.forEach(c => {
-        heatHtml += '<div title="' + c.key + ': ' + c.count + '" style="width:12px;height:12px;border-radius:3px;' + cellColor(c.count) + '"></div>';
+        heatHtml += '<div title="' + c.key + ': ' + c.count + '" class="daygrid-cell" style="' + cellColor(c.count) + '"></div>';
       });
       heatHtml += '</div>';
     });
     heatHtml += '</div>' +
-      '<div style="font-size:var(--fs-label);color:var(--text3);margin-top:6px">Last 13 weeks &middot; darker = more tasks done that day</div>';
+      '<div class="caption gap">Last 13 weeks &middot; darker = more tasks done that day</div>';
 
     // ── F-2: Year in Pixels — one cell per day of the calendar year ──────────
     // Fixed-width cells with horizontal scroll, never 1fr columns: 1fr is
@@ -4994,13 +5068,13 @@
         }
         cols.push(col);
       }
-      let h = '<div style="display:flex;gap:3px;overflow-x:auto;padding-bottom:6px">';
+      let h = '<div class="daygrid">';
       cols.forEach(col => {
-        h += '<div style="display:flex;flex-direction:column;gap:3px;flex:0 0 auto">';
+        h += '<div class="daygrid-col">';
         col.forEach(c => {
           h += c.count === null
-            ? '<div style="width:11px;height:11px"></div>'
-            : '<div title="' + c.key + ': ' + c.count + '" style="width:11px;height:11px;border-radius:2px;' + cellColor(c.count) + '"></div>';
+            ? '<div class="daygrid-cell"></div>'
+            : '<div title="' + c.key + ': ' + c.count + '" class="daygrid-cell" style="' + cellColor(c.count) + '"></div>';
         });
         h += '</div>';
       });
@@ -5021,18 +5095,18 @@
       const months = Object.entries(d.byMonth).map(([m, n]) => ({ m: +m, n }));
       const maxMonth = Math.max(1, ...months.map(x => x.n));
       const MON = ['J','F','M','A','M','J','J','A','S','O','N','D'];
-      let bars = '<div style="display:flex;align-items:flex-end;gap:4px;height:52px;margin-top:4px">';
+      let bars = '<div class="yr-months">';
       for (let m = 1; m <= 12; m++) {
         const n = (d.byMonth[String(m)] || 0);
-        bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">' +
-          '<div title="' + n + '" style="width:100%;height:' + Math.round((n / maxMonth) * 40) + 'px;background:var(--green);opacity:' + (n ? 0.85 : 0.15) + ';border-radius:2px"></div>' +
-          '<span style="font-size:9px;color:var(--text3)">' + MON[m - 1] + '</span>' +
+        bars += '<div class="yr-month">' +
+          '<div title="' + n + '" class="yr-month-fill" style="height:' + Math.round((n / maxMonth) * 40) + 'px;opacity:' + (n ? 0.85 : 0.15) + '"></div>' +
+          '<span class="yr-month-label">' + MON[m - 1] + '</span>' +
         '</div>';
       }
       bars += '</div>';
-      const row = (label, value) => '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:0.5px solid var(--border)">' +
-        '<span style="font-size:var(--fs-sub);color:var(--text2)">' + label + '</span>' +
-        '<span style="font-size:var(--fs-sub);color:var(--text);font-weight:600;text-align:right">' + value + '</span></div>';
+      const row = (label, value) => '<div class="stat-line">' +
+        '<span class="stat-line-label">' + label + '</span>' +
+        '<span class="stat-line-val">' + value + '</span></div>';
       return '<div class="settings-card">' +
         '<div class="settings-card-title">' + reviewYear + ' in review</div>' +
         '<div class="settings-stats-grid">' +
@@ -5040,7 +5114,7 @@
           '<div class="settings-stat-box"><div class="settings-stat-num">' + fmtMinutes(Math.round(d.minutes)) + '</div><div class="settings-stat-label">time spent</div></div>' +
         '</div>' +
         bars +
-        '<div style="margin-top:12px">' +
+        '<div class="yr-rows">' +
           (rooms.length ? row('Most attention', rooms[0][0] + ' &middot; ' + rooms[0][1] + '&times;') : '') +
           (rooms.length > 1 ? row('Least attention', rooms[rooms.length - 1][0] + ' &middot; ' + rooms[rooms.length - 1][1] + '&times;') : '') +
           (topTask ? row('Done most often', nameOf(topTask[0]) + ' &middot; ' + topTask[1] + '&times;') : '') +
@@ -5048,8 +5122,8 @@
           (snoozed ? row('Currently snoozed', snoozed + ' task' + (snoozed === 1 ? '' : 's')) : '') +
           (prev.count ? row('vs ' + (reviewYear - 1), (d.count >= prev.count ? '+' : '') + (d.count - prev.count) + ' tasks') : '') +
         '</div>' +
-        '<div style="margin-top:14px"><div class="sheet-group-label">' + reviewYear + ' in pixels</div>' + yearPixels(reviewYear) +
-        '<div style="font-size:var(--fs-label);color:var(--text3)">One square per day &middot; darker = more done</div></div>' +
+        '<div class="yr-pixels"><div class="sheet-group-label">' + reviewYear + ' in pixels</div>' + yearPixels(reviewYear) +
+        '<div class="caption">One square per day &middot; darker = more done</div></div>' +
       '</div>';
     })();
 
@@ -5073,20 +5147,20 @@
       const todayBtn = inHand
         ? '<button class="manage-hand-btn in-hand sm" onclick="removeFromHand(\'' + x.t.id + '\')">&#10003; In hand</button>'
         : '<button class="manage-hand-btn sm" onclick="addToHand(\'' + x.t.id + '\')">+ Today</button>';
-      const flagBtn = '<button class="icon-btn" style="width:26px;height:26px" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span style="' + (isFlagged ? '' : 'opacity:0.35') + ';display:flex">' + icon('flag', 14, 1.8) + '</span></button>';
+      const flagBtn = '<button class="icon-btn sm" onclick="' + (isFlagged ? 'unflag' : 'flag') + 'Task(\'' + x.t.id + '\')" title="' + (isFlagged ? 'Unflag' : 'Flag') + '"><span class="flag-mark' + (isFlagged ? '' : ' off') + '">' + icon('flag', 14, 1.8) + '</span></button>';
       const adoptBtn = x.cad.color !== 'var(--green)' && x.cad.real !== x.t.freq
-        ? '<button class="settings-save-btn" style="border-color:var(--border2);color:var(--text2)" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
+        ? '<button class="settings-save-btn quiet" onclick="setTaskFreq(\'' + x.t.id + '\',' + x.cad.real + ')">set target ' + x.cad.real + 'd</button>'
         : '';
       const markDueCadBtn = overdue < 0
         ? '<button class="manage-hand-btn sm" onclick="markTaskDue(\'' + x.t.id + '\')">mark due</button>'
         : '';
-      return '<div style="padding:8px 0;border-bottom:0.5px solid var(--border)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">' +
-          '<div style="min-width:0"><span style="font-size:var(--fs-sub);color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2);text-underline-offset:3px" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
-          ' <span style="font-size:var(--fs-label);color:var(--text3)">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
-          '<div style="font-size:var(--fs-meta);color:' + x.cad.color + ';white-space:nowrap">every ~' + x.cad.real + 'd <span style="color:var(--text3)">(target ' + x.t.freq + 'd)</span></div>' +
+      return '<div class="cad-row">' +
+        '<div class="cad-head">' +
+          '<div class="cad-name-wrap"><span class="cad-name" onclick="openModal(\'' + x.t.id + '\')" title="Edit task">' + x.t.name + '</span>' +
+          ' <span class="cad-sub">' + x.t.room + ' &middot; n=' + x.n + '</span></div>' +
+          '<div class="cad-real" style="color:' + x.cad.color + '">every ~' + x.cad.real + 'd <span class="muted">(target ' + x.t.freq + 'd)</span></div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">' + dueBadge + '<span style="flex:1"></span>' + adoptBtn + markDueCadBtn + todayBtn + flagBtn + '</div>' +
+        '<div class="cad-acts">' + dueBadge + '<span class="cad-acts-spacer"></span>' + adoptBtn + markDueCadBtn + todayBtn + flagBtn + '</div>' +
       '</div>';
     }
 
@@ -5098,22 +5172,22 @@
     const onPace = tracked.length - behind.length - ahead.length;
     const disagreeing = behind.length + ahead.length;
     const chronicHtml = tracked.length
-      ? '<div style="font-size:var(--fs-body);color:var(--text);margin-bottom:10px">' +
+      ? '<div class="cad-lede">' +
           (disagreeing
             ? '<b>' + disagreeing + '</b> task' + (disagreeing === 1 ? '' : 's') + ' run' + (disagreeing === 1 ? 's' : '') + ' on a different schedule than you set.'
             : 'Everything is running close to the schedule you set.') +
-          (onPace ? ' <span style="color:var(--text3)">' + onPace + ' on pace.</span>' : '') +
+          (onPace ? ' <span class="muted">' + onPace + ' on pace.</span>' : '') +
         '</div>' +
         (behind.length
-          ? '<div class="sheet-group-label" style="margin-top:14px">Behind &mdash; you do these less often than you said</div>' +
+          ? '<div class="sheet-group-label cad-group">Behind &mdash; you do these less often than you said</div>' +
             behind.map(cadenceRow).join('')
           : '') +
         (ahead.length
-          ? '<div class="sheet-group-label" style="margin-top:18px">Ahead &mdash; you do these more often than you said</div>' +
-            '<div class="settings-card-desc" style="margin:2px 0 6px">Either the target is too lax, or you could get some time back.</div>' +
+          ? '<div class="sheet-group-label cad-group wide">Ahead &mdash; you do these more often than you said</div>' +
+            '<div class="settings-card-desc cad-group-note">Either the target is too lax, or you could get some time back.</div>' +
             ahead.map(cadenceRow).join('')
           : '')
-      : '<div class="settings-card-desc" style="margin-bottom:0">No tasks have 3+ logged completions yet &mdash; this appears as history builds.</div>';
+      : '<div class="settings-card-desc flush">No tasks have 3+ logged completions yet &mdash; this appears as history builds.</div>';
 
     // ── This Year: derived from completionHistory where history covers the whole
     // year, otherwise the stored bucket left over from the accumulator era ──
@@ -5156,16 +5230,16 @@
       return rows.map(r => {
         const color = r.median >= 1.5 ? 'var(--red)' : r.median >= 1 ? 'var(--amber)' : 'var(--green)';
         const width = Math.round(Math.min(r.median / 2, 1) * 100);
-        const zoneChip = r.zone ? '<span style="font-size:var(--fs-label);color:var(--text2);background:var(--bg3);border-radius:8px;padding:1px 6px">Z' + r.zone + '</span>' : '';
+        const zoneChip = r.zone ? '<span class="rp-zone">Z' + r.zone + '</span>' : '';
         const tap = r.presetId ? ' onclick="openRoomPressurePreset(\'' + r.presetId + '\')" style="cursor:pointer"' : '';
         return '<div' + tap + '>' +
-          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-top:8px">' +
-            '<div style="font-size:var(--fs-sub);color:var(--text);min-width:0">' + r.room + ' ' + zoneChip + '</div>' +
-            '<div style="font-size:var(--fs-meta);color:' + color + ';white-space:nowrap">' + r.median.toFixed(1) + '&times;' +
-              '<span style="color:var(--text3)"> &middot; ' + r.overdue + '/' + r.total + ' due</span></div>' +
+          '<div class="rp-head">' +
+            '<div class="rp-room">' + r.room + ' ' + zoneChip + '</div>' +
+            '<div class="rp-val" style="color:' + color + '">' + r.median.toFixed(1) + '&times;' +
+              '<span class="muted"> &middot; ' + r.overdue + '/' + r.total + ' due</span></div>' +
           '</div>' +
-          '<div style="height:6px;background:var(--bg3);border-radius:3px;margin-top:5px;overflow:hidden">' +
-            '<div style="height:100%;width:' + width + '%;background:' + color + ';border-radius:3px"></div>' +
+          '<div class="meter">' +
+            '<div class="meter-fill" style="width:' + width + '%;background:' + color + '"></div>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -5183,7 +5257,7 @@
       // A fixed-height row of 3px stubs is a lot of empty paper to spend on "no
       // data yet" — say it in a line instead.
       if (!counts.some(c => c.n > 0)) {
-        return '<div style="padding:4px 26px 16px;font-size:var(--fs-sub);color:var(--text3)">Nothing logged in the last seven days.</div>';
+        return '<div class="week-bars-empty">Nothing logged in the last seven days.</div>';
       }
       return '<div class="week-bars">' + counts.map(c =>
         '<div class="week-bar"><div class="week-bar-fill' + (c.today ? ' today' : '') + '" style="height:' +
@@ -5192,7 +5266,7 @@
     })();
 
     const html =
-      '<div class="screen-head" style="padding-bottom:8px">' +
+      '<div class="screen-head tight">' +
         '<div class="eyebrow">This week</div>' +
         '<div class="screen-title">The upkeep</div>' +
       '</div>' +
