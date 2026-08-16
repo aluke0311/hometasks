@@ -2,6 +2,29 @@
 
 A personal home task manager for Alina and Bob, deployed as a GitHub Pages site.
 
+## Writing
+
+Write to Alina in Simplified Technical English. Every rule here is a thing to do.
+
+- Lead with the result. Give the reason after it.
+- Put one idea in each sentence. Keep sentences to about 20 words.
+- Use the active voice. Name who does what.
+- Choose the shortest word that carries the meaning.
+- Cut every word that does no work.
+- Describe things plainly, in place of figures of speech.
+- Use the same word for the same thing, every time.
+- Use everyday words for everyday ideas. Keep the codebase's real names — `dealHand`,
+  Tier C, `NEGLECT_FLOOR`, starvation. A plain-English substitute for those reads as
+  less clear, not more.
+- Use a table to compare two or more things.
+- Say what you measured and what you assumed. Mark an estimate as an estimate.
+- Say plainly when something got worse, or when you were wrong, and then say what you
+  did about it.
+- Break any rule above when following it would make the sentence worse.
+
+She is a statistical coder, not a web developer. Explain web and browser concepts.
+Keep the maths at full strength.
+
 ## What This Is
 
 A single-file (`index.html`) web app — all HTML, CSS, and JavaScript in one file with no build step, no dependencies, and no server. State is stored entirely in `localStorage`. Changes are deployed by committing and pushing `index.html`.
