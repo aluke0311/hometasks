@@ -1,8 +1,12 @@
 # Audit Types
 
-Six audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
+Seven audit lenses for the Home Tasks app. Each one looks for a *different class* of defect,
 uses different tooling, and accepts different evidence. They are designed not to overlap: a
 finding that shows up in two of them means one of the specs is drifting.
+
+Six of them are diagnostic — they find the gap between what the app is and what it should
+already be. The seventh is generative: it looks for what is not there at all. It runs last, and
+on the other six's output.
 
 The unifying rule, inherited from the 2026-08-08 round: **a green selftest proves nothing.**
 Every audit below states its own evidence bar, and no finding is reported until it has been
@@ -17,6 +21,7 @@ reproduced by the means that audit specifies. Reading the code and inferring a b
 | 4 | **Surface** | Does it look like one app in both themes? | Computed styles, both colour schemes | Computed values + paired screenshots |
 | 5 | **Content** | Is the task pool itself sound? | `TASKS`, presets, `actualTimes`, copy | Arithmetic over the pool |
 | 6 | **Coherence** | Did fixing things in layers leave it misaligned? | Whole file + git history | Both sites side by side, dated |
+| 7 | **Opportunity** | What is missing that would make it better? | Her real data + audits 1–6 | Evidence of the need, not the idea |
 
 ---
 
@@ -369,7 +374,109 @@ well cost more than the duplication does. Say so when that is the answer.
 
 ---
 
-## What these six do not cover
+## 7. Opportunity Audit — what is missing
+
+**Question.** Given how the app is actually used and what its data already knows, what does not
+exist yet that should — and which of those is worth building first?
+
+**Scope.** New features and experience improvements. This is the only generative audit, and the
+only one where the output is a proposal rather than a defect. It runs **last**, because its best
+raw material is the other six's findings: a tap count from Flow, a starving task from Behaviour,
+a calibration ratio from Content. An opportunity audit run cold produces plausible-sounding
+product ideas; run on that evidence it produces things she will actually use.
+
+**The discipline.** Ideas are free, which is the problem. Three gates, and an idea that fails any
+one is recorded on the kill list rather than the slate:
+
+1. **Evidence gate.** Every idea names the observation that produced it — a friction point, a
+   metric, a thing she said, a moment where the app was open and unhelpful. *"Users like
+   streaks"* is not evidence. *"This task was dealt 40 times and completed 3"* is. An idea whose
+   only support is that it sounds good goes on the kill list with that as the reason.
+2. **Character gate.** The app has a settled character: one file, no build step, no accounts, no
+   external connections, one user. Those are not accidents — weather was declined specifically
+   because zero external connections was worth more than the feature, and multi-user work is dead
+   because Bob does not use the app. An idea that violates the character is not forbidden, but it
+   must be argued *against the property it costs*, explicitly, in the proposal.
+3. **Frequency gate.** How often does she meet the situation this improves? A brilliant fix for
+   an annual moment loses to a small fix for a daily one. Rank on frequency × relief, not on how
+   interesting the idea is to build.
+
+**Method — six generative angles.** Each is a different way of finding absence, because
+"brainstorm improvements" reliably finds only the same three.
+
+- **Data she owns but never sees.** `completionHistory`, `actualTimes` and the starvation
+  counters record years of household truth that the app spends on scoring and then discards.
+  What is derivable and never shown? This vein is the richest one, and it suits a user who thinks
+  in distributions rather than checkboxes.
+- **Invert the direction.** Everywhere she has to *ask*, consider the app *telling*. Everywhere
+  she has to *decide*, consider it proposing a default she can override. The existing Budget
+  Insight is this shape already and is the proof the shape works here.
+- **The twenty-three hours.** The app only exists when opened. What happens in the moments it is
+  closed — walking past the laundry, standing in a room with nothing to do, the end of a day?
+- **The worst day, not the average one.** Illness, overwhelm, a week away, a house guest in an
+  hour. The app already has Recovery, Post-Illness and Return Home presets, which proves this
+  vein produces things that get used. What other bad days have no shape yet?
+- **Removal as a feature.** Which existing thing, deleted, would make the app better? Rarely-used
+  surfaces cost attention on every screen they sit on. This angle is mandatory, not optional —
+  an opportunity audit that only ever adds is how a good app becomes a cluttered one.
+- **The hands-and-body reality.** She is holding a phone while cleaning: wet hands, gloves, a
+  pocket, a room away from the counter she set it on. Which interactions assume a desk?
+
+**Evidence bar.** For each idea on the slate: the observation that produced it, an honest cost in
+the app's own terms (does it touch `dealHand`? does it add state? does it need a migration?), the
+character property it spends if any, and the smallest version that would still be worth having.
+That last one does most of the work — most good ideas here have a version that is a tenth of the
+size and eight-tenths of the value.
+
+**Output.** A ranked slate, capped at **twelve live ideas**. A backlog longer than that is a wish
+list, and wish lists are how the real ones get lost. Plus a **kill list**, which matters just as
+much: every declined idea recorded with its reason, permanently, so it stops being re-proposed
+every audit. Weather (declined: costs the zero-external-connections property) and anything
+multi-user (declined: Bob does not use the app) are standing entries.
+
+**Priority scale.** The S1–S4 severity rubric does not apply — none of this is damage. Its own
+scale:
+
+- **P1 — build next.** Daily or near-daily relief, evidence is strong, cost is understood.
+- **P2 — build this round.** Clear value, but either less frequent or costlier than P1.
+- **P3 — worth having.** Real, but waits for a session where it is adjacent to other work.
+- **P4 — parked.** Good idea, wrong time or wrong cost. Reviewed each audit, not carried silently.
+
+**Worked examples**, to show the gates doing real work rather than describing them:
+
+- **Pool pressure, made visible** *(P1)*. Evidence: audit 5 computes 382 min/week of demand
+  against 405 of capacity — 94% utilisation — and the app never says so. She currently
+  experiences that as a permanent, unexplained sense of being behind. A single figure in Stats,
+  recomputed when tasks change, converts a feeling into a number with three levers (raise the
+  budget, cut tasks, lengthen a frequency). Cost: arithmetic over `TASKS`, no new state, no
+  algorithm change. Character: free. This is the strongest idea currently available and it came
+  entirely from another audit's output.
+- **Close the estimate loop** *(P2)*. Evidence: `actualTimes` has been collecting real durations
+  for months and `taskTime()` already uses the median for budgeting — but the static `time` is
+  never corrected and she is never asked. One prompt: *"Your estimate for this is 8 min; the
+  last six runs averaged 14. Adopt?"* Cost: low, and the apply-only pattern already exists in
+  Budget Insight. Smallest version: show the discrepancy, no adoption button at all.
+- **Notify her when the app is closed** *(P4, and instructive)*. Evidence is real — the app is
+  useless during the twenty-three hours it is shut. Local notifications need no server, so the
+  no-external-connections property survives. But they need a service worker and an install step,
+  which spends *one file, no build* — the property that has kept this app alive and editable for
+  a year. Parked, with the cost named, so the next audit argues about the right thing instead of
+  rediscovering the idea.
+
+**Traps.** Generative sessions drift toward what is fun to build; the frequency gate exists to
+pull them back. Beware ideas that are really a second app wearing this one's clothes — the test
+is whether it changes what she does in the morning. And an idea that requires her to be
+disciplined in a new way is not an improvement; the app's whole premise is that it does the
+remembering.
+
+**Operational note.** This audit, and parts of 2 and 5, are only as good as the data behind them.
+Running it properly needs a **fresh state export from her phone** — the repo holds the code, but
+every observation about what actually happens lives in `localStorage`. Run it against the code
+alone and it degrades into exactly the generic product brainstorm the gates exist to prevent.
+
+---
+
+## What these seven do not cover
 
 Deliberate omissions, so the gap is a decision rather than an oversight:
 
@@ -383,7 +490,7 @@ Deliberate omissions, so the gap is a decision rather than an oversight:
 
 ## Suggested rotation
 
-Not all six, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
+Not all seven, every time. **Content** is cheap and should run whenever tasks change. **Behaviour**
 runs after any change to scoring or dealing. **State** runs before any change to the storage
 schema and after any change to import/export. **Flow** and **Surface** run together after visual
 work, because a redesign moves both.
@@ -396,5 +503,12 @@ pass instead of vigilance during the work. Run it *before* a redesign, never aft
 which divergences are load-bearing, and a redesign that starts without knowing that just adds a
 seventh layer.
 
-A full sweep of all six is a session of its own, and the order above is roughly the order of
-judgment density — do Behaviour, State and Coherence while fresh.
+**Opportunity runs last, and never alone.** It is the only audit that consumes the others'
+output, so running it first wastes it — the evidence gate has nothing to bite on and the slate
+fills with generic product ideas. Pair it with whichever diagnostic audits just ran, and let
+their findings feed it. Twice a year for a full generative pass is plenty; the slate is capped at
+twelve regardless.
+
+A full sweep of all seven is a session of its own, and the order above is roughly the order of
+judgment density — do Behaviour, State and Coherence while fresh, and Opportunity while the
+findings are still on the table.
