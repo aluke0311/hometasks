@@ -1,6 +1,6 @@
 ---
 name: app-update
-description: Workflow for changing the Home Tasks app (index.html) and for closing out a work session. Use when making any edit to the app — fixing a bug, adding a task or preset, changing scoring/dealing/UI — and especially when the user says "close out", "wrap up", "close out the session", or otherwise signals the session is done and the docs should be reconciled. On close-out it updates CLAUDE.md, DOCUMENTATION.md, and IMPROVEMENT_PLAN.md, plus the skills and the project memory files, from that session's changes and learnings.
+description: Workflow for changing the Home Tasks app (index.html), for running an audit of it, and for closing out a work session. Use when making any edit to the app — fixing a bug, adding a task or preset, changing scoring/dealing/UI; when the user asks to audit or review the app, or names one of the seven audit lenses (Flow, Behaviour, State, Surface, Content, Coherence, Opportunity); and especially when the user says "close out", "wrap up", "close out the session", or otherwise signals the session is done and the docs should be reconciled. On close-out it updates CLAUDE.md, DOCUMENTATION.md, and IMPROVEMENT_PLAN.md, plus the skills and the project memory files, from that session's changes and learnings.
 ---
 
 # Home Tasks — Update & Close-Out Workflow
@@ -10,7 +10,7 @@ out" a session by syncing the documentation. The whole app is the single file
 `index.html` (HTML + CSS + vanilla JS, no build step). State lives in the
 browser's `localStorage`; deploying never touches it.
 
-There are two modes. Pick based on what the user asked for.
+There are three modes. Pick based on what the user asked for.
 
 ---
 
@@ -131,7 +131,58 @@ detached date-picker node).
 
 ---
 
-## Mode B — Close out
+## Mode B — Running an audit
+
+Trigger: **"audit"**, "review the app", "check the app over", or the name of any
+lens — Flow, Behaviour, State, Surface, Content, Coherence, Opportunity.
+
+The seven audit specs live in [AUDITS.md](../../../AUDITS.md). **Read the
+relevant section before starting** — each has its own method, evidence bar,
+severity scale and traps, and they deliberately do not overlap. Don't invent an
+audit shape from scratch, and don't blend two lenses in one pass; a finding that
+belongs to two of them means the specs are drifting and that's worth reporting.
+
+1. **Ask for what the audit needs, before starting.** Most need nothing but the
+   repo. Three need something only she can provide:
+   - **Behaviour, Content, Opportunity** → a **fresh state export**
+     (Settings → Export, paste the JSON or drop the file). Without it, Behaviour
+     runs on synthetic completions only, Content can't calibrate estimates
+     against `actualTimes`, and Opportunity degrades into a generic product
+     brainstorm — which is exactly what its gates exist to prevent.
+   - **Flow** → optionally, which journeys are currently annoying her. Her
+     irritation is better evidence than a guess at what matters.
+   - Everything else (**State, Surface, Coherence**) runs on the repo alone.
+
+   Say plainly what's degraded if she'd rather not fetch the export, and offer
+   the reduced version — don't block on it.
+
+2. **Reproduce before reporting.** Every spec states its own evidence bar and
+   they're not decorative: reading the code and inferring a defect produces a
+   *suspicion*, not a finding. The 2026-08-08 round found twelve real bugs
+   against a fully green suite, and what surfaced them was driving the running
+   app. Findings that fail their audit's evidence bar are listed separately as
+   suspicions, never padded into the count.
+
+3. **Severity.** Audits 1–6 share the S1–S4 rubric in AUDITS.md. Opportunity has
+   its own P1–P4 scale — never report ideas as severities; nothing generative is
+   damage.
+
+4. **Report, don't fix.** An audit ends with findings, not commits. Fixing is a
+   separate decision and goes through Mode A afterwards, one finding at a time
+   with the selftest green — never as one heroic diff. The exception is a live
+   S1 (data loss); surface that immediately rather than filing it.
+
+5. **Feed the trend numbers forward.** Surface and Coherence both carry running
+   counts (colour literals, inline styles, literal-vs-token ratios, duplicate
+   path count). Record the new values in the report so the next audit can see the
+   direction of travel — a single number is a fact, two is a trend.
+
+6. **Opportunity runs last and never alone.** It consumes the other lenses'
+   findings. Run it first and the evidence gate has nothing to bite on.
+
+---
+
+## Mode C — Close out
 
 Trigger phrases: **"close out"**, "wrap up", "close out the session", "we're
 done", or any signal the working session is finished and docs should catch up.
