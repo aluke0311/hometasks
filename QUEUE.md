@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-16 · app at `2026-08-16 v9` · selftest 67/67 green.
+Last touched: 2026-08-16 · app at `2026-08-16 v12` · selftest 67/67 green.
 
 ---
 
@@ -31,18 +31,18 @@ Three tools, three jobs:
 
 ## Code queue
 
-### C-7 — reduce the inline styles · S4 · large, mechanical
-**184** inline `style="` attributes remain (was 211, was 219). The design rule is that
-the count must not grow; new UI uses classes. Convert opportunistically, in small commits.
+### C-7 — reduce the inline styles · S4 · **at a stable floor**
+**92** inline `style="` attributes remain (was 219 → 211 → 184 → 145 → 104 → 92). Every
+shared component has been named. What is left does not want a class:
 
-What is left is mostly one-property nudges, not hidden components. The clusters worth
-taking next, by size:
-
-| Count | Pattern | Note |
+| Count | What | Why it stays |
 |---|---|---|
-| 19 | bare `margin-top:Npx` (4/8/12/14) | Only worth doing if a spacing **utility** class set is wanted. That is an architectural choice — semantic classes everywhere else — so it needs deciding, not just doing. |
-| 6 | `display:none` | Toggled by JS. Probably correct as-is. |
-| 4 | `font-size:var(--fs-meta);color:var(--text3)` | A "quiet meta line" class. |
+| 18 | dynamic — `'…' + value + '…'` | Carries data into the markup: a bar's height, a meter's width, the colour that says how far off pace a task is. A stylesheet cannot hold a per-row value. |
+| 6 | `display:none` | Toggled by JS. |
+| ~52 | one-off static | A class named after its single use is renaming, not structure. |
+
+The rule stands: **the count must not grow, and new UI uses classes.** Converting more is
+only worth it when a *second* site wants the same rule.
 
 ### C-8 — the residual off-scale spacing · S4 · needs a decision, not a sweep
 The exact-match sweep is **finished**: every spacing declaration whose values sit on
@@ -59,6 +59,17 @@ declarations remain**, all genuinely off the scale:
 C-2's note sanctions snapping 3/7/11px to a neighbour. Two such sites survive
 (`.sheet-group-label` 7px, `.sheet-chips > button` 11px); they were left out of the
 sweep only to keep it a provable visual no-op.
+
+**A second open spacing question, same shape as the 13px one.** The Generate button's
+bottom gap is `14px` at eleven call sites and `10px` at three (`.add-btn.wide.gap-b` vs
+`.gap-b-sm`). It reads as drift, but both are preserved and named rather than resolved.
+Deciding it is one line.
+
+**Not drift, despite looking like it:** the Rooms preset cards sit on an 8px rhythm
+against the 4px of a card that opens a category group. That call site is inside
+`ROOM_PRESETS.forEach`, so it is fourteen cards in a uniform list, not one card in the
+group-opening position — `.settings-card.room-card` exists to say so. It was unified to
+4px once by mistake and reverted.
 
 **Not in the queue, deliberately:** the `16px` on inputs. iOS Safari zooms the page on
 focus below it. It looks like an inconsistency and must stay.
@@ -106,7 +117,7 @@ in that table with five blanks for months and it cost her a task that could neve
 hand.
 
 ### 4. Surface — not run
-Trend numbers to carry forward: **184** inline styles (was 211, was 219), **44** off-scale
+Trend numbers to carry forward: **92** inline styles (219 → 211 → 184 → 145 → 104 → 92), **44** off-scale
 spacing literals (was 60, was 183); radius, small type and display numerals now tokenised.
 Needs paired light/dark screenshots of all six tabs, contrast against AA, and hit
 targets — `.icon-btn` is 26–28px against a 44px target, which is a known systemic gap and
