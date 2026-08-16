@@ -4,6 +4,7 @@ Living document. Not a plan and not a record — it holds only what is **still o
 Delete a line when it is done; do not tick it. Git history is the record.
 
 Last touched: 2026-08-16 · app at `2026-08-16 v12` · selftest 67/67 green.
+**Unfixed S1 in the State audit below — read it before shipping anything else.**
 
 ---
 
@@ -84,7 +85,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 |---|-------|-------|----------------|
 | 1 | Flow | **Not run** | Optional: which journeys currently annoy her |
 | 2 | Behaviour | **Partly run** | — (simulator exists) |
-| 3 | State | **Not run** | — |
+| 3 | State | **Run 2026-08-16** — 5 findings, 1 live S1 | — |
 | 4 | Surface | **Not run** | — |
 | 5 | Content | **Half run** | Copy sweep outstanding |
 | 6 | Coherence | **Done** | — |
@@ -109,12 +110,69 @@ Known gaps in the simulator: it uses the default task pool rather than her custo
 (hidden tasks, edited frequencies), and it models three completion policies, none of which
 is actually her.
 
-### 3. State — not run, cheapest real win
-The probe that matters: **tabulate every writer of `state.completions`** against the
-satellite state a completion implies — `inProgress`, `snoozed`, `starvation`, `flaggedIds`,
-`completionHistory`, hand membership, pins. Any blank cell is a finding. `setLastDone` sat
-in that table with five blanks for months and it cost her a task that could never leave the
-hand.
+### 3. State — **run 2026-08-16.** 5 findings, 1 of them S1 and live
+
+The writer table, built by running every path against one fixture (a 180-day task that was
+starved, snoozed, flagged, pinned, in-progress and in the hand) and diffing the state:
+
+| Writer | completions | history | starvation | snoozed | inProgress | flagged | pinned | hand |
+|---|---|---|---|---|---|---|---|---|
+| `completeTask` | now | +1 | **untouched** | cleared | cleared | cleared | cleared | stays |
+| `quickLogComplete` | now | +1 | 0 | cleared | cleared | cleared | cleared | stays |
+| `completeEarlier` | −Nd | +1 | 0 | cleared | cleared | cleared | cleared | removed |
+| `setLastDone` | set | +1 | 0 | cleared | cleared | cleared | cleared | removed |
+| `markTaskDue` | made due | — | — | cleared | stays | stays | stays | stays |
+
+`endTaskAsOf` did its job: the five blanks that cost her a task stuck in the hand are gone.
+One blank remains, and a new gap appeared in the helper itself.
+
+**S1 · `setLastDone(today)` then untick destroys the real last-done date. LIVE.**
+`endTaskAsOf` never writes `prevCompletions`, so `uncompleteTask` finds no stash and falls
+into its `now − freq` fabrication branch — the exact thing CLAUDE.md says neither undo may
+ever do. Reproduced on a 180-day task: real date `2026-01-28` → after "Edit last done =
+today" → after untick → `2026-02-17`. Unrecoverable. `completionHistory` still holds
+`2026-01-28`, and nothing ever reads it back. Only `setLastDone` reaches it, because
+`completeEarlier` never writes today and `wasCompletedToday` gates the untick.
+**Fix:** stash into `prevCompletions` in `endTaskAsOf`, exactly as `completeTask` does.
+
+**S2 · After midnight, unticking a task completes it a second time.** Nothing re-renders on
+foreground (`visibilitychange` only saves), so a session left open overnight shows the card
+still ticked. `toggleComplete` re-evaluates `wasCompletedToday`, which is now false, and
+calls `completeTask`. Reproduced: `15/08 23:58` → tap → `16/08 18:13`, history 1 → 2. The
+card looks identical before and after, so there is no signal it went wrong. The toast Undo
+does fully recover it — within five seconds.
+
+**S3 · `completeTask` is the only completion path that leaves `starvation` alone.**
+`dealHand`'s daily tick zeroes it for tasks *in the hand*, which covers the normal path and
+is why this has hidden. It does not cover a task ticked off a preset checklist or in Sprint
+without being dealt. Reproduced: starvation 12 → 12 on completion, and the "why?" modal then
+reads "Starvation · 12 days due but not dealt · −3.6" on a task completed seconds earlier,
+in the same modal that says "not due for 180d". `quickLogComplete` zeroes it by hand before
+delegating, which is the existing evidence that `completeTask` does not.
+
+**S3 · `applyImport` reports success unconditionally.** It validates exactly one thing —
+that `completions` is present and truthy — then says "Data restored!" whatever happened.
+A structurally valid backup whose `completions` is a string or an array passes that guard,
+`coerceState` silently swaps in the default, and she is told the restore worked while every
+real date is gone (215 → 186 backfilled). Truncated JSON and `null` completions are both
+correctly rejected. **Fix:** report what actually landed — "restored 215 completions, 125
+tasks with history".
+
+**S3 · Completed one-offs leave orphaned history, and the Year in Review does not
+reconcile.** `completeTask` deletes a one-off from `customTasks` but its `completionHistory`
+entry survives, so 11 ids with history no longer resolve to a task. `deriveYearStats.count`
+counts them; `byRoom` cannot place them and drops them. The card shows **925 tasks done**
+above a room breakdown summing to **900**. "Done most often" resolves names via
+`nameOf(id) || id`, so it can print a raw `oneoff_1780065430300`.
+
+**Passed, with evidence** — export → import round trip over her real state: 41 fields, none
+dropped, none changed, 215 completions and 125 history keys intact. Both undos lossless
+wherever a stash exists. Double-completion guarded at every caller. Storage: 32.4 KB today,
+~16 bytes/entry, 925 entries/year, so `pruneHistory`'s 3-year window really does bound it
+at **≈62 KB steady state — 83× headroom** against a 5 MB quota.
+
+**Suspicion, not counted:** complete-twice-then-undo is a no-op that strands the real date in
+`prevCompletions`. Unreachable — `wasCompletedToday` guards both callers of `completeTask`.
 
 ### 4. Surface — not run
 Trend numbers to carry forward: **92** inline styles (219 → 211 → 184 → 145 → 104 → 92), **44** off-scale
