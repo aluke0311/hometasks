@@ -1302,6 +1302,54 @@ test('sprint and preset checklist cards toggle rather than only complete', () =>
   switchTabQuiet('alina');
 });
 
+// ─── Controls are visible ──────────────────────────────────────────────────
+group('Controls are visible');
+
+// `input, select, textarea { appearance: none }` near the top of the stylesheet
+// is a BLANKET reset: it strips the native glyph from every checkbox and radio,
+// which then compute to 0x0 with no border and no background unless something
+// draws them by hand. This has shipped three times — the cat checkbox, and then
+// the three Guest Prep radios, which rendered as bare words with nothing to click
+// and no way to see which variant was selected. Nothing in the code looks wrong
+// when it happens, which is why it needs a gate rather than a watch-out.
+//
+// Layout is real here: #frame is parked off-screen but NOT display:none, so
+// getBoundingClientRect returns true boxes. Under display:none every element
+// measures zero and this case would fail on everything, not on the bug.
+test('no checkbox or radio renders at zero size on any tab', () => {
+  const doc = G('document');
+  // Presets carries the guest radios; the editor sheet carries the checkboxes.
+  // Open both, since a control only has a box once its tab is rendered.
+  const offenders = [];
+  ['alina', 'sprint', 'manage', 'presets', 'stats', 'settings'].forEach(tab => {
+    switchTabQuiet(tab);
+    G('render')();
+    doc.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(el => {
+      // Every tab's markup stays in the document; only the active one is
+      // displayed. A display:none subtree has no layout, so its controls measure
+      // 0x0 whether or not they are drawn — offsetParent is null there and null
+      // only there. A control killed by the appearance reset is still laid out,
+      // so this filter cannot hide the bug being pinned.
+      if (el.offsetParent === null) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 6 || r.height < 6) {
+        offenders.push(tab + ':' + el.type + ':' + (el.name || el.id || el.className || '?') +
+                       ' = ' + Math.round(r.width) + 'x' + Math.round(r.height));
+      }
+    });
+  });
+  switchTabQuiet('alina');
+  // A control found at a real size proves the measurement works at all — without
+  // this the case would go green on a page that rendered no controls whatsoever.
+  switchTabQuiet('presets');
+  G('render')();
+  const sized = [...doc.querySelectorAll('input[type="checkbox"], input[type="radio"]')]
+    .filter(el => el.getBoundingClientRect().width >= 6);
+  switchTabQuiet('alina');
+  ok(sized.length > 0, 'no checkbox or radio was measurable at all — the probe is broken, not the app');
+  ok(offenders.length === 0, 'invisible control(s): ' + offenders.join(', '));
+});
+
 // ─── Version hygiene ───────────────────────────────────────────────────────
 group('Version hygiene');
 
