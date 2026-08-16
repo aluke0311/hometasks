@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-16 · app at `2026-08-16 v7` · selftest 66/66 green.
+Last touched: 2026-08-16 · app at `2026-08-16 v9` · selftest 67/67 green.
 
 ---
 
@@ -32,17 +32,33 @@ Three tools, three jobs:
 ## Code queue
 
 ### C-7 — reduce the inline styles · S4 · large, mechanical
-**211** inline `style="` attributes remain (was 219). The design rule is that the count
-must not grow; new UI uses classes. Convert opportunistically, in small commits.
+**184** inline `style="` attributes remain (was 211, was 219). The design rule is that
+the count must not grow; new UI uses classes. Convert opportunistically, in small commits.
 
-### C-8 — the last 60 spacing literals · S4 · needs judgment
-The token sweep converted 123 spacing sites. The remaining 60 sit inside `calc()`,
-`env()` and mixed-unit shorthands where a blind substitution would be wrong. These need
-reading one at a time, so they were left.
+What is left is mostly one-property nudges, not hidden components. The clusters worth
+taking next, by size:
 
-### C-9 — one-off display type · S4 · tiny
-`22px`, `26px`, `30px`, `38px` are each used once, for display numerals. Either give them
-tokens or accept them as deliberate exceptions and note it. Currently neither.
+| Count | Pattern | Note |
+|---|---|---|
+| 19 | bare `margin-top:Npx` (4/8/12/14) | Only worth doing if a spacing **utility** class set is wanted. That is an architectural choice — semantic classes everywhere else — so it needs deciding, not just doing. |
+| 6 | `display:none` | Toggled by JS. Probably correct as-is. |
+| 4 | `font-size:var(--fs-meta);color:var(--text3)` | A "quiet meta line" class. |
+
+### C-8 — the residual off-scale spacing · S4 · needs a decision, not a sweep
+The exact-match sweep is **finished**: every spacing declaration whose values sit on
+`--s-1..--s-10` now uses the token, including inside `calc()` and `env()`. **44
+declarations remain**, all genuinely off the scale:
+
+| Value | Sites | Verdict |
+|---|---|---|
+| 13px | 6 | **The open question.** Six sites is a de-facto step between `--s-6` (12) and `--s-7` (14), not an accident. Either add a token or snap them — both are a real pixel change. |
+| 18px | 3 | Card padding (`.settings-card`, `.ed-card`, `.sprint-block`). Consistent with itself. |
+| 5, 9, 11, 15, 22, 24, 36, 40, 60px | 1–3 each | One-offs. |
+| −1, −6, −10px | 4 | Not spacing: a hairline overlap, two hit-area bleeds, and the slider thumb offset, which is derived from the thumb/track geometry. Leave as literals. |
+
+C-2's note sanctions snapping 3/7/11px to a neighbour. Two such sites survive
+(`.sheet-group-label` 7px, `.sheet-chips > button` 11px); they were left out of the
+sweep only to keep it a provable visual no-op.
 
 **Not in the queue, deliberately:** the `16px` on inputs. iOS Safari zooms the page on
 focus below it. It looks like an inconsistency and must stay.
@@ -90,10 +106,19 @@ in that table with five blanks for months and it cost her a task that could neve
 hand.
 
 ### 4. Surface — not run
-Trend numbers to carry forward: **211** inline styles, **60** spacing literals, radius and
-small type now tokenised. Needs paired light/dark screenshots of all six tabs, contrast
-against AA, and hit targets — `.icon-btn` is 26–28px against a 44px target, which is a
-known systemic gap and should be fixed once, not per-component.
+Trend numbers to carry forward: **184** inline styles (was 211, was 219), **44** off-scale
+spacing literals (was 60, was 183); radius, small type and display numerals now tokenised.
+Needs paired light/dark screenshots of all six tabs, contrast against AA, and hit
+targets — `.icon-btn` is 26–28px against a 44px target, which is a known systemic gap and
+should be fixed once, not per-component.
+
+Two specific things to rule on when it runs:
+- The **9px** month letters on the Year in Review bars. Below `--fs-label` (11px) and the
+  only type in the app under 11px. Left as a literal because it is a legibility question,
+  not a token question.
+- **Controls that the `appearance: none` reset leaves undrawn.** Case 65 now fails if any
+  checkbox or radio computes to zero size, but it cannot judge whether a drawn control is
+  *legible* — that is this audit's job.
 
 ### 5. Content — numbers done, copy not
 Done: pool economics, calibration, tier demand. Outstanding: read every user-visible string
@@ -146,3 +171,10 @@ that test.
   like defects in the app: a clock reset in the wrong order, and hand minutes compared
   against a budget that excludes dailies.
 - **Verify a CSS change by looking at it.** A green suite says nothing about a stylesheet.
+  The Guest Prep radios had been invisible for as long as they have existed, and the suite
+  was green the whole time. What found them was rendering the Presets tab and looking at
+  the screenshot while doing unrelated tidy-up work.
+- **A "hidden" element measures 0x0 for two completely different reasons.** Every tab's
+  markup stays in the document, so an inactive tab's controls have no layout at all. Any
+  probe that measures the DOM has to skip `offsetParent === null` first, or it reports the
+  same control as broken from five tabs where it is merely not on screen.
