@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v1">
+  <meta name="app-version" content="2026-08-16 v2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -395,7 +395,21 @@
     .modal-backdrop.open > .modal { animation: sheetIn 0.28s cubic-bezier(.32,.72,0,1) both; }
     .modal-backdrop.closing { animation: backdropOut 0.22s ease-in both; }
     .modal-backdrop.closing > .modal { animation: sheetOut 0.22s cubic-bezier(.32,.72,0,1) both; }
-    .modal { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: calc(92vh - var(--kb)); display: flex; flex-direction: column; margin-bottom: var(--kb); }
+    .modal { background: var(--card); border-radius: var(--radius-lg) var(--radius-lg) 0 0; width: 100%; max-width: 100%; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); max-height: calc(92vh - var(--kb)); display: flex; flex-direction: column; margin-bottom: var(--kb); }
+    /* iOS Safari resolves vh against the LARGE viewport — it ignores the URL bar,
+       so 92vh can be taller than what you can actually see and the 8% strip of
+       backdrop you're meant to tap to dismiss ends up off-screen. dvh is the
+       visible viewport, so the strip is always really there. The vh line above
+       stays as the fallback for anything without dvh. */
+    @supports (height: 100dvh) {
+      .modal { max-height: calc(88dvh - var(--kb)); }
+    }
+    /* The grab handle promised a drag and delivered nothing — see sheetDrag below.
+       touch-action:none so the browser doesn't claim the vertical gesture first. */
+    .sheet-grab-zone { padding: var(--s-5) 0 0; cursor: grab; touch-action: none; }
+    .sheet-grab-zone:active { cursor: grabbing; }
+    .modal.dragging { transition: none; }
+    .modal.snapping { transition: transform 0.22s cubic-bezier(.32,.72,0,1); }
     .modal-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     .modal-title { font-size: var(--fs-title); font-weight: 600; }
     .modal-close { background: none; border: none; font-size: var(--fs-title); color: var(--text2); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
@@ -762,7 +776,7 @@
   <!-- One-off task modal -->
   <div class="modal-backdrop" id="oneoffModal" onclick="if(event.target===this)closeOneOffModal()">
     <div class="modal">
-      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
+      <div class="sheet-grab-zone" onclick="closeOneOffModal()"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title">Add one-off task</span>
         <button class="modal-close" onclick="closeOneOffModal()">&#10005;</button>
@@ -787,7 +801,7 @@
   <!-- Log time modal -->
   <div class="modal-backdrop" id="timeModal" onclick="if(event.target===this)closeTimeModal()">
     <div class="modal">
-      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
+      <div class="sheet-grab-zone" onclick="closeTimeModal()"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title">Log time</span>
         <button class="modal-close" onclick="closeTimeModal()">&#10005;</button>
@@ -810,7 +824,7 @@
   <!-- Why this task? modal -->
   <div class="modal-backdrop" id="whyModal" onclick="if(event.target===this)closeWhyModal()">
     <div class="modal">
-      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
+      <div class="sheet-grab-zone" onclick="closeWhyModal()"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title" id="whyTitle">Why this task?</span>
         <button class="modal-close" onclick="closeWhyModal()">&#10005;</button>
@@ -824,7 +838,7 @@
        dismissed by the backdrop, the grab handle, or Mark done. -->
   <div class="modal-backdrop" id="taskActionsModal" onclick="if(event.target===this)closeTaskActions()">
     <div class="modal">
-      <div style="padding:10px 0 0" onclick="closeTaskActions()"><div class="sheet-grab"></div></div>
+      <div class="sheet-grab-zone" onclick="closeTaskActions()"><div class="sheet-grab"></div></div>
       <div class="sheet-head">
         <div class="sheet-head-name" id="taskActionsTitle"></div>
         <div class="sheet-head-meta" id="taskActionsMeta"></div>
@@ -839,7 +853,7 @@
   <!-- Task edit/add modal -->
   <div class="modal-backdrop" id="taskModal" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div style="padding:10px 0 0"><div class="sheet-grab"></div></div>
+      <div class="sheet-grab-zone" onclick="closeModal()"><div class="sheet-grab"></div></div>
       <div class="modal-header">
         <span class="modal-title" id="modalTitle">Add task</span>
         <button class="modal-close" onclick="closeModal()">&#10005;</button>
@@ -1289,12 +1303,17 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v1';
+  const APP_VERSION = '2026-08-16 v2';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v2', notes: [
+      'Sheets can be swiped down to dismiss, which is what the handle at the top always looked like it did. Tapping the handle closes them too — before, that only worked on one of the five sheets.',
+      'A tall sheet no longer traps you. It was sized against a viewport height that ignores Safari\'s URL bar, so the strip of backdrop you tap to get out could end up off-screen.',
+      'Editing a task\'s last-done date now really finishes it. A task marked "started" kept coming back into the hand no matter what date you set, and the completion never reached Stats.',
+    ]},
     { v: '2026-08-16 v1', notes: [
       'Preset checklists now have three buttons on every task: add to today\'s hand, flag, and pin. The time moved down next to the room to make space, so task names get the full width.',
     ]},
@@ -2172,24 +2191,7 @@
     const d = new Date();
     d.setDate(d.getDate() - daysAgo);
     const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
-    state.completions[id] = ts;
-    if (!state.completionHistory) state.completionHistory = {};
-    if (!state.completionHistory[id]) state.completionHistory[id] = [];
-    // Dedup: don't log a second history entry for a day already recorded (mirrors completeTask)
-    const targetDay = dayKeyOf(ts);
-    if (!state.completionHistory[id].some(t => dayKeyOf(t) === targetDay)) {
-      state.completionHistory[id].push(ts);
-      state.completionHistory[id].sort((a,b) => a - b);
-      pruneHistory(id);
-    }
-    if (state.starvation) state.starvation[id] = 0;
-    if (state.snoozed) delete state.snoozed[id];
-    if (state.inProgress) delete state.inProgress[id]; // else it rides into every deal forever
-    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
-    if (!isDue(task)) {
-      state.hand = (state.hand || []).filter(h => h !== id);
-      if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
-    }
+    endTaskAsOf(id, task, ts);
     saveNow();
     render();
     showToast('Marked done ' + (daysAgo === 1 ? 'yesterday' : daysAgo + ' days ago'));
@@ -2417,13 +2419,46 @@
     setLastDone(id, dateStr);
   }
 
+  // "Edit last done" means the same thing as "did it earlier" — the task is done
+  // as of that date — but this used to write the timestamp and nothing else, while
+  // completeEarlier did the full end-of-task cleanup. So a task marked "started"
+  // kept its state.inProgress flag, and dealHand carries in-progress tasks into
+  // every hand EVEN WHEN NOT DUE: setting the date redealt the hand and the task
+  // came straight back, with no way to shake it off. Same bug shape for snooze
+  // (daysOverdue short-circuits on an active snooze, so the new date was ignored)
+  // and starvation (kept counting up on a task that had just been done).
+  //
+  // Both paths now share endTaskAsOf. Note it also logs history, which setLastDone
+  // never did — without it Stats and real-cadence silently missed every completion
+  // recorded this way.
+  function endTaskAsOf(id, task, ts) {
+    state.completions[id] = ts;
+    if (!state.completionHistory) state.completionHistory = {};
+    if (!state.completionHistory[id]) state.completionHistory[id] = [];
+    const targetDay = dayKeyOf(ts);
+    if (!state.completionHistory[id].some(t => dayKeyOf(t) === targetDay)) {
+      state.completionHistory[id].push(ts);
+      state.completionHistory[id].sort((a, b) => a - b);
+      pruneHistory(id);
+    }
+    if (state.starvation) state.starvation[id] = 0;
+    if (state.snoozed) delete state.snoozed[id];
+    if (state.inProgress) delete state.inProgress[id]; // else it rides into every deal forever
+    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+    if (!isDue(task)) {
+      state.hand = (state.hand || []).filter(h => h !== id);
+      if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
+    }
+  }
+
   function setLastDone(id, dateStr) {
     if (!dateStr) return;
     const d = new Date(dateStr + 'T12:00:00');
     if (isNaN(d)) return;
-    state.completions[id] = d.getTime();
-    state.hand = null;
-    saveState();
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    endTaskAsOf(id, task, d.getTime());
+    saveNow();
     render();
     showToast('Last done updated');
   }
@@ -2977,6 +3012,59 @@
     el.classList.add('closing');
     setTimeout(() => el.classList.remove('open', 'closing'), 220);
   }
+
+  // ─── Swipe a sheet down to dismiss ──────────────────────────────────────────
+  // The grab handle has always LOOKED like a drag target — that pill is the
+  // universal "pull me down" affordance — but nothing was listening, so the
+  // gesture everyone tries first did nothing. Worse, on a sheet tall enough to
+  // fill the screen there was no backdrop left to tap either, and the handle was
+  // only tappable on one of the five sheets: the sheet became a trap.
+  //
+  // Dismissal routes through the zone's own onclick rather than hideSheet, so a
+  // drag closes by exactly the path a tap does and each sheet keeps its own
+  // cleanup (closeTaskActions, closeModal, …) instead of this needing to know.
+  (function sheetDrag() {
+    let zone = null, modal = null, startY = 0, dy = 0, startedAt = 0;
+    const DISMISS_PX = 70, FLICK_PX = 20, FLICK_VELOCITY = 0.5; // px/ms
+
+    document.addEventListener('pointerdown', e => {
+      const z = e.target.closest && e.target.closest('.sheet-grab-zone');
+      if (!z) return;
+      zone = z;
+      modal = z.closest('.modal');
+      if (!modal) { zone = null; return; }
+      startY = e.clientY; dy = 0; startedAt = Date.now();
+      modal.classList.add('dragging');
+      modal.classList.remove('snapping');
+      z.setPointerCapture && z.setPointerCapture(e.pointerId);
+    });
+
+    document.addEventListener('pointermove', e => {
+      if (!zone || !modal) return;
+      dy = Math.max(0, e.clientY - startY);
+      modal.style.transform = 'translateY(' + dy + 'px)';
+    });
+
+    const end = () => {
+      if (!zone || !modal) return;
+      const velocity = dy / Math.max(1, Date.now() - startedAt);
+      const dismiss = dy > DISMISS_PX || (dy > FLICK_PX && velocity > FLICK_VELOCITY);
+      const z = zone, m = modal;
+      zone = null; modal = null;
+      m.classList.remove('dragging');
+      if (dismiss) {
+        // Let the sheet's own close animation take it the rest of the way.
+        m.style.transform = '';
+        z.onclick && z.onclick();
+      } else {
+        m.classList.add('snapping');
+        m.style.transform = '';
+        setTimeout(() => m.classList.remove('snapping'), 240);
+      }
+    };
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+  })();
 
   // ─── Fix 6: is this tab running a stale build? ────────────────────────────
   async function checkForNewVersion() {
