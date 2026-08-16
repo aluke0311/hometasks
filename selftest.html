@@ -998,10 +998,42 @@ test('clearNewPreset and clearLegacyPreset dismiss without loading the hand', ()
     eq(G('state').presetHands.expressReset, null, 'clearNewPreset did not close it');
     deepEq((G('state').hand || []), handBefore, 'clearNewPreset should not touch the dealt hand');
 
+    // Full Reset used to have its own clearLegacyPreset; it runs on the generic
+    // path now and must behave identically, including writing to presetHands
+    // rather than to the retired resetHand field.
     G('generateResetHand')();
-    ok(!!(G('state').resetHand || []).length, 'precondition: legacy generated');
-    G('clearLegacyPreset')('reset');
-    eq(G('state').resetHand, null, 'clearLegacyPreset did not close it');
+    ok(!!(G('state').presetHands.reset || []).length, 'precondition: Full Reset generated');
+    eq(G('state').resetHand, null, 'the retired field must stay null');
+    G('clearNewPreset')('reset');
+    eq(G('state').presetHands.reset, null, 'clearNewPreset did not close Full Reset');
+  } finally { S('state', saved); }
+});
+
+test('legacy preset fields migrate into presetHands and stay migrated', () => {
+  const saved = snap();
+  try {
+    const st = fresh();
+    st.presetHands = {};
+    st.guestHand = ['k_tidy', 'k_counters'];
+    st.resetHand = null;
+    st.goingOutHand = ['k_trash'];
+    S('state', st);
+    G('migrateLegacyPresets')();
+    deepEq(G('state').presetHands.guest, ['k_tidy', 'k_counters'], 'guestHand did not move across');
+    deepEq(G('state').presetHands.goingout, ['k_trash'], 'goingOutHand did not move across');
+    eq(G('state').guestHand, null, 'guestHand not cleared after the move');
+    eq(G('state').goingOutHand, null, 'goingOutHand not cleared after the move');
+    // Idempotent: running it again must not wipe what it just wrote. This is the
+    // failure that would matter, because it runs on every single load.
+    G('migrateLegacyPresets')();
+    deepEq(G('state').presetHands.guest, ['k_tidy', 'k_counters'], 'second run destroyed the migrated list');
+    // An existing generic checklist must win over a stale legacy field.
+    const st2 = fresh();
+    st2.presetHands = { guest: ['bed_make'] };
+    st2.guestHand = ['k_tidy'];
+    S('state', st2);
+    G('migrateLegacyPresets')();
+    deepEq(G('state').presetHands.guest, ['bed_make'], 'stale legacy field overwrote a live checklist');
   } finally { S('state', saved); }
 });
 

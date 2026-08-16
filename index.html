@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v4">
+  <meta name="app-version" content="2026-08-16 v5">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1319,12 +1319,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v4';
+  const APP_VERSION = '2026-08-16 v5';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v5', notes: [
+      'Full Reset, Guest Prep and Going Out of Town now run on the same code as every other preset. They used to have their own separate copy of every button. Any checklist you had open is carried across.',
+    ]},
     { v: '2026-08-16 v4', notes: [
       'A running timer now shows as a green bar above the tabs, on every screen, with a Stop button. You can no longer lose track of one by switching tabs.',
       'Timers survive closing the app. They used to live only in memory, so pocketing your phone mid-task quietly threw the timer away.',
@@ -2419,25 +2422,6 @@
     render();
   }
   
-  function loadPresetDueOnly(preset) {
-    const allIds = preset === 'guest' ? state.guestHand :
-                   preset === 'reset' ? state.resetHand :
-                   state.goingOutHand;
-    if (!allIds || !allIds.length) return;
-    const combined = [...getAllTasks(), ...FULL_RESET_TASKS, ...GOING_OUT_TASKS];
-    const dueIds = allIds.filter(id => {
-      const task = combined.find(t => t.id === id);
-      return task && isDue(task);
-    });
-    if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
-    state.hand = mergeStickyHand(dueIds);
-    state.handDate = todayStr();
-    state.guestHand = null;
-    state.resetHand = null;
-    state.goingOutHand = null;
-    saveState();
-    switchTab('sprint');
-  }
   
   function addMore(tier = 'all') {
     const overflow = getOverflowTasks();
@@ -4081,38 +4065,59 @@
   }
   
   function generateGuestHand() {
-    state.guestHand = getGuestPresetTasks(guestMode).map(t => t.id);
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands['guest'] = getGuestPresetTasks(guestMode).map(t => t.id);
     saveState();
     renderPresets();
   }
   
   function generateResetHand() {
-    state.resetHand = FULL_RESET_TASKS.map(t => t.id);
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands['reset'] = FULL_RESET_TASKS.map(t => t.id);
     saveState();
     renderPresets();
   }
   
   function generateGoingOutHand() {
-    state.goingOutHand = GOING_OUT_TASKS.map(t => t.id);
+    if (!state.presetHands) state.presetHands = {};
+    state.presetHands['goingout'] = GOING_OUT_TASKS.map(t => t.id);
     saveState();
     renderPresets();
   }
   
-  function loadPresetIntoHand(preset) {
-    const ids = preset === 'guest' ? state.guestHand :
-                preset === 'reset' ? state.resetHand :
-                state.goingOutHand;
-    if (!ids || !ids.length) return;
-    state.hand = mergeStickyHand(ids);
-    state.handDate = todayStr();
-    state.guestHand = null;
-    state.resetHand = null;
-    state.goingOutHand = null;
-    saveState();
-    switchTab('sprint');
-  }
 
   // ── NEW PRESET FUNCTIONS ────────────────────────────────────────────────────
+
+  // Full Reset and Going Out carry rows that are not in TASKS, so any lookup for a
+  // preset task has to consider them too. The legacy loaders did this and the
+  // generic ones did not, which is the only real behaviour difference between the
+  // two sets — fixing it here is what let the legacy set be deleted.
+  function presetTaskSource() {
+    return [...getAllTasks(), ...FULL_RESET_TASKS, ...GOING_OUT_TASKS];
+  }
+
+  // C-1 (2026-08-16 coherence audit). guestHand, resetHand and goingOutHand were
+  // three dedicated state fields that predated the generic presetHands map. The
+  // map arrived on 2026-05-20 beside them rather than replacing them, so every
+  // preset operation existed twice for four months, and by 2026-08-04 the older
+  // copy had to be renamed "Legacy" to tell the two apart.
+  //
+  // This folds the three fields into presetHands and leaves them null. It runs on
+  // every load rather than behind a one-time flag, so importing an old export
+  // years from now still migrates correctly.
+  function migrateLegacyPresets() {
+    if (!state.presetHands) state.presetHands = {};
+    let moved = false;
+    [['resetHand', 'reset'], ['guestHand', 'guest'], ['goingOutHand', 'goingout']].forEach(([field, key]) => {
+      const ids = state[field];
+      if (ids && ids.length) {
+        if (!state.presetHands[key] || !state.presetHands[key].length) state.presetHands[key] = ids;
+        moved = true;
+      }
+      if (state[field] !== null) { state[field] = null; moved = true; }
+    });
+    if (moved) saveState();
+  }
 
   function generateNewPreset(type) {
     if (!state.presetHands) state.presetHands = {};
@@ -4125,21 +4130,14 @@
   // there forever — this is what the auto-close pass at the top of renderPresets
   // uses. `extra` covers task ids that live only in FULL_RESET_TASKS/GOING_OUT_TASKS,
   // not in TASKS, so they wouldn't otherwise be found.
-  function idsAllDoneToday(ids, extra) {
+  function idsAllDoneToday(ids) {
     if (!ids || !ids.length) return false;
-    const src = extra ? [...getAllTasks(), ...extra] : getAllTasks();
+    const src = presetTaskSource();
     return ids.every(id => { const t = src.find(x => x.id === id); return t && wasCompletedToday(t); });
   }
 
   // Dismiss a generated checklist without loading it — for the three legacy
   // hand fields that predate presetHands (Full Reset, Guest Prep, Going Out).
-  function clearLegacyPreset(which) {
-    if (which === 'reset') state.resetHand = null;
-    else if (which === 'guest') state.guestHand = null;
-    else if (which === 'goingout') state.goingOutHand = null;
-    saveState();
-    renderPresets();
-  }
 
   function clearNewPreset(type) {
     if (!state.presetHands) state.presetHands = {};
@@ -4161,9 +4159,9 @@
   function loadNewPresetDueOnly(type) {
     const allIds = state.presetHands && state.presetHands[type];
     if (!allIds || !allIds.length) return;
-    const allTasks = getAllTasks();
+    const src = presetTaskSource();
     const dueIds = allIds.filter(id => {
-      const t = allTasks.find(t => t.id === id);
+      const t = src.find(t => t.id === id);
       return t && isDue(t);
     });
     if (!dueIds.length) { showToast('No due tasks in this preset'); return; }
@@ -4307,9 +4305,9 @@
     // generated the checklist anyway) would auto-close it on the very same render
     // that created it, so it would flicker in and vanish before she ever saw it.
     let _autoClosedAny = false;
-    const checkAutoClose = (key, ids, extra) => {
+    const checkAutoClose = (key, ids) => {
       if (!ids || !ids.length) { _seenActivePresetKeys.delete(key); return null; }
-      if (_seenActivePresetKeys.has(key) && idsAllDoneToday(ids, extra)) {
+      if (_seenActivePresetKeys.has(key) && idsAllDoneToday(ids)) {
         _seenActivePresetKeys.delete(key);
         _autoClosedAny = true;
         return null;
@@ -4318,9 +4316,6 @@
       return ids;
     };
     Object.keys(ph).forEach(key => { ph[key] = checkAutoClose(key, ph[key]); });
-    state.resetHand    = checkAutoClose('__resetHand',    state.resetHand,    FULL_RESET_TASKS);
-    state.guestHand     = checkAutoClose('__guestHand',    state.guestHand,    FULL_RESET_TASKS);
-    state.goingOutHand = checkAutoClose('__goingOutHand', state.goingOutHand, GOING_OUT_TASKS);
     if (_autoClosedAny) saveState();
 
     function categoryHeader(label) {
@@ -4449,9 +4444,9 @@
       '<div class="settings-card">' +
         presetTitle('Full Reset') +
         '<div class="settings-card-desc">Complete whole-house clean. Expect 2–3 hours.</div>' +
-        '<button class="add-btn" style="width:100%;margin-bottom:' + (state.resetHand ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
-    if (state.resetHand && state.resetHand.length) {
-      html += loadBtns("loadPresetIntoHand('reset')", "loadPresetDueOnly('reset')", "clearLegacyPreset('reset')");
+        '<button class="add-btn" style="width:100%;margin-bottom:' + (ph.reset ? '10px' : '0') + '" onclick="generateResetHand()">Generate Full Reset</button>';
+    if (ph.reset && ph.reset.length) {
+      html += loadBtns("loadNewPreset('reset')", "loadNewPresetDueOnly('reset')", "clearNewPreset('reset')");
       FULL_RESET_SECTIONS.forEach(section => {
         const done = section.ids.filter(id => {
           const t = FULL_RESET_TASKS.find(x => x.id === id) || allTasks.find(x => x.id === id);
@@ -4469,7 +4464,7 @@
     // ── GUESTS ────────────────────────────────────────────────────────────────
     html += categoryHeader('Guests');
 
-    const guestActive = state.guestHand && state.guestHand.length;
+    const guestActive = ph.guest && ph.guest.length;
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
         presetTitle('Guest Prep') +
@@ -4489,8 +4484,8 @@
         '<button class="add-btn" style="width:100%;margin-bottom:' + (guestActive ? '14px' : '0') + '" onclick="generateGuestHand()">Generate Guest Prep</button>';
     if (guestActive) {
       const combined = [...allTasks, ...FULL_RESET_TASKS];
-      html += loadBtns("loadPresetIntoHand('guest')", "loadPresetDueOnly('guest')", "clearLegacyPreset('guest')");
-      html += renderPresetChecklist(state.guestHand, combined);
+      html += loadBtns("loadNewPreset('guest')", "loadNewPresetDueOnly('guest')", "clearNewPreset('guest')");
+      html += renderPresetChecklist(ph.guest, combined);
     }
     html += '</div>';
 
@@ -4498,14 +4493,14 @@
     html += categoryHeader('Travel');
 
     // Going Out of Town
-    const goingOutActive = state.goingOutHand && state.goingOutHand.length;
+    const goingOutActive = ph.goingout && ph.goingout.length;
     html +=
       '<div class="settings-card" style="margin-top:4px">' +
         presetTitle('Going Out of Town') +
         '<div class="settings-card-desc">Leave the house in great shape before you go.</div>' +
         '<button class="add-btn" style="width:100%;margin-bottom:' + (goingOutActive ? '10px' : '0') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
     if (goingOutActive) {
-      html += loadBtns("loadPresetIntoHand('goingout')", "loadPresetDueOnly('goingout')", "clearLegacyPreset('goingout')");
+      html += loadBtns("loadNewPreset('goingout')", "loadNewPresetDueOnly('goingout')", "clearNewPreset('goingout')");
       GOING_OUT_SECTIONS.forEach(section => {
         const done = section.ids.filter(id => {
           const t = allTasks.find(x => x.id === id) || GOING_OUT_TASKS.find(x => x.id === id);
@@ -5874,6 +5869,8 @@
   
     // Load state from persistent storage
     state = await loadState();
+
+    migrateLegacyPresets();
 
     // One-time seasonal defaults; user edits in Manage win from then on
     if (!state.seasonalDefaultsApplied) {
