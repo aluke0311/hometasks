@@ -85,7 +85,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 1 | Flow | **Not run** | Optional: which journeys currently annoy her |
 | 2 | Behaviour | **Partly run** | — (simulator exists) |
 | 3 | State | **Done** (2026-08-16) — 5 found, 5 fixed | — |
-| 4 | Surface | **Not run** | — |
+| 4 | Surface | **Run 2026-08-16** — 7 findings, unfixed | — |
 | 5 | Content | **Half run** | Copy sweep outstanding |
 | 6 | Coherence | **Done** | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
@@ -128,20 +128,58 @@ only as things that must not regress, because all five were invisible to a green
 Passes worth not re-deriving: export → import round trip is clean across all 41 fields;
 storage settles at **≈62 KB, 83× under a 5 MB quota**, so `pruneHistory` genuinely bounds it.
 
-### 4. Surface — not run
-Trend numbers to carry forward: **92** inline styles (219 → 211 → 184 → 145 → 104 → 92), **44** off-scale
-spacing literals (was 60, was 183); radius, small type and display numerals now tokenised.
-Needs paired light/dark screenshots of all six tabs, contrast against AA, and hit
-targets — `.icon-btn` is 26–28px against a 44px target, which is a known systemic gap and
-should be fixed once, not per-component.
+### 4. Surface — **run 2026-08-16.** 7 findings, none fixed
 
-Two specific things to rule on when it runs:
-- The **9px** month letters on the Year in Review bars. Below `--fs-label` (11px) and the
-  only type in the app under 11px. Left as a literal because it is a legibility question,
-  not a token question.
-- **Controls that the `appearance: none` reset leaves undrawn.** Case 65 now fails if any
-  checkbox or radio computes to zero size, but it cannot judge whether a drawn control is
-  *legible* — that is this audit's job.
+Trend numbers: **92** inline styles (219 → 211 → 184 → 145 → 104 → 92) · **13** colour
+literals outside token definitions, of which 4 are shadows and 4 are documented
+swipe-rail fills · **0** colour literals in JS-built markup · **34** distinct type triples.
+
+**S2 · Hit targets, systemic. 539 instances under 44×44, 76 distinct shapes.** Height is
+almost always the failing dimension — plenty are wide and 23–34px tall. By volume:
+`.task-more-btn` 30×30 (**216** instances, Hand/Sprint/All Tasks). By severity:
+`.settings-save-btn.quiet` 98×**23**, `.manage-hand-btn.sm` 61×**26**, `.stepper-btn` 28×28,
+and `.cad-name` — a tappable text link **15px** tall. Fix once as a policy (a minimum
+block-size plus transparent padding), not per-component.
+
+**S2 · `importTextarea` computes to 13px.** Every other input clears the 16px floor; this
+one does not, so iOS Safari zooms the page on focus and does not zoom back — on the
+restore-from-backup field, which is a bad place to be fighting the viewport.
+
+**S3 · Dark `--text3` misses AA by 0.03.** `#8b8574` on `--card` = **4.47:1** against 4.5.
+Sixteen of the 19 dark failures are this single token: `.caption`, `.muted`, `.cad-sub`,
+`.task-notdue`, `.sheet-group-label`, `.tab-label` (inactive), `.settings-summary`. One
+nudge clears the lot. On `--bg2` it is 4.36 (`.settings-stat-label`, `.vac-legend-label`).
+
+**S3 · The swipe rail's literal text colour is wrong for one of its four buttons.**
+`.task-swipe button { color: #fffdf8 }` is deliberate — the comment says those fills stay
+dark in both themes. True for `.sw-more`/`.sw-pin`/`.sw-remove`, but `.sw-today` was added
+later using `var(--green)`, which lightens to sage in dark mode: **2.04:1**. Separately
+`.sw-pin` is 3.11:1 and `.sw-more` 3.62:1 in *both* themes.
+
+**S3 · A collapsible card's title is dimmer than a fixed card's, for no reason she can
+read.** `.ed-details > summary { color: var(--text3) }` and `.settings-card-title` inherits
+it, so "How Scoring Works" and "Recent Activity" sit at 4.47:1 while "System Overview" and
+"Vacation Mode" are ~11:1. Plainly visible side by side in Settings.
+
+**S4 · Light-mode near-misses:** `.settings-stat-label` / `.vac-legend-label` 4.32:1,
+`.rp-zone` 4.17:1.
+
+**S4 · Dead CSS.** `.owner-badge`, `.owner-alina`, `.owner-bob` are defined and never
+emitted by any code path.
+
+**Type scale — the near-duplicates are on the line-height axis, not size.** 13px/400 renders
+at five different line-heights (19.5, normal, 23.4, 18.85, 22.1); 12px/400 at four. Whether
+34 triples should be 34 is Coherence's question; that one size/weight resolves five ways is
+this one's.
+
+**Passed:** no horizontal overflow at 375px on any tab. Zero colour literals in JS-built
+markup — the only two matches are `&#10003;` tick entities. Every other input ≥16px.
+
+**Method trap, cost me four false findings twice.** Changing the emulated colour scheme
+*without reloading* leaves elements resolving old foreground colours against new
+backgrounds, which reads as catastrophic contrast failures: the active tab measured 2.00:1
+and the active mode button 1.87:1. After a reload they are **7.96:1** and **7.43:1**.
+Reload after every theme switch, then measure.
 
 ### 5. Content — numbers done, copy not
 Done: pool economics, calibration, tier demand. Outstanding: read every user-visible string
