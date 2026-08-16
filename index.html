@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v3">
+  <meta name="app-version" content="2026-08-16 v4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -321,6 +321,18 @@
     .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: var(--fs-sub); display: flex; align-items: center; justify-content: center; }
     .icon-btn.danger { color: var(--red); border-color: var(--red); }
     .icon-btn.on { color: var(--green); border-color: var(--green); }
+    /* Running-timer bar — pinned just above the bottom nav, on every tab. */
+    .timer-bar { display: none; position: fixed; left: 0; right: 0; bottom: calc(var(--nav-height) + var(--safe-bottom));
+      z-index: 150; align-items: center; gap: var(--s-5); padding: var(--s-5) var(--s-7);
+      background: var(--green); color: var(--on-accent); }
+    .timer-bar.show { display: flex; }
+    .timer-bar.stale { background: var(--amber); }
+    .timer-bar-dot { width: var(--s-4); height: var(--s-4); border-radius: 50%; background: var(--on-accent); flex-shrink: 0; animation: pulse 1.6s ease-in-out infinite; }
+    .timer-bar-name { flex: 1; min-width: 0; font-size: var(--fs-sub); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .timer-bar-elapsed { font-size: var(--fs-sub); font-variant-numeric: tabular-nums; opacity: 0.9; }
+    .timer-bar-stop { background: var(--on-accent); color: var(--green); border: none; border-radius: var(--radius-sm);
+      padding: var(--s-3) var(--s-6); font-size: var(--fs-meta); font-weight: 700; cursor: pointer; flex-shrink: 0; }
+    .timer-bar.stale .timer-bar-stop { color: var(--amber); }
     /* Preset row actions: add-to-hand / flag / pin. 26px here rather than the
        28px of a bare .icon-btn — three of them plus the check and the time have
        to clear 375px without the task name losing more than it can spare. */
@@ -744,6 +756,10 @@
     </div>
   </div>
   
+  <!-- Running-timer bar. Sits above the nav on every tab so a running timer can
+       never be out of sight; renderTimerBar() fills it and toggles .show. -->
+  <div class="timer-bar" id="timerBar"></div>
+
   <nav class="bottom-nav">
     <button class="tab active" data-tab="alina" onclick="switchTab('alina')">
       <span class="tab-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10V6a2 2 0 0 1 4 0v3m0 0V4.5a2 2 0 0 1 4 0V10m0-2a2 2 0 0 1 4 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3 14"/></svg></span>
@@ -1303,12 +1319,18 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v3';
+  const APP_VERSION = '2026-08-16 v4';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v4', notes: [
+      'A running timer now shows as a green bar above the tabs, on every screen, with a Stop button. You can no longer lose track of one by switching tabs.',
+      'Timers survive closing the app. They used to live only in memory, so pocketing your phone mid-task quietly threw the timer away.',
+      'One timed run now starts adjusting a task\'s estimate. It used to ignore the first two and then jump. New times are blended with your original estimate, so they move steadily instead of lurching.',
+      'A timer left running for hours is flagged as forgotten rather than logged, and one left overnight is discarded on next open.',
+    ]},
     { v: '2026-08-16 v3', notes: [
       'Housekeeping under the hood: the collapsing sections on My Hand, Sprint and Settings all ran through five copies of the same four lines. Now one. Nothing should look or behave differently — if a section stops opening, that is this.',
     ]},
@@ -1420,7 +1442,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -1431,7 +1453,7 @@
     hand: 'array', guestHand: 'array', resetHand: 'array', goingOutHand: 'array',
     handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
     lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number', seenVersion: 'string',
-    todayBudget: 'number', todayBudgetDate: 'string',
+    todayBudget: 'number', todayBudgetDate: 'string', activeTimer: 'object',
   };
 
   // The single place a parsed blob becomes a valid state object — used by both the
@@ -1606,17 +1628,42 @@
   // from it can never quote different numbers for the same tasks. Raw task.time
   // is correct in exactly two places: the editor field, which edits the static
   // estimate, and the learned-time hint, which deliberately compares the two.
+  // Learned time. This used to ignore everything until the third sample and then
+  // switch hard to the raw median — so one timed run taught the app nothing, and
+  // the third one moved the estimate in a single jump.
+  //
+  // Now it shrinks toward the static estimate instead: weight = n / (n + PRIOR),
+  // so the static number acts as a prior worth PRIOR observations. One sample
+  // moves the estimate a third of the way, four samples two thirds, and it keeps
+  // approaching the truth without ever lurching. The median (not the mean) is
+  // what gets blended in, because "forgot to stop the timer" produces exactly the
+  // kind of wild high outlier a mean would swallow whole.
+  const TIME_PRIOR = 2;
+  function medianOf(a) {
+    const s = [...a].sort((x, y) => x - y);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+  }
   function taskTime(task) {
     const a = (state.actualTimes || {})[task.id];
-    if (!a || a.length < 3) return task.time;
-    const s = [...a].sort((x,y) => x - y);
-    const mid = Math.floor(s.length / 2);
-    return s.length % 2 ? s[mid] : Math.round((s[mid-1] + s[mid]) / 2);
+    if (!a || !a.length) return task.time;
+    const w = a.length / (a.length + TIME_PRIOR);
+    return Math.max(1, Math.round(w * medianOf(a) + (1 - w) * task.time));
   }
 
-  // ── Per-task timer (transient, in-memory only) ──
-  let activeTimer = null;
+  // ── Per-task timer ──
+  // Was transient and in-memory only, which is most of why a timer got forgotten:
+  // iOS Safari discards a backgrounded tab whenever it feels like it, so putting
+  // the phone in your pocket — i.e. what you do while actually cleaning — silently
+  // destroyed both the timer and the elapsed time. It lives in state now, so it
+  // survives a reload, a background, and a crash.
   let timerInterval = null;
+  function getTimer() { return state.activeTimer || null; }
+  function setTimer(t) { state.activeTimer = t; saveState(); }
+  // A timer running this long is a forgotten timer, not a long task. We keep the
+  // record (so it can still be confirmed or discarded by hand) but never let it
+  // reach recordTime unchallenged.
+  const TIMER_IMPLAUSIBLE_MIN = 180;
 
   function fmtElapsed(ms) {
     const s = Math.floor(ms / 1000);
@@ -1626,22 +1673,56 @@
   function startTimerTick() {
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-      if (!activeTimer) { clearInterval(timerInterval); return; }
-      const el = document.getElementById('timerElapsed_' + activeTimer.id);
-      if (el) el.textContent = fmtElapsed(Date.now() - activeTimer.startedAt);
+      const t = getTimer();
+      if (!t) { clearInterval(timerInterval); return; }
+      const txt = fmtElapsed(Date.now() - t.startedAt);
+      const el = document.getElementById('timerElapsed_' + t.id);
+      if (el) el.textContent = txt;
+      const bar = document.getElementById('timerBarElapsed');
+      if (bar) bar.textContent = txt;
     }, 1000);
   }
 
+  // The running-timer bar sits above the bottom nav on every tab. Before this the
+  // only sign a timer was running was the elapsed count on that one task's card,
+  // so switching tabs — or just scrolling past it — hid the fact completely.
+  function renderTimerBar() {
+    const el = document.getElementById('timerBar');
+    if (!el) return;
+    const t = getTimer();
+    if (!t) { el.classList.remove('show'); el.innerHTML = ''; return; }
+    const task = getAllTasks().find(x => x.id === t.id);
+    const elapsed = Date.now() - t.startedAt;
+    const stale = elapsed > TIMER_IMPLAUSIBLE_MIN * 60000;
+    el.className = 'timer-bar show' + (stale ? ' stale' : '');
+    el.innerHTML =
+      '<span class="timer-bar-dot"></span>' +
+      '<span class="timer-bar-name">' + (task ? task.name : 'Timer') + '</span>' +
+      '<span class="timer-bar-elapsed" id="timerBarElapsed">' + fmtElapsed(elapsed) + '</span>' +
+      '<button class="timer-bar-stop" onclick="toggleTimer(\'' + t.id + '\')">Stop</button>';
+  }
+
   function toggleTimer(id) {
-    if (activeTimer && activeTimer.id === id) {
-      const mins = Math.max(1, Math.round((Date.now() - activeTimer.startedAt) / 60000));
-      activeTimer = null;
+    const t = getTimer();
+    if (t && t.id === id) {
+      const mins = Math.max(1, Math.round((Date.now() - t.startedAt) / 60000));
+      setTimer(null);
       clearInterval(timerInterval);
       render();
-      openTimeModal(id, mins, 'Timer stopped — confirm or adjust, or discard.');
+      openTimeModal(id, mins, mins >= TIMER_IMPLAUSIBLE_MIN
+        ? 'That ran for ' + fmtMinutes(mins) + ' — looks like the timer was left going. Adjust it or discard.'
+        : 'Timer stopped — confirm or adjust, or discard.');
       return;
     }
-    activeTimer = { id, startedAt: Date.now() };
+    // Starting a second timer stops the first rather than silently orphaning it.
+    if (t) {
+      const prevMins = Math.max(1, Math.round((Date.now() - t.startedAt) / 60000));
+      setTimer(null);
+      clearInterval(timerInterval);
+      openTimeModal(t.id, prevMins, 'Stopped because you started another timer — confirm, adjust, or discard.');
+      return;
+    }
+    setTimer({ id, startedAt: Date.now() });
     startTimerTick();
     render();
     showToast('Timer running — stop it or check off to log time');
@@ -2139,9 +2220,10 @@
     _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
     // Timer running on this task: stop it and let the modal confirm the entry
     let _timedMins = null;
-    if (activeTimer && activeTimer.id === id) {
-      _timedMins = Math.max(1, Math.round((Date.now() - activeTimer.startedAt) / 60000));
-      activeTimer = null;
+    const _t = getTimer();
+    if (_t && _t.id === id) {
+      _timedMins = Math.max(1, Math.round((Date.now() - _t.startedAt) / 60000));
+      setTimer(null);
       clearInterval(timerInterval);
     }
     // Clear snooze / in-progress on completion
@@ -2488,6 +2570,7 @@
     // An open swipe rail is about to have its markup replaced; drop the state
     // first or .swiped survives onto a row that no longer carries the offset.
     if (window.closeSwipedRows) window.closeSwipedRows();
+    renderTimerBar();
     if (currentTab === 'alina') renderAlina();
     else if (currentTab === 'sprint') renderSprint();
     else if (currentTab === 'manage') renderManage();
@@ -2813,7 +2896,7 @@
     const isInProgress = !!(state.inProgress && state.inProgress[task.id]);
     const isPinned = !!(state.pinnedIds && state.pinnedIds.includes(task.id)) && !task.oneOff;
     const isFlagged = (state.flaggedIds || []).includes(task.id);
-    const timerRunning = activeTimer && activeTimer.id === task.id;
+    const timerRunning = getTimer() && getTimer().id === task.id;
 
     // The meta line, in priority order — it ellipsizes, so what matters goes first.
     const bits = [];
@@ -2842,7 +2925,7 @@
       ? '<span class="task-started">Started</span>' : '';
 
     const timeHtml = timerRunning
-      ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - activeTimer.startedAt) + '</span>'
+      ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - getTimer().startedAt) + '</span>'
       : (isDone ? '' : '<span class="task-time">' + fmtMinutes(taskTime(task)) + '</span>');
 
     const pinGlyph = isPinned && !isDone
@@ -3172,7 +3255,7 @@
     const isPinned = !!(state.pinnedIds && state.pinnedIds.includes(id));
     const isFlagged = (state.flaggedIds || []).includes(id);
     const isInProgress = !!(state.inProgress && state.inProgress[id]);
-    const timerRunning = activeTimer && activeTimer.id === id;
+    const timerRunning = getTimer() && getTimer().id === id;
     const snoozed = isSnoozed(id);
     const q = "'" + id + "'";
     const last = state.completions[id] || 0;
@@ -5816,6 +5899,21 @@
     // Apply loaded settings to UI
     const zoneEl = document.getElementById('zoneSelect');
     if (zoneEl) zoneEl.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
+
+    // A timer that survived a reload has to start ticking again, or the bar shows
+    // a frozen number. If it survived overnight it is a forgotten timer, not a
+    // long task: drop it rather than offering to log a twelve-hour "kitchen tidy",
+    // and say so, because a timer vanishing with no explanation is worse.
+    const _t = getTimer();
+    if (_t) {
+      const mins = Math.round((Date.now() - _t.startedAt) / 60000);
+      if (mins > TIMER_IMPLAUSIBLE_MIN * 4) {
+        setTimer(null);
+        showToast('A timer had been running since yesterday — discarded');
+      } else {
+        startTimerTick();
+      }
+    }
 
     switchTab(sessionStorage.getItem('activeTab') || 'alina');
     autoBackupCheck();

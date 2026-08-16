@@ -500,17 +500,29 @@ test('out-of-season tasks are excluded from the pool and accrue no starvation', 
 // ─── State and time ────────────────────────────────────────────────────────
 group('State & time');
 
-test('taskTime uses the static estimate under 3 samples and the median at 3+', () => {
+// taskTime shrinks the observed median toward the static estimate, weight
+// n/(n+2). The old contract — ignore everything under 3 samples, then switch
+// hard to the raw median — meant one timed run taught the app nothing and the
+// third moved it in a lurch. These cases pin the new curve at each end AND the
+// two properties that matter: it always moves toward reality, and it never
+// overshoots past the observed median.
+test('taskTime blends observed time toward the static estimate, by sample count', () => {
   const t = T({ id: 'zz_time', time: 10 });
   const run = samples => withState(st => { st.actualTimes = {}; st.actualTimes['zz_time'] = samples; },
                                    () => G('taskTime')(t));
-  eq(run([]), 10, 'no samples');
-  eq(run([30]), 10, '1 sample');
-  eq(run([30, 30]), 10, '2 samples');
-  eq(run([20, 30, 40]), 30, '3 samples → middle');
-  eq(run([40, 20, 30]), 30, 'unsorted 3 samples');
-  eq(run([10, 20, 30, 40]), 25, '4 samples → mean of middle two');
-  eq(run([10, 20, 31, 40]), 26, 'even count rounds');
+  eq(run([]), 10, 'no samples → static estimate');
+  eq(run([30]), 17, '1 sample: 1/3 of the way (0.333*30 + 0.667*10)');
+  eq(run([30, 30]), 20, '2 samples: halfway');
+  eq(run([20, 30, 40]), 22, '3 samples: 0.6*30 + 0.4*10');
+  eq(run([40, 20, 30]), 22, 'unsorted 3 samples give the same answer');
+  eq(run([30, 30, 30, 30]), 23, '4 samples: 2/3 of the way');
+  eq(run([5]), 8, 'shrinks upward too when reality is faster');
+  // A forgotten timer is one wild high sample; the median must absorb it.
+  eq(run([10, 10, 600]), 10, 'median ignores a runaway sample');
+  // Monotonic: more evidence never moves the estimate back toward the prior.
+  const a = run([30]), b = run([30, 30]), c = run([30, 30, 30]);
+  ok(a < b && b < c, 'more samples move further toward the observed time');
+  ok(c < 30, 'never overshoots the observed median');
 });
 
 test('vacation resume shifts completions forward and leaves history alone', () => {
@@ -663,12 +675,16 @@ test('derived minutes improve when the time estimate does (the point of deriving
   const before = withState(build, () => G('deriveYearStats')(Y).minutes);
   const after = withState(st => {
     build(st);
-    // Three samples, so taskTime() switches from the static estimate to the median.
+    // Three samples ten minutes over the estimate. taskTime shrinks that toward
+    // the static number with weight 3/(3+2) = 0.6, so the learned time is
+    // static + 6, not static + 10.
     st.actualTimes = {}; st.actualTimes[probe.id] = [probe.time + 10, probe.time + 10, probe.time + 10];
   }, () => G('deriveYearStats')(Y).minutes);
+  const learned = Math.round(0.6 * (probe.time + 10) + 0.4 * probe.time);
   eq(before, probe.time * 2, 'before: static estimate');
-  eq(after, (probe.time + 10) * 2, 'after: learned median');
-  ok(after !== before, 'a stored accumulator could not have moved here');
+  eq(after, learned * 2, 'after: the blended learned time, over two completions');
+  ok(after > before, 'a stored accumulator could not have moved here');
+  ok(learned > probe.time && learned < probe.time + 10, 'blend lands between estimate and observation');
 });
 
 test('a year is only derivable once history covers all of it', () => {
