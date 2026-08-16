@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v11">
+  <meta name="app-version" content="2026-08-16 v12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -780,6 +780,17 @@
        the same "this is secondary" instruction in a dozen unrelated places. */
     .caption { font-size: var(--fs-label); color: var(--text3); }
     .caption.gap { margin-top: var(--s-3); }
+    /* One step up from .caption: the quiet explanatory line under a control, and
+       the "type two letters" / "nothing found" states of the quick-log search. */
+    .note { font-size: var(--fs-meta); color: var(--text3); }
+    .note.inset { padding: var(--s-2) var(--s-1); }
+    /* A section label that is NOT inside a padded .section, so it carries the
+       gutter itself. */
+    .section-label.gutter { padding-left: var(--s-10); padding-right: var(--s-10); }
+    .pin-mark { color: var(--amber); display: flex; flex-shrink: 0; }
+    /* Blue marks the two things the row says about itself rather than about
+       the task: that you created it, and that its time was measured not guessed. */
+    .tag-custom, .tag-learned { color: var(--blue); }
     .muted { color: var(--text3); }
     .icon-btn.sm { width: 26px; height: 26px; }
     .settings-save-btn.quiet { border-color: var(--border2); color: var(--text2); }
@@ -971,7 +982,7 @@
       </div>
       <div class="modal-body">
         <div id="timeModalTask" style="font-size:var(--fs-body);font-weight:500"></div>
-        <div id="timeModalHint" style="font-size:var(--fs-meta);color:var(--text3)"></div>
+        <div id="timeModalHint" class="note"></div>
         <div>
           <div class="field-label">Minutes</div>
           <input class="field-input" id="timeModalMinutes" type="number" min="1" max="600" placeholder="e.g. 15">
@@ -1466,12 +1477,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v11';
+  const APP_VERSION = '2026-08-16 v12';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v12', notes: [
+      'Tidy-up only, the last of it. The quiet grey notes, the pin marker and the blue "custom" and learned-time marks now come from shared rules. Nothing moves.',
+    ]},
     { v: '2026-08-16 v11', notes: [
       'Tidy-up only, Presets and Settings. Every "Generate ..." button was styled by hand; they now share one rule. Nothing moves — I found two spacing oddities on the way through and left both exactly as they were, because changing them is a real decision and not mine to make quietly.',
     ]},
@@ -2831,7 +2845,7 @@
       html += '<div class="section" style="margin-top:12px">' +
         '<div style="background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:var(--radius);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">' +
           '<div><div style="font-weight:600;color:var(--amber);display:flex;align-items:center;gap:6px">' + icon('pause', 15, 1.8) + 'Vacation mode</div>' +
-          '<div style="font-size:var(--fs-meta);color:var(--text3)">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
+          '<div class="note">Paused' + (since ? ' since ' + since : '') + ' &mdash; no new hands, due dates shift when you\'re back.</div></div>' +
           '<button class="add-btn" style="background:var(--amber);flex-shrink:0" onclick="resumeApp()">I\'m back</button>' +
         '</div></div>';
     }
@@ -3070,11 +3084,11 @@
     const el = document.getElementById('quickLogResults');
     if (!el) return;
     const q = quickLogQuery.trim().toLowerCase();
-    if (q.length < 2) { el.innerHTML = '<div style="font-size:var(--fs-meta);color:var(--text3);padding:4px 2px">Type to search all tasks &mdash; logging here doesn\'t touch today\'s hand.</div>'; return; }
+    if (q.length < 2) { el.innerHTML = '<div class="note inset">Type to search all tasks &mdash; logging here doesn\'t touch today\'s hand.</div>'; return; }
     const matches = getAllTasks()
       .filter(t => !t.oneOff && (t.name.toLowerCase().includes(q) || t.room.toLowerCase().includes(q)))
       .slice(0, 6);
-    if (!matches.length) { el.innerHTML = '<div style="font-size:var(--fs-meta);color:var(--text3);padding:4px 2px">No tasks match.</div>'; return; }
+    if (!matches.length) { el.innerHTML = '<div class="note inset">No tasks match.</div>'; return; }
     el.innerHTML = matches.map(t => {
       const done = wasCompletedToday(t);
       return '<div class="sprint-card' + (done ? ' done' : '') + '" onclick="quickLogComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
@@ -3146,7 +3160,7 @@
       : (isDone ? '' : '<span class="task-time">' + fmtMinutes(taskTime(task)) + '</span>');
 
     const pinGlyph = isPinned && !isDone
-      ? '<span style="color:var(--amber);display:flex;flex-shrink:0">' + icon('pinFill', 12) + '</span>' : '';
+      ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '';
 
     // The rail only offers Remove where removing means something.
     const inHand = !!(state.hand && state.hand.includes(task.id));
@@ -3608,7 +3622,7 @@
       if (skip) return '';
       return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border)">' +
         '<div><div style="font-size:var(--fs-sub);color:var(--text)">' + label + '</div>' +
-        (note ? '<div style="font-size:var(--fs-meta);color:var(--text3)">' + note + '</div>' : '') + '</div>' +
+        (note ? '<div class="note">' + note + '</div>' : '') + '</div>' +
         '<div style="font-size:var(--fs-body);font-weight:600;white-space:nowrap;color:' + (value < 0 ? 'var(--green)' : 'var(--text2)') + '">' + fmt(value) + '</div>' +
       '</div>';
     }
@@ -4610,7 +4624,7 @@
       html +=
         '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
           '<div style="font-size:var(--fs-body);font-weight:600;color:var(--text);margin-bottom:4px">' + randomPick.name + '</div>' +
-          '<div style="font-size:var(--fs-meta);color:var(--text3)">' +
+          '<div class="note">' +
             (randomPick.room ? randomPick.room + ' · ' : '') +
             'Tier ' + getTaskTier(randomPick) + ' · ' +
             fmtMinutes(taskTime(randomPick)) +
@@ -5309,7 +5323,7 @@
         '<div><div class="stat-hero-num">' + fmtMinutes(thisWeek.minutes) + '</div><div class="stat-hero-label">invested' + (lastWeek.minutes ? ' (prev ' + fmtMinutes(lastWeek.minutes) + ')' : '') + '</div></div>' +
       '</div>' +
       '<div class="rule"></div>' +
-      '<div class="section-label" style="padding-left:26px;padding-right:26px"><span>Last 7 days</span>' +
+      '<div class="section-label gutter"><span>Last 7 days</span>' +
         '<span class="section-label-time">' + ((days[keyDaysAgo(0)] && days[keyDaysAgo(0)].count) || 0) + ' done today</span></div>' +
       weekBars +
       // Everything below is cards; they carry no horizontal margin of their own
@@ -5769,7 +5783,7 @@
 
     [...byRoom.keys()].sort().forEach(room => {
       const list = byRoom.get(room);
-      html += '<div class="section-label" style="padding-left:26px;padding-right:26px">' +
+      html += '<div class="section-label gutter">' +
         '<span>' + room + '</span>' +
         '<span class="section-label-time">' + list.length + ' task' + (list.length === 1 ? '' : 's') + '</span>' +
       '</div><div class="rowlist">';
@@ -5796,13 +5810,13 @@
         if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
         if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
         if (t.owner === 'bob') bits.push('Bob');
-        if (isCustom) bits.push('<span style="color:var(--blue)">custom</span>');
+        if (isCustom) bits.push('<span class="tag-custom">custom</span>');
         const cad = cadenceInfo(t);
         if (cad !== null) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + t.freq + 'd">~' + cad.real + 'd real</span>');
         const samples = (state.actualTimes || {})[t.id] || [];
         const learned = taskTime(t);
         if (samples.length >= 3 && learned !== t.time) {
-          bits.push('<span style="color:var(--blue)" title="learned from ' + samples.length + ' timed runs">~' + learned + 'm real (est ' + t.time + 'm)</span>');
+          bits.push('<span class="tag-learned" title="learned from ' + samples.length + ' timed runs">~' + learned + 'm real (est ' + t.time + 'm)</span>');
         }
 
         html +=
@@ -5817,7 +5831,7 @@
             '<div class="task-main" onclick="openModal(' + q + ')">' +
               '<div class="task-body">' +
                 '<div class="task-name">' +
-                  (isPinned ? '<span style="color:var(--amber);display:flex;flex-shrink:0">' + icon('pinFill', 12) + '</span>' : '') +
+                  (isPinned ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '') +
                   '<span class="task-name-text">' + t.name + '</span>' +
                   (inHand ? '<span class="in-hand-dot" title="In today\'s hand"></span>' : '') +
                 '</div>' +
