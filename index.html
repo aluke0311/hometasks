@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v6">
+  <meta name="app-version" content="2026-08-16 v7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1319,12 +1319,18 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v6';
+  const APP_VERSION = '2026-08-16 v7';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v7', notes: [
+      'Deep-clean tasks can finally be dealt. A task could never score better than 5% of its interval, so a yearly job could never beat a daily one no matter how long you left it — 68 tasks had never come up once. Every task now reaches the same floor at about twice its interval.',
+      'Keep up takes at most one deep-clean task a day, so the routine still comes first.',
+      'Catch up is now genuinely different from Keep up. Both used to hit the same limit and score overdue tasks identically. Catch up now goes after the backlog properly.',
+      'By freq is unchanged.',
+    ]},
     { v: '2026-08-16 v6', notes: [
       'Tidy-up only: spacing, corners and small text sizes now come from one set of values instead of being written by hand in 150 places. A few things move by one pixel. Nothing should look wrong — if something does, it is this.',
     ]},
@@ -1791,6 +1797,12 @@
     return (state.zoneMode || 'auto') === 'auto' ? autoZone() : state.zone;
   }
 
+  // The score every task converges toward once it is badly neglected, regardless
+  // of how long its interval is. Set just above a routine 3-day tidy that is one
+  // day late (2.50), so a totally neglected deep-clean task surfaces on a day when
+  // the routine is in good shape, and yields to it when it is not.
+  const NEGLECT_FLOOR = 3;
+
   function scoreTaskParts(task, zone) {
     const zoneRooms = ZONE_ROOMS[zone] || [];
     const inZone = zoneRooms.some(r => task.room.includes(r) || r.includes(task.room));
@@ -1802,7 +1814,24 @@
       base: task.freq,
       cat: task.cat ? -0.5 : 0,
       zone: inZone ? -2 : 0,
-      overdue: -Math.min(overdueRatio * task.freq * overdueWeight, task.freq * 0.8),
+      // The overdue relief used to stop at `freq * 0.8`, which meant the best score
+      // a task could ever reach was `freq * 0.05` — a floor that scaled with the
+      // interval. Routine work scores between 0.5 and 6, so a 180-day task (floor
+      // 9.00) could never compete and a 365-day task (floor 18.25) could never be
+      // dealt at all, at any level of neglect. That is why 68 tasks had never been
+      // completed once.
+      //
+      // Capping the relief at `freq - NEGLECT_FLOOR` instead gives every task the
+      // same floor, reached at roughly the same *relative* neglect: about 2x its
+      // own interval in Keep Up. Frequency still decides the order — a fresh
+      // 90-day task sits far below a due toilet, exactly as before. Only a badly
+      // neglected one catches up.
+      //
+      // This also repairs Catch Up, which was indistinguishable from Keep Up: both
+      // modes hit the old cap at the same point and scored identically from there
+      // on. With the floor as the limit, the 0.8 weight reaches it at ~1.25x the
+      // interval against Keep Up's ~2x, so the two modes finally differ.
+      overdue: -Math.min(overdueRatio * task.freq * overdueWeight, Math.max(0, task.freq - NEGLECT_FLOOR)),
       starvation: -Math.min(starvation * 0.3, task.freq * 0.15),
       flagged: (state.flaggedIds || []).includes(task.id) ? -50 : 0,
       overdueDays: overdue,
@@ -1918,6 +1947,20 @@
 
     const HEAVY_THRESHOLD = 15;
     const HEAVY_MAX = 2;
+    // Deep-clean tasks (tier C) now reach the same score floor as everything else
+    // once badly neglected — see NEGLECT_FLOOR. That is what finally makes them
+    // reachable, but it also means they arrive together: there are 60 of them and
+    // most are years past due, so they all sit on the floor at once and, left
+    // alone, they take the whole hand. Measured on real data: Keep Up dealt two
+    // 180-day window jobs and a washing machine, and dropped every sink and bin.
+    //
+    // Keep Up therefore takes at most one per hand — the routine is what the mode
+    // is for, and one deep task a day still clears the backlog faster than the
+    // zero it managed before. Catch Up has no limit, because clearing the backlog
+    // IS its job, and By Freq never reaches them anyway.
+    const DEEP_MAX = mode === 'catchup' ? Infinity : 1;
+    let deepCount = 0;
+    const isDeep = t => getTaskTier(t) === 'C';
     const mine = t => t.owner === 'alina' || t.owner === 'either';
 
     // Everything the day is already committed to before a single extra is picked:
@@ -1969,6 +2012,7 @@
       selected.push(t);
       timeUsed += tt;
       if (tt > HEAVY_THRESHOLD) heavyCount++;
+      if (isDeep(t)) deepCount++;   // a flagged deep task spends the slot
     }
 
     if (mode === 'byfreq') {
@@ -1999,11 +2043,13 @@
         const tt = taskTime(task);
         const isHeavy = tt > HEAVY_THRESHOLD;
         if (isHeavy && heavyCount >= HEAVY_MAX) continue;
+        if (isDeep(task) && deepCount >= DEEP_MAX) continue;
         if (timeUsed >= budget) break;
         if (timeUsed + tt > budget && selected.length > 0) break;
         selected.push(task);
         timeUsed += tt;
         if (isHeavy) heavyCount++;
+        if (isDeep(task)) deepCount++;
       }
     }
 
