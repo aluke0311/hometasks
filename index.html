@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v12">
+  <meta name="app-version" content="2026-08-16 v13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1477,12 +1477,19 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v12';
+  const APP_VERSION = '2026-08-16 v13';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v13', notes: [
+      'Fixed, and this one could lose real data: if you set "last done" to today and then unticked the task, the app threw away the true last-done date and made one up. On a twice-a-year job that moved the date six months backwards with no way back.',
+      'Fixed: if you left the app open overnight, tapping a ticked task the next morning marked it done a second time instead of unticking it. The app now notices when the day has changed.',
+      'Fixed: ticking a task off a preset or the Sprint list left its "overdue pressure" counter running, so it kept jumping the queue after you had already done it.',
+      'Fixed: restoring a backup now tells you how much came back, and refuses a damaged file instead of quietly replacing your history with a blank slate.',
+      'Fixed: the year review said you had done more tasks than its room breakdown accounted for. One-off tasks were falling through the gap.',
+    ]},
     { v: '2026-08-16 v12', notes: [
       'Tidy-up only, the last of it. The quiet grey notes, the pin marker and the blue "custom" and learned-time marks now come from shared rules. Nothing moves.',
     ]},
@@ -1699,6 +1706,16 @@
   
   // The only function that writes to localStorage. Cancels any pending debounce
   // so saveNow() and saveState() can never race to write the same state twice.
+  // True when the app is still showing a day that has since ended. state.handDate is
+  // the day dealHand last dealt for, so it is the app's own idea of "today".
+  function isStaleDay() {
+    return !!(state.handDate && state.handDate !== todayStr());
+  }
+  function refreshIfDayChanged() {
+    if (state.paused) return;      // vacation mode deliberately freezes the hand
+    if (isStaleDay()) render();    // render -> dealHand, which re-deals for the new day
+  }
+
   function saveNow() {
     if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; }
     try {
@@ -2402,10 +2419,15 @@
   // is internally consistent and improves as the estimates improve. The old stored
   // accumulator blended estimates taken at moments that no longer exist anywhere,
   // which meant it could never be recomputed and never be corrected.
+  // Where a completion goes when its task has since been deleted. Real enough to
+  // appear in the totals, never a candidate for "most/least attention" — naming a
+  // bucket as the room you neglect most would be a lie about a place.
+  const ORPHAN_ROOM = 'Since removed';
+
   function deriveYearStats(year) {
     const byId = {};
     getAllTasks().forEach(t => { byId[t.id] = t; });
-    const out = { since: year + '-01-01', count: 0, minutes: 0, byTask: {}, byRoom: {}, byMonth: {}, derived: true };
+    const out = { since: year + '-01-01', count: 0, minutes: 0, orphans: 0, byTask: {}, byRoom: {}, byMonth: {}, derived: true };
     const hist = state.completionHistory || {};
     Object.keys(hist).forEach(id => {
       const task = byId[id];
@@ -2419,6 +2441,15 @@
         if (task) {
           out.minutes += taskTime(task);
           out.byRoom[task.room] = (out.byRoom[task.room] || 0) + 1;
+        } else {
+          // The task no longer exists — usually a one-off, which completeTask
+          // deletes from customTasks the moment it is finished. The completion
+          // really happened, so it keeps its place in the count; it simply has no
+          // room and no knowable duration any more. Without this bucket, count and
+          // byRoom disagreed and the card showed "925 tasks done" over a room
+          // breakdown summing to 900, with nothing on screen to explain the gap.
+          out.byRoom[ORPHAN_ROOM] = (out.byRoom[ORPHAN_ROOM] || 0) + 1;
+          out.orphans++;
         }
       });
     });
@@ -2441,20 +2472,33 @@
     return stored && stored.count ? Object.assign({}, stored, { derived: false }) : null;
   }
 
-  function completeTask(id) {
-    const task = getAllTasks().find(t => t.id === id);
-    if (!task) return;
-    const prev = state.completions[id] || 0;
-    const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
-    // Remember the date this replaced, so the card's "undo" can put the real one
-    // back instead of inventing "now - freq". Only stash a genuinely older date:
-    // checking the same task off twice today must not overwrite it with today.
+  // Remember the date a completion is about to replace, so uncompleteTask can put
+  // the real one back instead of inventing "now - freq". Only stash a genuinely
+  // older date: checking the same task off twice today must not overwrite it.
+  //
+  // EVERY path that writes state.completions to a date of TODAY must call this
+  // first. It lived inside completeTask alone, and endTaskAsOf — the helper behind
+  // "Edit last done" and "did it earlier" — did not have it. So setting last-done
+  // to today and then unticking found no stash, fell into uncompleteTask's
+  // fabrication branch, and moved a twice-yearly task's real date six months
+  // backwards with no way back. Shared here so the two cannot drift apart again.
+  function stashPrevCompletion(id) {
     if (!state.prevCompletions) state.prevCompletions = {};
     Object.keys(state.prevCompletions).forEach(k => {
       const c = state.completions[k];
       if (!c || dayKeyOf(c) !== todayStr()) delete state.prevCompletions[k]; // same-day affordance only
     });
+    const prev = state.completions[id] || 0;
     if (!prev || dayKeyOf(prev) !== todayStr()) state.prevCompletions[id] = prev;
+    return prev;
+  }
+
+  function completeTask(id) {
+    const task = getAllTasks().find(t => t.id === id);
+    if (!task) return;
+    const prev = state.completions[id] || 0;
+    const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
+    stashPrevCompletion(id);
     state.completions[id] = Date.now();
     if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
     if (!state.completionHistory) state.completionHistory = {};
@@ -2479,6 +2523,12 @@
     // Clear snooze / in-progress on completion
     if (state.snoozed) delete state.snoozed[id];
     if (state.inProgress) delete state.inProgress[id];
+    // Starvation counts days DUE BUT NOT DEALT, so finishing the task must clear it.
+    // dealHand's daily tick zeroes it for anything in the hand, which is why this was
+    // invisible: it only bites when a task is ticked off a preset checklist or in
+    // Sprint without ever being dealt. That task kept its accumulated score bonus and
+    // the "why?" modal read "12 days due but not dealt" on a task finished seconds ago.
+    if (state.starvation) state.starvation[id] = 0;
     // Auto-unpin on completion
     if (state.pinnedIds && state.pinnedIds.includes(id)) {
       state.pinnedIds = state.pinnedIds.filter(p => p !== id);
@@ -2764,6 +2814,11 @@
   // never did — without it Stats and real-cadence silently missed every completion
   // recorded this way.
   function endTaskAsOf(id, task, ts) {
+    // Only meaningful when ts lands on today, which is the one case where the
+    // untick is reachable at all (toggleComplete gates it on wasCompletedToday).
+    // Calling it unconditionally is still right: it also prunes yesterday's stale
+    // stashes, exactly as completeTask does.
+    stashPrevCompletion(id);
     state.completions[id] = ts;
     if (!state.completionHistory) state.completionHistory = {};
     if (!state.completionHistory[id]) state.completionHistory[id] = [];
@@ -3105,8 +3160,7 @@
     const t = getAllTasks().find(x => x.id === id);
     if (!t) return;
     if (wasCompletedToday(t)) { showToast('Already logged today'); return; }
-    if (state.starvation) state.starvation[id] = 0;
-    completeTask(id);
+    completeTask(id); // clears starvation itself now; this used to do it by hand
   }
 
   // ─── THE ROW (redesign 2026-08-09, mockup 3a) ──────────────────────────────
@@ -5132,8 +5186,14 @@
       const d = deriveYearStats(reviewYear);
       if (!d.count) return '';
       const all = getAllTasks();
-      const nameOf = id => (all.find(t => t.id === id) || {}).name || id;
-      const rooms = Object.entries(d.byRoom).sort((a, b) => b[1] - a[1]);
+      // A deleted task has no name left to show. Falling through to the raw id put
+      // "oneoff_1780065430300" on screen as the thing she did most often.
+      const nameOf = id => (all.find(t => t.id === id) || {}).name
+        || (/^oneoff_/.test(id) ? 'a one-off task' : 'a task since removed');
+      // Superlatives name real rooms only; the orphan bucket counts but never wins.
+      const rooms = Object.entries(d.byRoom)
+        .filter(([room]) => room !== ORPHAN_ROOM)
+        .sort((a, b) => b[1] - a[1]);
       const topTask = Object.entries(d.byTask).sort((a, b) => b[1] - a[1])[0];
       const snoozed = Object.entries(state.snoozed || {}).length;
       const prev = deriveYearStats(reviewYear - 1);
@@ -5675,15 +5735,29 @@
     let parsed;
     try {
       parsed = JSON.parse(text);
-      if (!parsed.completions) throw new Error('missing completions');
+      // `completions` must be a real map. It used to be enough for it to be truthy,
+      // so a backup whose completions had become a string or an array sailed past
+      // this, coerceState quietly swapped in the 186-task default, and the toast
+      // still said "Data restored!" while every real date was gone.
+      if (!parsed.completions || typeof parsed.completions !== 'object' || Array.isArray(parsed.completions)) {
+        throw new Error('completions missing or not a map of task id to date');
+      }
     } catch(e) {
       showToast('Invalid data — check and try again'); return false;
     }
+    const claimed = Object.keys(parsed.completions).length;
     if (!confirm('Replace all current data with the imported data?')) return false;
     state = coerceState(parsed);
     saveState();
     render();
-    showToast('Data restored!');
+    // Report what actually landed, not that something happened. A restore that
+    // silently kept fewer tasks than the file claimed is the one thing she needs
+    // to see immediately, while the backup she pasted from is still to hand.
+    const kept = Object.keys(state.completions || {}).length;
+    const withHistory = Object.keys(state.completionHistory || {}).length;
+    showToast(kept < claimed
+      ? 'Restored ' + kept + ' of ' + claimed + ' tasks — check the backup'
+      : 'Restored ' + kept + ' tasks, ' + withHistory + ' with history');
     return true;
   }
   
@@ -6192,8 +6266,19 @@
     // about suspending them. Flush any pending debounced write before it goes.
     window.addEventListener('pagehide', saveNow);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') saveNow();
+      if (document.visibilityState === 'hidden') { saveNow(); return; }
+      refreshIfDayChanged();
     });
+    window.addEventListener('focus', refreshIfDayChanged);
+    // Nothing re-rendered when the calendar day rolled over under an open session,
+    // and the phone spends every night with this tab open. The screen kept showing
+    // last night's hand with the task still ticked, but wasCompletedToday had
+    // flipped to false underneath it — so tapping the ticked card to UNDO ran
+    // completeTask instead and logged a second completion, with the card looking
+    // identical before and after. Visibility alone is not enough: a tab that stays
+    // visible through midnight never fires it, hence the poll as well. render()
+    // re-deals via dealHand's own handDate check, so this only has to notice.
+    setInterval(refreshIfDayChanged, 60000);
   }
   
   init();

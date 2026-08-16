@@ -688,6 +688,51 @@ test('a corrupt paste cannot poison state (guards Fix 2)', () => {
   }
 });
 
+// `completions` used only to be checked for truthiness, so a backup whose map had
+// become a string or an array passed the guard, coerceState quietly substituted the
+// default, and the toast still said "Data restored!" over the wreckage.
+test('an import whose completions is not a map is refused, not silently defaulted', () => {
+  const saved = snap();
+  try {
+    ['"nope"', '[1,2,3]', 'null', '0'].forEach(bad => {
+      const st = fresh();
+      st.completions = { k_dishes: 1234567890 };             // a value worth protecting
+      S('state', st);
+      const ok1 = G('applyImport')('{"completions":' + bad + '}');
+      eq(ok1, false, 'applyImport accepted completions=' + bad);
+      eq(G('state').completions.k_dishes, 1234567890,
+         'a refused import still overwrote the existing completions (bad=' + bad + ')');
+    });
+    // and the good shape still imports
+    const st2 = fresh(); S('state', st2);
+    eq(G('applyImport')('{"completions":{"k_dishes":99}}'), true, 'a valid map was refused');
+    eq(G('state').completions.k_dishes, 99, 'valid import did not land');
+  } finally {
+    S('state', saved);
+  }
+});
+
+// A completed one-off is deleted from customTasks, but its history entry survives.
+// count incremented for it while byRoom could not place it, so Year in Review showed
+// "925 tasks done" above a room breakdown summing to 900, with nothing explaining it.
+test('year stats reconcile: the room breakdown sums to the headline count', () => {
+  const probe = probeTask();
+  const Y = new Date().getFullYear();
+  withState(st => {
+    st.completionHistory = {};
+    st.completionHistory[probe.id] = [new Date(Y, 2, 3).getTime()];
+    st.completionHistory['oneoff_9999999999999'] = [new Date(Y, 2, 4).getTime()];
+    st.completionHistory['some_deleted_base_task'] = [new Date(Y, 2, 5).getTime()];
+    st.actualTimes = {};
+  }, () => {
+    const d = G('deriveYearStats')(Y);
+    eq(d.count, 3, 'all three completions really happened and must be counted');
+    eq(d.orphans, 2, 'two of them belong to tasks that no longer exist');
+    const summed = Object.values(d.byRoom).reduce((a, b) => a + b, 0);
+    eq(summed, d.count, 'byRoom sums to ' + summed + ' against a count of ' + d.count);
+  });
+});
+
 test('deriveYearStats counts, minutes and per-room totals from history', () => {
   const probe = probeTask();
   const other = G('getAllTasks')().find(t => t.room !== probe.room &&
@@ -1114,6 +1159,54 @@ test('uncompleting a task restores the real previous date, not an invented one',
   });
 });
 
+// Same invariant as the case above, reached through the OTHER writer. The stash
+// lived inside completeTask alone, so endTaskAsOf — behind "Edit last done" and
+// "did it earlier" — never wrote one. Setting last-done to today and then unticking
+// found no stash, fell into uncompleteTask's `now - freq` branch, and moved a
+// twice-yearly task's real date six months backwards, unrecoverably.
+test('setting last-done to today then unticking restores the real previous date', () => {
+  const id = 'k_oven_int';                                   // freq 180
+  const real = Date.now() - 200 * DAY;
+  withState(st => {
+    st.completions[id] = real;
+    st.completionHistory[id] = [real];
+    st.prevCompletions = {};
+  }, () => {
+    const todayStr = G('todayStr')();
+    G('setLastDone')(id, todayStr);
+    ok(G('wasCompletedToday')(G('getAllTasks')().find(t => t.id === id)),
+       'precondition: the task now reads as completed today');
+    G('uncompleteTask')(id);
+    eq(G('state').completions[id], real,
+       'unticking after "edit last done" invented a date instead of restoring the real one');
+  });
+});
+
+// Starvation counts days DUE BUT NOT DEALT, so finishing the task must clear it.
+// dealHand's daily tick zeroes it for anything in the hand, which hid this: it only
+// bites when a task is ticked off a preset checklist or in Sprint, never dealt.
+test('completing a task clears its starvation counter even when it was never dealt', () => {
+  const id = 'k_oven_int';
+  withState(st => {
+    st.completions[id] = Date.now() - 400 * DAY;
+    st.starvation[id] = 12;
+    st.hand = [];                                            // never dealt
+    // Load-bearing. dealHand's tick runs once per calendar day and zeroes the
+    // counter for anything in the hand — including a task completed today, which
+    // stays in the hand so its card can show as done. Leave starvationDate unset
+    // and that tick fires AFTER the completion and cleans up regardless, so the
+    // case passes against a build with the fix removed. By the time she completes
+    // anything the day's tick has already run, so pinning it here is also the
+    // honest fixture, not just the one that fails correctly.
+    st.starvationDate = G('todayStr')();
+  }, () => {
+    eq(G('state').starvation[id], 12, 'precondition: the counter is standing at 12');
+    G('toggleComplete')(id);                                 // exactly what a preset tick does
+    eq(G('state').starvation[id], 0,
+       'a task completed outside the hand kept a score bonus it had already spent');
+  });
+});
+
 test('completing twice in a day does not overwrite the stashed previous date', () => {
   const id = 'k_fridge_deep';
   withState(st => { st.completions[id] = Date.now() - 10 * DAY; }, () => {
@@ -1300,6 +1393,30 @@ test('sprint and preset checklist cards toggle rather than only complete', () =>
        'a preset checklist card is still wired straight to completeTask');
   });
   switchTabQuiet('alina');
+});
+
+// Nothing re-rendered when the calendar day rolled over under an open session, and
+// the phone spends every night with the tab open. The screen kept showing the task
+// ticked while wasCompletedToday had flipped underneath it, so tapping the ticked
+// card to UNDO ran completeTask and logged a second completion instead.
+test('a session left open past midnight knows its screen is stale', () => {
+  withState(st => { st.handDate = G('todayStr')(); st.paused = false; }, () => {
+    eq(G('isStaleDay')(), false, 'a hand dealt today must not read as stale');
+    G('state').handDate = '2020-01-01';                      // the day ended while we sat here
+    eq(G('isStaleDay')(), true, 'a hand dealt on a previous day must read as stale');
+    // refreshIfDayChanged re-deals through render(); after it, the app is current.
+    G('refreshIfDayChanged')();
+    eq(G('state').handDate, G('todayStr')(), 'the rollover did not re-deal for the new day');
+    eq(G('isStaleDay')(), false, 'still stale after a refresh');
+  });
+});
+
+// Vacation mode deliberately freezes the hand, so the rollover must not thaw it.
+test('the day-rollover refresh does not re-deal while paused', () => {
+  withState(st => { st.handDate = '2020-01-01'; st.paused = true; st.pausedAt = Date.now(); }, () => {
+    G('refreshIfDayChanged')();
+    eq(G('state').handDate, '2020-01-01', 'pausing stopped mattering at midnight');
+  });
 });
 
 // ─── Controls are visible ──────────────────────────────────────────────────
