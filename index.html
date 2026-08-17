@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v3">
+  <meta name="app-version" content="2026-08-17 v4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1594,12 +1594,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v3';
+  const APP_VERSION = '2026-08-17 v4';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v4', notes: [
+      'A laundry card now names its first step before you start it: "Wash cools / Into the washer". Ticking it means you put the load in, not that the washing is finished — which is what it looked like it meant, and why you would not have tapped it.',
+      'Same for the dishwasher and the fountain, and the four dots are there from the start so you can see it is a multi-step job before you begin.',
+    ]},
     { v: '2026-08-17 v3', notes: [
       'The laundry card now says where the load actually is — "In the washer", "In the dryer" — and only switches to telling you what to do once the machine should be finished. You should never be asked to move something to the dryer while it is still washing.',
       'The dishwasher and the cat fountain are cycles now too. The fountain is cleaned in the dishwasher, so both wait 2h 9m before the last step. The fountain still always turns up when it is due.',
@@ -2265,8 +2269,8 @@
       label: 'Laundry',
       dealMax: 1,          // how many the DEALER opens. Not a cap — see startExtraCycle.
       stages: [
-        { key: 'wash', action: 'Start the wash',       phase: 'Sorting',    mins: 5,  readyIn: 0  },
-        { key: 'dry',  action: 'Move it to the dryer', phase: 'In the washer', mins: 3,  readyIn: 55 },
+        { key: 'wash', action: 'Into the washer',      phase: 'Sorting',    mins: 5,  readyIn: 0  },
+        { key: 'dry',  action: 'Into the dryer',       phase: 'In the washer', mins: 3,  readyIn: 55 },
         { key: 'fold', action: 'Fold it',              phase: 'In the dryer',  mins: 10, readyIn: 60 },
         { key: 'away', action: 'Put it away',          phase: 'Folded',     mins: 5,  readyIn: 0  },
       ],
@@ -2287,7 +2291,7 @@
       // waits the same 2h 9m as the dishwasher's own cycle.
       alwaysAssign: true,
       stages: [
-        { key: 'strip',      action: 'Strip it into the dishwasher', phase: 'Needs cleaning',    mins: 5, readyIn: 0   },
+        { key: 'strip',      action: 'Into the dishwasher',       phase: 'Needs cleaning',    mins: 5, readyIn: 0   },
         { key: 'reassemble', action: 'Reassemble and refill it',     phase: 'In the dishwasher', mins: 5, readyIn: 129 },
       ],
     },
@@ -3610,13 +3614,19 @@
     // A load whose cycle is running renders as the cycle: ONE card carrying the
     // step she actually has to do next, plus a dot per stage. Four separate rows
     // for one load of laundry is exactly what this replaces.
-    const cyc = (cycleDefFor(task) && !isDone) ? cycleForTask(task.id) : null;
-    const cycDef = cyc ? CYCLES[cyc.def] : null;
+    const cycKey = cycleDefFor(task);
+    const cyc = (cycKey && !isDone) ? cycleForTask(task.id) : null;
+    const cycDef = cyc ? CYCLES[cyc.def] : (cycKey ? CYCLES[cycKey] : null);
     const cycStale = cyc ? cycleIsStale(cyc) : false;
-    const cycExtra = cyc ? cyclesForTask(task.id).length - 1 : 0;
+    // Before anything is running, the card has to name the FIRST step too. "Wash
+    // cools" alone is not something she will tick when the machine has just been
+    // loaded, because the washing is not done — so the card says what the tap
+    // actually claims: "Wash cools / Into the washer".
+    const cycFirst = (cycKey && !cyc && !isDone) ? CYCLES[cycKey].stages[0] : null;
 
     // The meta line, in priority order — it ellipsizes, so what matters goes first.
     const bits = [];
+    if (cycFirst) bits.push('<span class="cyc-step">' + cycFirst.action + '</span>');
     if (cyc) {
       // The step replaces the overdue chip. A load two days into its cycle is not
       // late in any way she can act on; what she needs is "move it to the dryer".
@@ -3629,8 +3639,8 @@
     // The line ellipsizes, and on a cycling card the step name plus the ready time
     // already fill it. "step 2 of 4" is what the dots say, and the room is implied
     // by the load — both were pushing the ready time off the end.
-    if (task.room && !cyc) bits.push(task.room);
-    if (!task.oneOff && !cyc) bits.push(freqLabel(task.freq));
+    if (task.room && !cyc && !cycFirst) bits.push(task.room);
+    if (!task.oneOff && !cyc && !cycFirst) bits.push(freqLabel(task.freq));
     if (task.oneOff) bits.push('one-off');
     if (!isDone && !cyc) {
       if (isSnoozed) {
@@ -3657,12 +3667,13 @@
 
     // Sprint drops the whole meta line, so the step has to ride on the name line
     // there or a cycling load reads as a bare "Wash whites" with nothing to do.
-    const cycStepHtml = cyc ? '<span class="cyc-step">' + cycleStatusLabel(cyc) + '</span>' : '';
+    const cycStepHtml = cyc ? '<span class="cyc-step">' + cycleStatusLabel(cyc) + '</span>'
+      : (cycFirst ? '<span class="cyc-step">' + cycFirst.action + '</span>' : '');
 
     // A cycling card is timed by its current STEP, not by the load. Ticking it
     // moves the load one stage on, and three minutes is the honest answer to
     // "what does this tap cost me".
-    const stepMins = cyc ? cycleStageMins(cyc) : taskTime(task);
+    const stepMins = cyc ? cycleStageMins(cyc) : (cycFirst ? cycFirst.mins : taskTime(task));
     const timeHtml = timerRunning
       ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - getTimer().startedAt) + '</span>'
       : (isDone ? '' : '<span class="task-time">' + fmtMinutes(stepMins) + '</span>');
@@ -3670,9 +3681,12 @@
     // Not in compact rows. Sprint is a walkthrough — "Fold laundry" is the
     // instruction and "how far through" is a nicety, and with both on one line the
     // name wrapped to two rows and the step truncated to "Fold laun…".
-    const dotsHtml = (cyc && !compact)
+    // Shown before the job starts as well, so the card reads as a four-step thing
+    // rather than a task she is refusing to tick.
+    const dotStage = cyc ? cyc.stage : 0;
+    const dotsHtml = ((cyc || cycFirst) && !compact)
       ? '<span class="cyc-dots" aria-hidden="true">' + cycDef.stages.map((s, i) =>
-          '<span class="cyc-dot' + (i < cyc.stage ? ' done' : (i === cyc.stage ? ' now' : '')) + '"></span>').join('') + '</span>'
+          '<span class="cyc-dot' + (i < dotStage ? ' done' : (i === dotStage ? ' now' : '')) + '"></span>').join('') + '</span>'
       : '';
 
     const pinGlyph = isPinned && !isDone

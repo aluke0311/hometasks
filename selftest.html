@@ -542,6 +542,26 @@ test('the owning task completes only when the last step does', () => {
   });
 });
 
+test('a cycle owner names its first step before anything is running', () => {
+  // "Wash cools" on its own is not something she will tick when the machine has
+  // just been loaded, because the washing is not done. The card has to say what
+  // the tap actually claims.
+  const owner = aCycleOwner('laundry');
+  withState(st => {
+    st.hand = null; st.handDate = null; st.cycles = {};
+    st.completions[owner.id] = Date.now() - 30 * DAY;
+  }, () => {
+    eq(G('cyclesForTask')(owner.id).length, 0, 'precondition: nothing running');
+    const first = G('CYCLES').laundry.stages[0];
+    const html = G('renderCard')(owner, false);
+    ok(html.indexOf(first.action) !== -1,
+       'the card does not name the first step (' + first.action + ') before the job starts');
+    // And in Sprint's compact row, which drops the whole meta line.
+    ok(G('renderCard')(owner, false, { compact: true }).indexOf(first.action) !== -1,
+       'the compact row does not name the first step');
+  });
+});
+
 test('the card shows where the job is before the machine is free, and what to do after', () => {
   // Her ask, and the reason phase exists: she will not tap "move it to the dryer"
   // while it is still washing, so being told to is noise.
