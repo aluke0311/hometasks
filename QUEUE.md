@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-17 · app at `2026-08-17 v5` · selftest 98/98 green.
+Last touched: 2026-08-17 · app at `2026-08-17 v6` · selftest 103/103 green.
 
 ---
 
