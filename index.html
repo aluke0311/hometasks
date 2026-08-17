@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v2">
+  <meta name="app-version" content="2026-08-17 v3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -504,6 +504,25 @@
     .field-check:checked::after { content: '✓'; position: absolute; inset: 0;
                                   display: flex; align-items: center; justify-content: center;
                                   color: var(--on-accent); font-size: var(--fs-sub); line-height: 1; }
+    /* Full-page variant, used by the task editor. A form with eight sections does
+       not belong in a 92vh sheet: the last two fell below the fold with nothing to
+       signal them. Same open/close contract, different shape. */
+    .modal-backdrop.as-page { align-items: stretch; }
+    .modal-backdrop.as-page > .modal { max-height: none; height: 100%; border-radius: 0; margin-bottom: 0; }
+    .modal-backdrop.as-page .modal-header { position: sticky; top: 0; background: var(--card); z-index: 1; gap: var(--s-5); }
+    .modal-backdrop.as-page .modal-title { flex: 1; text-align: center; }
+    .modal-backdrop.as-page .modal-close { margin-left: calc(-1 * var(--s-4)); }
+    /* A named divider for each group of fields, so nothing reads as hidden. */
+    .ed-section { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--eyebrow); font-weight: 600; padding-top: var(--s-5); border-top: 0.5px solid var(--hairline); }
+    .modal-btn.wide-danger { width: 100%; padding: 12px; margin-top: var(--s-5); }
+    /* Per-stage machine time. Her machines, not mine — the built-in numbers are a
+       starting point and every one of them is editable. */
+    .cyc-timings:empty { display: none; }
+    .cyc-timings { display: flex; flex-direction: column; gap: var(--s-4); margin-top: var(--s-5); padding: var(--s-6); background: var(--bg2); border-radius: var(--radius); }
+    .cyc-timing-row { display: flex; align-items: center; gap: var(--s-5); font-size: var(--fs-sub); color: var(--text2); }
+    .cyc-timing-row .cyc-timing-name { flex: 1; min-width: 0; }
+    .cyc-timing-row input { width: 74px; flex-shrink: 0; }
+    .cyc-timing-note { font-size: var(--fs-meta); color: var(--text3); }
     .modal-footer { padding: var(--s-6) var(--s-9) var(--s-8); border-top: 0.5px solid var(--border); display: flex; gap: var(--s-5); justify-content: flex-end; flex-shrink: 0; }
     /* Task actions sheet (D-6). The card shows at most two contextual buttons; the
        rare actions live here, where they get room to be legible instead of
@@ -962,7 +981,7 @@
                    option, and "Zone 3 — Sunroom, Office, DS Bath, Laundry" pushed
                    the control off the strip. The zone→rooms reference lives in
                    Settings, which the plan keeps in full. -->
-              <option value="auto" id="zoneAutoOption">Auto zone</option>
+              <option value="auto" id="zoneAutoOption">Zone</option>
               <option value="0">No zone</option>
               <option value="1">Zone 1</option>
               <option value="2">Zone 2</option>
@@ -1109,12 +1128,17 @@
   </div>
 
   <!-- Task edit/add modal -->
-  <div class="modal-backdrop" id="taskModal" onclick="if(event.target===this)closeModal()">
+  <!-- The task editor is a full-height PAGE, not a bottom sheet. As a sheet it was
+       capped at 92vh with a grab handle and a footer eating the ends, so the last
+       two sections — active months and the vacation setting — sat below the fold
+       with nothing to say they were there. She could not find the freeze setting
+       at all. Same showSheet/hideSheet contract, different shape. -->
+  <div class="modal-backdrop as-page" id="taskModal">
     <div class="modal">
-      <div class="sheet-grab-zone" onclick="closeModal()"><div class="sheet-grab"></div></div>
       <div class="modal-header">
+        <button class="modal-close" onclick="closeModal()" aria-label="Cancel">&#10005;</button>
         <span class="modal-title" id="modalTitle">Add task</span>
-        <button class="modal-close" onclick="closeModal()">&#10005;</button>
+        <button class="modal-btn primary" onclick="saveTask()">Save</button>
       </div>
       <div class="modal-body">
         <div>
@@ -1143,14 +1167,27 @@
             <option value="bob">Bob only</option>
           </select>
         </div>
+
+        <div class="ed-section">Multi-step job</div>
+        <div>
+          <div class="field-label">Cycle</div>
+          <select class="field-select" id="f_cycle" onchange="renderCycleTimings()">
+            <option value="">None — a single task</option>
+          </select>
+          <div id="cycleTimings" class="cyc-timings"></div>
+        </div>
+        <div class="field-check-row">
+          <input type="checkbox" id="f_load" class="field-check">
+          <label for="f_load">Laundry load (competes for the one wash slot)</label>
+        </div>
+
+        <div class="ed-section">Priority</div>
         <div class="field-check-row">
           <input type="checkbox" id="f_cat" class="field-check">
           <label for="f_cat">Cat-related task (priority tiebreaker)</label>
         </div>
-        <div class="field-check-row">
-          <input type="checkbox" id="f_load" class="field-check">
-          <label for="f_load">Laundry load (competes for the one daily wash slot)</label>
-        </div>
+
+        <div class="ed-section">When it applies</div>
         <div>
           <div class="field-label">Active months (none selected = all year)</div>
           <div id="monthChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
@@ -1160,17 +1197,17 @@
           <div id="vacChips" class="vac-chips"></div>
           <div id="vacHint" class="vac-hint"></div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <!-- Delete used to live as a ✕ on every manage row. The rows are clean
-             now, so this is the only way to remove a custom task or hide a base
-             one — openModal() shows it for an existing task only. -->
-        <button class="modal-btn danger" id="modalDelete" onclick="deleteTask(editingId)" style="margin-right:auto">Delete</button>
-        <button class="modal-btn" onclick="closeModal()">Cancel</button>
-        <button class="modal-btn primary" onclick="saveTask()">Save</button>
+
+        <!-- Delete used to live as a ✕ on every manage row. The rows are clean now,
+             so this is the only way to remove a custom task or hide a base one.
+             In the page layout it belongs at the end of the form, not in a footer
+             where it sat next to Save. -->
+        <button class="modal-btn danger wide-danger" id="modalDelete" onclick="deleteTask(editingId)">Delete this task</button>
+        <div class="bottom-pad"></div>
       </div>
     </div>
   </div>
+  
   
   <script>
   // ─── ICONS ─────────────────────────────────────────────────────────────────
@@ -1259,13 +1296,9 @@
     // ── DAILY KITCHEN (either) ──
     { id:'k_tidy',           name:'Kitchen tidy',                        room:'Kitchen',       freq:1,   time:5,  owner:'either' },
     { id:'k_counters',       name:'Wipe counters',                       room:'Kitchen',       freq:1,   time:5,  owner:'either' },
-    { id:'k_dishwasher',     name:'Unload dishwasher',                   room:'Kitchen',       freq:1,   time:5,  owner:'either' },
+    { id:'k_dishwasher',     name:'Dishwasher',                          room:'Kitchen',       freq:1,   time:5,  owner:'either', cycle:'dishwasher' },
   
     // ── LAUNDRY PROCESS (daily, alina) ──
-    { id:'l_start',          name:'Start a load of laundry',             room:'Laundry Room',  freq:1,   time:10, owner:'alina' },
-    { id:'l_dryer',          name:'Move laundry to dryer',               room:'Laundry Room',  freq:1,   time:3,  owner:'alina' },
-    { id:'l_fold',           name:'Fold laundry',                        room:'Laundry Room',  freq:1,   time:10, owner:'alina' },
-    { id:'l_put_away',       name:'Put away laundry',                    room:'Laundry Room',  freq:1,   time:5,  owner:'alina' },
   
     // ── BEDROOM DAILY ──
     { id:'bed_make',         name:'Make bed',                            room:'Bedroom',       freq:1,   time:3,  owner:'either' },
@@ -1409,7 +1442,7 @@
     // ── LAUNDRY ROOM ──
     { id:'lroom_tidy',       name:'Tidy laundry room',                   room:'Laundry Room',  freq:7,   time:5,  owner:'either' },
     // Colour-sorted clothing loads (split out of the old single 'my clothes' load).
-    // load:true puts them in the one-per-day wash slot — see LAUNDRY_LOAD_IDS.
+    // load:true makes these owners of the `laundry` cycle — see CYCLES.
     { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
     { id:'lroom_cools',      name:'Wash cools',                          room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
     { id:'lroom_warms',      name:'Wash warms',                          room:'Laundry Room',  freq:10,  time:5,  load:true, owner:'alina' },
@@ -1422,7 +1455,7 @@
     { id:'lroom_blankets',   name:'Wash blankets',                       room:'Laundry Room',  freq:180, time:10, owner:'either' },
   
     // ── CAT WATER FOUNTAIN (alina, top priority) ──
-    { id:'c_fountain',       name:'Clean cat water fountain',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'alina' },
+    { id:'c_fountain',       name:'Clean cat water fountain',            room:'Cats',          freq:14,  time:5,  cat:true,  owner:'alina', cycle:'fountain' },
   
     // ── SUNROOM ──
     { id:'sun_tidy',         name:'Tidy sunroom',                        room:'Sunroom',       freq:14,  time:8,  owner:'either' },
@@ -1545,28 +1578,38 @@
   };
   
   // Frequency label
+  // Short by design. This sits on a one-line meta strip that ellipsizes, next to
+  // the room, the lateness and the real-cadence hint — "every 45 days" spent 13
+  // characters to say what "45d" says, and pushed everything after it off the edge.
   function freqLabel(days) {
     if (days === 1) return 'daily';
-    if (days <= 3) return 'every ' + days + ' days';
     if (days === 7) return 'weekly';
-    if (days === 14) return 'every 2 weeks';
-    if (days === 21) return 'every 3 weeks';
+    if (days === 14) return 'fortnightly';
     if (days === 30) return 'monthly';
-    if (days <= 45) return 'every ' + days + ' days';
     if (days === 90) return 'quarterly';
     if (days === 180) return 'twice a year';
     if (days === 365) return 'yearly';
-    return 'every ' + days + ' days';
+    return days + 'd';
   }
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v2';
+  const APP_VERSION = '2026-08-17 v3';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v3', notes: [
+      'The laundry card now says where the load actually is — "In the washer", "In the dryer" — and only switches to telling you what to do once the machine should be finished. You should never be asked to move something to the dryer while it is still washing.',
+      'The dishwasher and the cat fountain are cycles now too. The fountain is cleaned in the dishwasher, so both wait 2h 9m before the last step. The fountain still always turns up when it is due.',
+      'You can set how long your own machines take: open any task in that cycle and edit the minutes per step.',
+      'The four old laundry tasks (start a load, move to dryer, fold, put away) are gone for good, along with their rows on the Full Reset, Express Reset, Return Home, Before Cleaners, Recovery and Evening Shutdown lists. Laundry lives on your hand as one card.',
+      'Editing a task now opens a full page instead of a half-height panel, with every option on it. The "while you are away" setting was below the fold and effectively unfindable.',
+      '"Mark in progress" and "Start the timer" are two separate buttons now, both always there. They used to be one button that did both, so there was no way to have one without the other.',
+      'Task details no longer run off the right edge: "4d overdue" rather than "4 days overdue", and shorter frequency labels.',
+      'The zone selector just says the zone now.',
+    ]},
     { v: '2026-08-17 v2', notes: [
       'New in Settings: "Bob\'s away". Switch it on and his 18 tasks join your hand until you switch it back. The card tells you what that costs — about 58 minutes a week of non-daily work on top of yours — because his list is not free.',
       'Flagging one of Bob\'s tasks now sends that one task to you. Before, flagging his work set a marker and changed nothing at all, which meant the button was lying.',
@@ -1736,7 +1779,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, bobAway: false, bobAwaySince: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, cycleTimings: {}, cycleChoice: {}, cycleChoiceDate: null, bobAway: false, bobAwaySince: null };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -1748,6 +1791,7 @@
     handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
     lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number', seenVersion: 'string',
     todayBudget: 'number', todayBudgetDate: 'string', activeTimer: 'object', bobAwaySince: 'number',
+    cycleChoiceDate: 'string',
   };
 
   // The single place a parsed blob becomes a valid state object — used by both the
@@ -2195,71 +2239,117 @@
   
   // ─── CYCLES ────────────────────────────────────────────────────────────────
   // A cycle is a multi-stage job you start once and come back to: wash, move to
-  // the dryer, fold, put away. Its stages are ORDINARY TASKS, so ticking one
-  // still writes completions and history and still feeds Stats and the real-
-  // cadence hint. What the cycle adds is order and an INSTANCE: the running load
-  // knows which step it is on, which is what lets two loads be in flight at once
-  // without fighting over a single row in TASKS.
+  // the dryer, fold, put away. One TASK owns the cycle and carries the frequency
+  // ("Wash whites", every 7 days); the stages are steps inside it and are NOT
+  // tasks. They were tasks in the first cut, which meant four freq-1 dailies that
+  // dealHand had to suppress by hand and that showed up in Stats as work of their
+  // own. Steps have no cadence — "move to dryer" is not due every day, it is due
+  // 55 minutes after the wash started — so they live here and nowhere else.
   //
-  // Only the FIRST thing is scheduled. The load task carries the freq; the stages
-  // have no frequency of their own, because "move to dryer" is not due every day
-  // — it is due 55 minutes after the wash started. Giving them a frequency is
-  // exactly what produced the four freq-1 dailies that dealHand had to suppress
-  // with a special case.
+  // Each stage carries:
+  //   action  — what she does to advance ("Move it to the dryer")
+  //   phase   — what is true WHILE that action is pending ("In the washer"). This
+  //             is what the card shows before the machine is finished, so she can
+  //             see where the load is without being told to do something she has
+  //             not been able to do yet.
+  //   mins    — her hands-on time for the step
+  //   readyIn — machine minutes after the PREVIOUS step before this one can be
+  //             done. Overridable per stage in Settings; see stageReadyIn().
   //
-  // `readyIn` is minutes of machine time before a stage can really be done. It is
-  // stored and displayed and does NOT block the tick — see cycleReadyLabel().
+  // readyIn never blocks the tick. It picks which of phase/action the card shows,
+  // and that is deliberately all it does: everything else in the app resolves at
+  // calendar-day granularity, so a hard gate here would be the first sub-day due
+  // rule in the codebase.
   const CYCLES = {
     laundry: {
-      maxOpen: 1,          // one washer. Raise this to allow concurrent loads.
+      label: 'Laundry',
+      dealMax: 1,          // how many the DEALER opens. Not a cap — see startExtraCycle.
       stages: [
-        { task: 'l_start',    readyIn: 0  },
-        { task: 'l_dryer',    readyIn: 55 },
-        { task: 'l_fold',     readyIn: 60 },
-        { task: 'l_put_away', readyIn: 0  },
+        { key: 'wash', action: 'Start the wash',       phase: 'Sorting',    mins: 5,  readyIn: 0  },
+        { key: 'dry',  action: 'Move it to the dryer', phase: 'In the washer', mins: 3,  readyIn: 55 },
+        { key: 'fold', action: 'Fold it',              phase: 'In the dryer',  mins: 10, readyIn: 60 },
+        { key: 'away', action: 'Put it away',          phase: 'Folded',     mins: 5,  readyIn: 0  },
+      ],
+    },
+    dishwasher: {
+      label: 'Dishwasher',
+      dealMax: 1,
+      stages: [
+        { key: 'load',   action: 'Load it',   phase: 'Dishes to go in', mins: 5, readyIn: 0   },
+        { key: 'run',    action: 'Start it',  phase: 'Loaded',          mins: 1, readyIn: 0   },
+        { key: 'unload', action: 'Unload it', phase: 'Running',         mins: 5, readyIn: 129 },
+      ],
+    },
+    fountain: {
+      label: 'Cat fountain',
+      dealMax: 1,
+      // The fountain is cleaned IN the dishwasher, which is why its second step
+      // waits the same 2h 9m as the dishwasher's own cycle.
+      alwaysAssign: true,
+      stages: [
+        { key: 'strip',      action: 'Strip it into the dishwasher', phase: 'Needs cleaning',    mins: 5, readyIn: 0   },
+        { key: 'reassemble', action: 'Reassemble and refill it',     phase: 'In the dishwasher', mins: 5, readyIn: 129 },
       ],
     },
   };
   const CYCLE_STALE_DAYS = 3;
 
-  // Which cycle a task starts. `load: true` is the marker rather than a new
-  // task-level field on purpose: saveTask rebuilds a custom task from an explicit
-  // field list, so a `cycle:'laundry'` property would be silently stripped the
-  // first time she edited the task. `load` survives only because it owns the
-  // f_load checkbox, and it already means "this is a wash".
-  function cycleDefFor(task) { return task && task.load ? 'laundry' : null; }
-
-  // A stage task is never scheduled on its own. It reaches the hand only as the
-  // current step of a running cycle — without this the four laundry steps, all
-  // freq 1, would deal every single day and starve forever between loads.
-  const CYCLE_STAGE_IDS = new Set(
-    Object.keys(CYCLES).reduce((acc, k) => acc.concat(CYCLES[k].stages.map(s => s.task)), [])
-  );
-  function isCycleStage(id) { return CYCLE_STAGE_IDS.has(id); }
+  // Which cycle a task owns. `load: true` still implies laundry so existing data
+  // and the wash-slot checkbox keep working; anything else says so explicitly.
+  // NOTE: `cycle` is a task-level field, so it MUST stay in saveTask's field list
+  // and in the editor form, or editing the task silently strips it.
+  function cycleDefFor(task) {
+    if (!task) return null;
+    if (task.cycle && CYCLES[task.cycle]) return task.cycle;
+    return task.load ? 'laundry' : null;
+  }
+  function cycleOwnerTasks() { return getAllTasks().filter(t => cycleDefFor(t)); }
 
   function openCycles() {
     const c = state.cycles || {};
     return Object.keys(c).map(cid => Object.assign({ cid }, c[cid]));
   }
-  function cycleForTask(taskId) {
+  function cyclesForTask(taskId) {
     const c = state.cycles || {};
-    const cid = Object.keys(c).find(k => c[k].taskId === taskId);
-    return cid ? Object.assign({ cid }, c[cid]) : null;
+    return Object.keys(c).filter(k => c[k].taskId === taskId).map(cid => Object.assign({ cid }, c[cid]));
+  }
+  // The first running cycle for a task. More than one can exist — she can start a
+  // second load by hand — and the card renders the one that started first.
+  function cycleForTask(taskId) {
+    const list = cyclesForTask(taskId).sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+    return list.length ? list[0] : null;
   }
   function cycleStageDef(c) {
     const def = CYCLES[c && c.def];
     return def ? def.stages[c.stage] : null;
   }
-  function cycleStageTask(c) {
+  // Her override wins over the built-in wait, so she can tell the app how long
+  // her own machines actually take.
+  function stageReadyIn(defKey, stageIdx) {
+    const def = CYCLES[defKey];
+    const stage = def && def.stages[stageIdx];
+    if (!stage) return 0;
+    const key = defKey + '.' + stage.key;
+    const override = (state.cycleTimings || {})[key];
+    return (typeof override === 'number' && override >= 0) ? override : (stage.readyIn || 0);
+  }
+  function cycleStageMins(c) {
     const s = cycleStageDef(c);
-    return s ? getAllTasks().find(t => t.id === s.task) : null;
+    return s ? (s.mins || 0) : 0;
   }
   function cycleIsStale(c) {
     return Date.now() - (c.stageAt || c.startedAt || 0) > CYCLE_STALE_DAYS * 86400000;
   }
-  // Inert by design: the label says when the machine should be finished, and the
-  // tick is never blocked on it. Nothing else in the app resolves finer than a
-  // calendar day, so making this a gate would be the first sub-day due rule.
+  function cycleIsReady(c) { return !c || !c.readyAt || Date.now() >= c.readyAt; }
+
+  // Before the machine is finished the card shows WHERE THE LOAD IS and when it
+  // will be free; after that it shows what to do. She would not tap "move it to
+  // the dryer" while it is still washing, so being told to is just noise.
+  function cycleStatusLabel(c) {
+    const s = cycleStageDef(c);
+    if (!s) return '';
+    return cycleIsReady(c) ? s.action : (s.phase || s.action);
+  }
   function cycleReadyLabel(c) {
     const at = c && c.readyAt;
     if (!at || at - Date.now() <= 60000) return '';
@@ -2270,7 +2360,6 @@
     return getAllTasks().filter(t =>
       t.freq === 1 &&
       !t.oneOff &&
-      !isCycleStage(t.id) &&
       isDue(t) &&
       inSeason(t) &&
       dealtByMe(t)
@@ -2303,42 +2392,49 @@
     const pinned = (state.pinnedIds || []).filter(id => allTasks.find(t => t.id === id));
     const pinnedSet = new Set(pinned);
 
-    // Laundry: pick exactly one "what to wash" task per day (most overdue by score);
-    // suppress the daily process steps if nothing is due to wash.
-    // Membership is declared per-task via `load: true` rather than a hardcoded id list,
-    // so a new wash task (base or custom) joins the slot by declaring it, in one place.
-    const LAUNDRY_LOAD_IDS = new Set(allTasks.filter(t => t.load).map(t => t.id));
-    const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
-    const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
-    const inProgressLaundryLoad = Object.keys(state.inProgress || {}).some(id => LAUNDRY_LOAD_IDS.has(id));
-    // A load whose cycle is still running IS the hand's laundry, however many days
-    // ago it started — so it blocks a new one and never re-enters the draw. This is
-    // CYCLES.laundry.maxOpen expressed against the one washer she owns; the instance
-    // model itself would happily run several at once.
-    const cyclingLoadIds = new Set(openCycles().map(c => c.taskId));
-    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday || inProgressLaundryLoad ||
-      cyclingLoadIds.size >= (CYCLES.laundry.maxOpen || 1);
-    const dueLaundryLoads = allTasks
-      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && !cyclingLoadIds.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && dealtByMe(t))
-      .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
-    // Don't assign another laundry load if one was already completed today or is pinned
-    const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
+    // Cycle slots. Each cycle definition gets at most `dealMax` running at a time,
+    // chosen by score among the tasks that own that cycle — so the six wash tasks
+    // still compete for one washer, while the dishwasher and the fountain each get
+    // their own slot instead of fighting the laundry for it. This replaces both the
+    // hardcoded wash-slot logic and the ALWAYS_ASSIGN_IDS list, which existed only
+    // because the fountain is a two-stage job the old model could not express.
+    const cyclingTaskIds = new Set(openCycles().map(c => c.taskId));
+    const openByDef = {};
+    openCycles().forEach(c => { openByDef[c.def] = (openByDef[c.def] || 0) + 1; });
+    const dealFlagged = new Set(state.flaggedIds || []);
 
-    // The four process steps used to be filtered out here when nothing was due to
-    // wash. getDailies() now drops every cycle stage unconditionally, because a
-    // stage only ever reaches the hand through its running cycle.
+    const todaysChoice = (state.cycleChoiceDate === today) ? (state.cycleChoice || {}) : {};
+    const cycleChoiceNext = {};
+    const cycleStarts = [];
+    Object.keys(CYCLES).forEach(defKey => {
+      if ((openByDef[defKey] || 0) >= (CYCLES[defKey].dealMax || 1)) return;
+      const owners = allTasks.filter(t => cycleDefFor(t) === defKey);
+      // Done today, pinned, or marked in progress all mean this cycle has had its
+      // turn — the rule the wash slot always had, now applied per definition.
+      const spokenFor = owners.some(t =>
+        wasCompletedToday(t) || pinnedSet.has(t.id) || (state.inProgress || {})[t.id]);
+      if (spokenFor) return;
+      const due = owners
+        .filter(t => !cyclingTaskIds.has(t.id) && (isDue(t) || dealFlagged.has(t.id)) && inSeason(t) && dealtByMe(t))
+        .sort((a, b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
+      if (!due.length) return;
+      // Today's pick sticks. redealHand() nulls the hand, so without this a redeal
+      // re-sorts six near-identical wash tasks and today's laundry silently became
+      // cools instead of whites — and a load she added back by hand was swapped
+      // straight out again. Dated, so it expires on its own tomorrow.
+      const held = todaysChoice[defKey] && due.find(t => t.id === todaysChoice[defKey]);
+      const pick = held || due[0];
+      cycleChoiceNext[defKey] = pick.id;
+      cycleStarts.push(pick.id);
+    });
+
     const dailyIds = getDailies().map(t => t.id)
       .filter(id => !pinnedSet.has(id));
 
-    // Always-assign: c_fountain bypasses all tiers when due; laundry load slot
-    const ALWAYS_ASSIGN_IDS = ['c_fountain'];
-    const alwaysAssigned = [];
-    ALWAYS_ASSIGN_IDS.forEach(id => {
-      if (pinnedSet.has(id) || dailyIds.includes(id)) return;
-      const task = allTasks.find(t => t.id === id);
-      if (task && isDue(task) && inSeason(task)) alwaysAssigned.push(id);
-    });
-    if (laundryLoadId && !pinnedSet.has(laundryLoadId)) alwaysAssigned.push(laundryLoadId);
+    // A cycle the dealer opened bypasses the budget, as the wash slot always did
+    // and as the fountain used to through its own special case. The steps are small
+    // and the whole point of a cycle is that it runs in the background.
+    const alwaysAssigned = cycleStarts.filter(id => !pinnedSet.has(id));
     const alwaysAssignedSet = new Set(alwaysAssigned);
 
     // Scored pool of all due non-daily tasks (laundry load tasks handled separately above)
@@ -2351,7 +2447,7 @@
       dealtByMe(t) &&
       !pinnedSet.has(t.id) &&
       !alwaysAssignedSet.has(t.id) &&
-      !LAUNDRY_LOAD_IDS.has(t.id)
+      !cycleDefFor(t)              // cycle owners arrive through their slot, not the pool
     ).sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
 
     // If a tier preference was requested, float that tier to the top while keeping score order within each group
@@ -2385,14 +2481,11 @@
       ...dailyIds,
       ...pinned.filter(id => { const t = allTasks.find(x => x.id === id); return t && t.freq === 1 && !t.oneOff; }),
       ...allTasks.filter(t => t.freq === 1 && !t.oneOff && mine(t) && wasCompletedToday(t)).map(t => t.id),
-    ]);
+    ].filter(id => !cyclingTaskIds.has(id)));   // a running cycle is charged by its step, below
     // A running cycle's next step is forced into the hand exactly like a daily, so
     // it comes off the top of the day's total rather than competing for extras.
     // The load task's own time is not charged as well — the card shows the step.
-    const cycleStepTime = openCycles().reduce((s, c) => {
-      const t = cycleStageTask(c);
-      return s + (t ? taskTime(t) : 0);
-    }, 0);
+    const cycleStepTime = openCycles().reduce((s, c) => s + cycleStageMins(c), 0);
     const dailyTime = [...dailyLoadIds].reduce((s, id) => {
       const t = allTasks.find(x => x.id === id);
       return s + (t ? taskTime(t) : 0);
@@ -2476,11 +2569,6 @@
 
     const newHandIds = new Set([...pinned, ...dailyIds, ...alwaysAssigned, ...selected.map(t => t.id)]);
     allTasks.forEach(t => {
-      // A banked stage is completed-today, so without the guard each one comes
-      // back as its own Completed row and a finished load shows five cards — the
-      // exact sprawl the single cycle card exists to replace. The completion is
-      // still recorded; it just belongs to the cycle, not to the hand.
-      if (isCycleStage(t.id)) return;
       if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
     });
     // In-progress tasks carry into every new hand until finished — including when
@@ -2492,7 +2580,7 @@
     // A load with a cycle open rides into every hand until the cycle ends — same
     // rule as inProgress, and for the same reason: the machine is running whether
     // or not the task reads as due.
-    cyclingLoadIds.forEach(id => {
+    cyclingTaskIds.forEach(id => {
       if (allTasks.find(t => t.id === id)) newHandIds.add(id);
     });
     // Tasks removed today stay out of any redeal until tomorrow (unless completed today)
@@ -2502,11 +2590,13 @@
       // A running cycle is not dismissible. Removing it for the day would leave wet
       // clothes in the machine with nothing on screen to say so; the card carries
       // its own "Drop it" for the case where she really has abandoned the load.
-      if (cyclingLoadIds.has(id)) return true;
+      if (cyclingTaskIds.has(id)) return true;
       const t = allTasks.find(x => x.id === id);
       return t && wasCompletedToday(t);
     });
     state.handDate = today;
+    state.cycleChoice = cycleChoiceNext;
+    state.cycleChoiceDate = today;
 
     // Starvation: tick once per calendar day
     if (!state.starvation) state.starvation = {};
@@ -2514,10 +2604,6 @@
       state.starvationDate = today;
       const handSet = new Set(state.hand);
       allTasks.forEach(t => {
-        // A cycle stage is never dealt on its own, so it can never be "due but not
-        // dealt". Left in, all four laundry steps would tick up forever and their
-        // score bonus would sit at the cap permanently.
-        if (isCycleStage(t.id)) return;
         if (isDue(t) && inSeason(t) && !handSet.has(t.id)) {
           state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
         } else if (handSet.has(t.id)) {
@@ -2536,7 +2622,6 @@
     const handIds = new Set(state.hand);
     const completedToday = getAllTasks().filter(t =>
       !handIds.has(t.id) &&
-      !isCycleStage(t.id) &&          // shown by its cycle's card, not as its own row
       dealtByMe(t) &&
       wasCompletedToday(t)
     );
@@ -2574,7 +2659,6 @@
     return getAllTasks()
       .filter(t =>
         dealtByMe(t) &&
-        !isCycleStage(t.id) &&      // only reachable through its cycle
         !isDue(t) &&
         inSeason(t) &&
         !state.hand.includes(t.id)
@@ -2790,7 +2874,6 @@
     if (restoreCycle) {
       if (!state.cycles) state.cycles = {};
       state.cycles[restoreCycle.cid] = restoreCycle.cycle;
-      uncompleteCycleStage((CYCLES[restoreCycle.cycle.def].stages[restoreCycle.cycle.stage] || {}).task);
     }
     // Un-spend the milestone this completion earned, or a mis-tap permanently burns
     // a once-ever key like "first time". Unconditional: the key was spent whether or
@@ -2937,101 +3020,72 @@
       startCycle(id);
       return;
     }
-    // The stages are still ordinary tasks and still appear on preset checklists
-    // (Full Reset, Express Reset, Return Home…). Ticking one there advances the
-    // cycle waiting on exactly that step, so the two never disagree about how far
-    // through the load she is.
-    if (isCycleStage(id) && !wasCompletedToday(task)) {
-      const owner = openCycles().find(c => {
-        const s = cycleStageDef(c);
-        return s && s.task === id;
-      });
-      if (owner) { advanceCycle(owner.cid); return; }
-    }
     if (wasCompletedToday(task)) uncompleteTask(id);
     else completeTask(id);
   }
 
   // ─── CYCLE LIFECYCLE ───────────────────────────────────────────────────────
-  // Record a stage as done without completeTask's ceremony: no undo toast (the
-  // card's own Back is the undo), no milestone, no auto-unpin. What it must keep
-  // is everything Stats and the cadence hint read.
-  function completeCycleStage(id) {
-    const t = getAllTasks().find(x => x.id === id);
-    if (!t) return;
-    stashPrevCompletion(id);
-    state.completions[id] = Date.now();
-    if (!state.completionHistory) state.completionHistory = {};
-    if (!state.completionHistory[id]) state.completionHistory[id] = [];
-    const alreadyToday = state.completionHistory[id].some(ts => dayKeyOf(ts) === todayStr());
-    if (!alreadyToday) { state.completionHistory[id].push(Date.now()); pruneHistory(id); }
-    if (state.starvation) state.starvation[id] = 0;
-    if (state.snoozed) delete state.snoozed[id];
-  }
+  // Stages are steps, not tasks, so advancing one records nothing on its own. The
+  // OWNING task is what gets completed, and only when the last step is done —
+  // "Wash whites" means whites were washed AND put away, so its freq measures
+  // whole loads rather than loads started.
 
-  // The exact inverse, for Back. Never fabricate "now - freq" here — the two
-  // undos rule applies to stages too.
-  function uncompleteCycleStage(id) {
-    const stashed = (state.prevCompletions || {})[id];
-    if (stashed !== undefined) {
-      if (stashed) state.completions[id] = stashed;
-      else delete state.completions[id];
-      delete state.prevCompletions[id];
-    }
-    if (state.completionHistory && state.completionHistory[id]) {
-      state.completionHistory[id] = state.completionHistory[id].filter(ts => dayKeyOf(ts) !== todayStr());
-    }
-  }
-
-  function startCycle(taskId) {
+  function startCycle(taskId, opts) {
     const task = getAllTasks().find(t => t.id === taskId);
     const defKey = cycleDefFor(task);
-    if (!task || !defKey || cycleForTask(taskId)) return;
+    if (!task || !defKey) return null;
+    const extra = !!(opts && opts.extra);
+    if (!extra && cycleForTask(taskId)) return null;   // already running
     if (!state.cycles) state.cycles = {};
     const now = Date.now();
-    const cid = 'cy_' + now;
+    // A second cycle started in the same millisecond would collide on the id.
+    let cid = 'cy_' + now, n = 1;
+    while (state.cycles[cid]) cid = 'cy_' + now + '_' + (n++);
     state.cycles[cid] = { def: defKey, taskId, stage: 0, startedAt: now, stageAt: now, readyAt: now };
     unremoveToday(taskId);
-    // Tapping the card IS doing the first stage — she taps "Wash whites" when the
-    // machine is already running, not before. So the new cycle immediately banks
-    // stage 0 and settles on whatever comes next.
+    // Tapping the card IS doing the first step — she taps "Wash whites" once the
+    // machine is running, not before — so the new cycle banks step 0 straight away
+    // and settles on whatever comes next.
     advanceCycle(cid);
+    return cid;
+  }
+
+  // Start another one alongside the running one. The dealer only ever opens
+  // dealMax, but nothing stops her doing two loads in an afternoon.
+  function startExtraCycle(taskId) {
+    const cid = startCycle(taskId, { extra: true });
+    if (cid) showToast('Second one started — both are in your hand');
   }
 
   function advanceCycle(cid) {
     const c = state.cycles && state.cycles[cid];
     if (!c) return;
     const def = CYCLES[c.def];
-    const stage = def && def.stages[c.stage];
-    if (!stage) return;
-    completeCycleStage(stage.task);
+    if (!def || !def.stages[c.stage]) return;
     const next = c.stage + 1;
     if (next >= def.stages.length) { finishCycle(cid); return; }
     c.stage = next;
     c.stageAt = Date.now();
-    c.readyAt = Date.now() + (def.stages[next].readyIn || 0) * 60000;
+    c.readyAt = Date.now() + stageReadyIn(c.def, next) * 60000;
     saveState();
     render();
-    const nt = getAllTasks().find(t => t.id === def.stages[next].task);
-    showToast('Next: ' + (nt ? nt.name : 'carry on') + (cycleReadyLabel(c) ? ' · ' + cycleReadyLabel(c) : ''));
+    const label = cycleStatusLabel(c), ready = cycleReadyLabel(c);
+    showToast(label + (ready ? ' · ' + ready : ''));
   }
 
+  // The undo for a mis-tapped step. Stepping back restores the previous step's
+  // wait too, so going back to "in the washer" does not claim the wash is done.
   function cycleBack(cid) {
     const c = state.cycles && state.cycles[cid];
     if (!c || c.stage === 0) return;
-    const def = CYCLES[c.def];
     c.stage -= 1;
     c.stageAt = Date.now();
-    c.readyAt = Date.now();
-    uncompleteCycleStage(def.stages[c.stage].task);
+    c.readyAt = Date.now() + stageReadyIn(c.def, c.stage) * 60000;
     saveState();
     render();
-    const t = getAllTasks().find(x => x.id === def.stages[c.stage].task);
-    showToast('Back to: ' + (t ? t.name : 'previous step'));
+    showToast('Back to: ' + cycleStatusLabel(c));
   }
 
-  // The last stage is what completes the load, so the load's freq now measures
-  // whole loads rather than loads started.
   function finishCycle(cid) {
     const c = state.cycles && state.cycles[cid];
     if (!c) return;
@@ -3043,8 +3097,8 @@
     if (_undoBuffer && _undoBuffer.id === c.taskId) _undoBuffer.restoreCycle = { cid, cycle: snapshot };
   }
 
-  // A cycle nobody finished. The stages that did happen keep their completions;
-  // the only question is whether the LOAD counts as done.
+  // A cycle nobody finished. Two ways out, because "I did it and forgot to tick"
+  // and "that load never happened" need different answers.
   function finishStaleCycle(cid) { finishCycle(cid); }
   function dropCycle(cid) {
     if (!state.cycles || !state.cycles[cid]) return;
@@ -3238,7 +3292,7 @@
   function renderAlina() {
     // Sync zone selector (auto label shows the current zone)
     const autoOpt = document.getElementById('zoneAutoOption');
-    if (autoOpt) autoOpt.textContent = 'Auto · Zone ' + autoZone();
+    if (autoOpt) autoOpt.textContent = 'Zone ' + autoZone();
     const zoneSel = document.getElementById('zoneSelect');
     if (zoneSel) zoneSel.value = (state.zoneMode || 'auto') === 'auto' ? 'auto' : String(state.zone);
 
@@ -3556,17 +3610,17 @@
     // A load whose cycle is running renders as the cycle: ONE card carrying the
     // step she actually has to do next, plus a dot per stage. Four separate rows
     // for one load of laundry is exactly what this replaces.
-    const cyc = (task.load && !isDone) ? cycleForTask(task.id) : null;
+    const cyc = (cycleDefFor(task) && !isDone) ? cycleForTask(task.id) : null;
     const cycDef = cyc ? CYCLES[cyc.def] : null;
-    const cycStep = cyc ? cycleStageTask(cyc) : null;
     const cycStale = cyc ? cycleIsStale(cyc) : false;
+    const cycExtra = cyc ? cyclesForTask(task.id).length - 1 : 0;
 
     // The meta line, in priority order — it ellipsizes, so what matters goes first.
     const bits = [];
     if (cyc) {
       // The step replaces the overdue chip. A load two days into its cycle is not
       // late in any way she can act on; what she needs is "move it to the dryer".
-      bits.push('<span class="cyc-step">' + (cycStep ? cycStep.name : 'next step') + '</span>');
+      bits.push('<span class="cyc-step">' + cycleStatusLabel(cyc) + '</span>');
       const ready = cycleReadyLabel(cyc);
       if (ready) bits.push('<span class="cyc-ready">' + ready + '</span>');
       if (cycStale) bits.push('<span class="task-overdue">still going?</span>');
@@ -3585,7 +3639,7 @@
       } else if (!task.oneOff) {
         // Only real lateness earns the red. "Due today" was true of every daily in
         // the hand, so it read as nine alarms and told her nothing.
-        if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + ' day' + (Math.floor(overdue) === 1 ? '' : 's') + ' overdue</span>');
+        if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>');
         else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
       }
       if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
@@ -3603,12 +3657,12 @@
 
     // Sprint drops the whole meta line, so the step has to ride on the name line
     // there or a cycling load reads as a bare "Wash whites" with nothing to do.
-    const cycStepHtml = (cyc && cycStep) ? '<span class="cyc-step">' + cycStep.name + '</span>' : '';
+    const cycStepHtml = cyc ? '<span class="cyc-step">' + cycleStatusLabel(cyc) + '</span>' : '';
 
     // A cycling card is timed by its current STEP, not by the load. Ticking it
     // moves the load one stage on, and three minutes is the honest answer to
     // "what does this tap cost me".
-    const stepMins = (cyc && cycStep) ? taskTime(cycStep) : taskTime(task);
+    const stepMins = cyc ? cycleStageMins(cyc) : taskTime(task);
     const timeHtml = timerRunning
       ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - getTimer().startedAt) + '</span>'
       : (isDone ? '' : '<span class="task-time">' + fmtMinutes(stepMins) + '</span>');
@@ -3974,20 +4028,40 @@
       '</button>';
 
     let html = '';
+    const actionCycles = cyclesForTask(id);
+    if (actionCycles.length) {
+      const c = actionCycles[0];
+      const def = CYCLES[c.def];
+      if (c.stage > 0) {
+        html += row('checkBack', 'Back a step', 'Now on: ' + cycleStatusLabel(c),
+          'taskAction(function(){cycleBack(\'' + c.cid + '\')},' + q + ')');
+      }
+      html += row('check', 'Finished it', 'Marks the whole ' + def.label.toLowerCase() + ' done',
+        'taskAction(function(){finishCycle(\'' + c.cid + '\')},' + q + ')', 'go');
+      html += row('trash', 'Drop it', 'That one never happened — the task stays due',
+        'taskAction(function(){dropCycle(\'' + c.cid + '\')},' + q + ')');
+    }
+    if (!isDone && cycleDefFor(task)) {
+      html += row('plus', 'Start another',
+        actionCycles.length ? 'Run a second one alongside the first' : 'Start one now, before it is due',
+        'taskAction(function(){startExtraCycle(' + q + ')},' + q + ')');
+    }
     if (!isDone && !task.oneOff) {
       html += row('pin', isPinned ? 'Unpin from every day' : 'Pin to every day',
         isPinned ? 'Currently pinned to your hand' : 'Keep it in the hand until you unpin',
         'taskAction(togglePin,' + q + ')', isPinned ? 'on' : '');
     }
-    // The timer only appears here when the row isn't already showing it running.
-    if (!isDone && !timerRunning) {
-      html += row('play', isInProgress ? 'Time it' : 'Start now',
-        isInProgress ? 'Run the timer on this one' : 'Mark in progress &amp; run the timer',
-        'taskAction(' + (isInProgress ? 'toggleTimer' : 'toggleInProgress') + ',' + q + ')', 'go');
-    }
-    if (!isDone && timerRunning) {
-      html += row('clock', 'Stop the timer', 'Log how long it actually took',
-        'taskAction(toggleTimer,' + q + ')', 'go');
+    // Two separate things, both always offered. They were one row that changed
+    // meaning depending on state: "Start now" marked the task in progress AND
+    // started the timer, so there was no way to say "I've started this, don't time
+    // it" — and no way to time a task without also flagging it as started.
+    if (!isDone) {
+      html += row('bolt', isInProgress ? 'Not started after all' : 'Mark in progress',
+        isInProgress ? 'Stop carrying it into tomorrow\'s hand' : 'Keeps it in your hand until it\'s done',
+        'taskAction(toggleInProgress,' + q + ')', isInProgress ? 'on' : '');
+      html += row(timerRunning ? 'clock' : 'play', timerRunning ? 'Stop the timer' : 'Start the timer',
+        timerRunning ? 'Log how long it actually took' : 'Time it, to learn the real estimate',
+        'taskAction(toggleTimer,' + q + ')', timerRunning ? 'on' : 'go');
     }
     if (!isDone && !task.oneOff) {
       html += row('flag', isFlagged ? 'Unflag' : 'Flag it',
@@ -4213,10 +4287,10 @@
     // Every robot RUN belongs here — they are the passive jobs you set going and
     // walk away from. rob_mop_us was added in the per-unit split and missed, so it
     // fell through to a one-task block at the very end of the sprint.
-    const LAUNCH_IDS = ['l_start', 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
+    const LAUNCH_IDS = [ 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
     const launchTasks = hand.filter(t => LAUNCH_IDS.includes(t.id) || SPRINT_LOAD_IDS.includes(t.id));
     if (launchTasks.length) {
-      const launchOrder = ['l_start', ...SPRINT_LOAD_IDS, 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
+      const launchOrder = [ ...SPRINT_LOAD_IDS, 'rob_run_ds', 'rob_run_us', 'rob_mop', 'rob_mop_us', 'bed_make'];
       launchTasks.sort((a, b) => launchOrder.indexOf(a.id) - launchOrder.indexOf(b.id));
       blocks.push({ label: 'Launch', tasks: launchTasks });
       launchTasks.forEach(t => assigned.add(t.id));
@@ -4240,13 +4314,7 @@
   
     // ── LAUNDRY: process steps + everything in the Laundry Room, one block ──
     // Loads/tidy first (decide what's washing), then process steps in order.
-    const LAUNDRY_IDS = ['l_dryer', 'l_fold', 'l_put_away'];
-    const laundryTasks = hand
-      .filter(t => (LAUNDRY_IDS.includes(t.id) || t.room === 'Laundry Room') && !assigned.has(t.id))
-      .sort((a, b) => {
-        const ai = LAUNDRY_IDS.indexOf(a.id), bi = LAUNDRY_IDS.indexOf(b.id);
-        return (ai === -1 ? -1 : ai) - (bi === -1 ? -1 : bi);
-      });
+    const laundryTasks = hand.filter(t => t.room === 'Laundry Room' && !assigned.has(t.id));
     if (laundryTasks.length) {
       blocks.push({ label: 'Laundry', tasks: laundryTasks });
       laundryTasks.forEach(t => assigned.add(t.id));
@@ -4412,7 +4480,6 @@
   ];
   const FULL_RESET_TASKS = [
     // Launch
-    { id:'l_start',            name:'Start a load of laundry',             room:'Laundry Room',       time:10 },
     { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)',        room:'Downstairs',    time:2  },
     { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',          room:'Upstairs',      time:2  },
     { id:'rob_mop',            name:'Run robot mop (downstairs)',           room:'Downstairs',    time:2  },
@@ -4451,9 +4518,6 @@
     { id:'c_scoop_ds',         name:'Scoop downstairs litter',            room:'Cats',          time:3  },
     { id:'c_feeders',          name:'Clean feeders',                      room:'Cats',          time:10 },
     // Laundry
-    { id:'l_dryer',            name:'Move laundry to dryer',              room:'Laundry Room',       time:3  },
-    { id:'l_fold',             name:'Fold laundry',                       room:'Laundry Room',       time:10 },
-    { id:'l_put_away',         name:'Put away laundry',                   room:'Laundry Room',       time:5  },
     // Tidy all rooms
     { id:'lr_tidy',            name:'Living room tidy',                   room:'Living Room',   time:8  },
     { id:'dr_tidy',            name:'Dining room tidy',                   room:'Dining Room',   time:5  },
@@ -4478,19 +4542,17 @@
   ];
 
   const FULL_RESET_SECTIONS = [
-    { label:'Launch',         ids:['l_start','rob_run_ds','rob_run_us','rob_mop'] },
+    { label:'Launch',         ids:['rob_run_ds','rob_run_us','rob_mop'] },
     { label:'Kitchen',        ids:['k_dishwasher','k_tidy','k_counters','k_stove','k_sink','k_trash','k_recycling_out','k_compost','k_fridge'] },
     { label:'Trash run',      ids:['dsb_trash','usb_trash','bed_trash','lroom_trash','off_trash','hs_trash'] },
     { label:'Bathrooms',      ids:['dsb_toilet','dsb_sink','dsb_mirror','usb_toilet','usb_sink','usb_mirror','usb_mop'] },
     { label:'Cat care',       ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_litter_robot_bin','c_scoop_ds','c_feeders'] },
-    { label:'Laundry',        ids:['l_dryer','l_fold','l_put_away'] },
     { label:'Tidy all rooms', ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','sun_tidy','off_tidy','br_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
     { label:'Dust surfaces',  ids:['lr_dust','dr_dust','bed_dust','br_dust','off_dust','hs_dust','lroom_dust'] },
   ];
   
   const GOING_OUT_TASKS = [
     // Launch (4)
-    { id:'l_start',            name:'Start a load of laundry',       room:'Laundry Room',          time:5  },
     { id:'rob_run_ds',         name:'Run robot vacuum (downstairs)', room:'Downstairs',        time:5  },
     { id:'rob_run_us',         name:'Run robot vacuum (upstairs)',   room:'Upstairs',          time:5  },
     { id:'rob_mop',            name:'Run robot mop (downstairs)',    room:'Downstairs',        time:5  },
@@ -4513,9 +4575,6 @@
     { id:'c_litter_robot_bin', name:'Empty Litter Robot bin',       room:'Cats',              time:5  },
     { id:'c_scoop_ds',         name:'Scoop downstairs litter',      room:'Cats',              time:5  },
     // Laundry (3)
-    { id:'l_dryer',            name:'Move laundry to dryer',        room:'Laundry Room',           time:5  },
-    { id:'l_fold',             name:'Fold laundry',                 room:'Laundry Room',           time:20 },
-    { id:'l_put_away',         name:'Put away laundry',             room:'Laundry Room',           time:10 },
     // Tidy all rooms (12)
     { id:'lr_tidy',            name:'Living room tidy',             room:'Living Room',       time:10 },
     { id:'dr_tidy',            name:'Dining room tidy',             room:'Dining Room',       time:10 },
@@ -4539,17 +4598,16 @@
   ];
   
   const GOING_OUT_SECTIONS = [
-    { label:'Launch',        ids:['l_start','rob_run_ds','rob_run_us','rob_mop'] },
+    { label:'Launch',        ids:['rob_run_ds','rob_run_us','rob_mop'] },
     { label:'Kitchen',       ids:['k_dishwasher','k_tidy','k_counters','k_sink','k_trash','k_recycling_out','k_compost','k_fridge'] },
     { label:'Cat care',      ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_fountain','c_feeders','c_litter_robot_bin','c_scoop_ds'] },
-    { label:'Laundry',       ids:['l_dryer','l_fold','l_put_away'] },
     { label:'Tidy all rooms',ids:['lr_tidy','dr_tidy','bed_tidy','bed_make','br_tidy','sun_tidy','off_tidy','lroom_tidy','hs_tidy','mud_tidy','bp_tidy','usb_tidy'] },
     { label:'Bathrooms',     ids:['dsb_toilet','dsb_sink','dsb_mirror','usb_toilet','usb_sink','usb_mirror'] },
   ];
 
   // ── NEW PRESET SECTION DEFINITIONS ─────────────────────────────────────────
   const EXPRESS_RESET_SECTIONS = [
-    { label:'Launch',        ids:['l_start','rob_run_ds','rob_mop'] },
+    { label:'Launch',        ids:['rob_run_ds','rob_mop'] },
     { label:'Kitchen',       ids:['k_dishwasher','k_tidy','k_counters','k_sink'] },
     { label:'Bathrooms',     ids:['dsb_toilet','dsb_sink','dsb_towels','usb_toilet','usb_sink'] },
     { label:'Bedroom',       ids:['bed_make'] },
@@ -4557,7 +4615,7 @@
     { label:'Cat care',      ids:['c_scoop_ds','c_water_ds','c_water_up'] },
   ];
   const WEEKLY_RESET_SECTIONS = [
-    { label:'Launch',        ids:['l_start','rob_run_ds','rob_mop'] },
+    { label:'Launch',        ids:['rob_run_ds','rob_mop'] },
     { label:'Bedroom',       ids:['bed_sheets','bed_make'] },
     { label:'US Bathroom',   ids:['usb_toilet','usb_sink','usb_mirror','usb_tidy'] },
     { label:'DS Bathroom',   ids:['dsb_toilet','dsb_sink','dsb_mirror'] },
@@ -4568,11 +4626,10 @@
     { label:'Cat care',      ids:['c_fountain','c_scoop_ds','c_water_ds','c_water_up'] },
   ];
   const RETURN_HOME_SECTIONS = [
-    { label:'Launch',        ids:['l_start','rob_run_ds'] },
+    { label:'Launch',        ids:['rob_run_ds'] },
     { label:'Kitchen',       ids:['k_fridge','k_counters','k_dishwasher'] },
     { label:'Cat care',      ids:['c_water_up','c_water_ds','c_water_bowl_up','c_water_bowl_ds','c_feeders','c_litter_robot_bin','c_scoop_ds'] },
     { label:'Bedroom',       ids:['bed_make'] },
-    { label:'Laundry',       ids:['l_dryer','l_fold','l_put_away'] },
   ];
   const BEFORE_CLEANERS_SECTIONS = [
     { label:'Cat care (cleaners won\'t touch)', ids:['c_litter_robot_bin','c_litter_robot_wipe','c_litter_ds_change','c_feeders','c_scoop_ds'] },
@@ -4581,7 +4638,7 @@
   ];
   const RECOVERY_SECTIONS = [
     { label:'Phase 1 — Stabilize', ids:['c_scoop_ds','c_water_ds','c_water_up','k_tidy','k_counters','dsb_toilet','k_trash'], phase:1 },
-    { label:'Phase 2 — Normalize', ids:['lr_tidy','dr_tidy','bed_make','l_start','dsb_sink','usb_toilet'], phase:2 },
+    { label:'Phase 2 — Normalize', ids:['lr_tidy','dr_tidy','bed_make','dsb_sink','usb_toilet'], phase:2 },
     { label:'Phase 3 — Restore',   ids:['rob_run_ds','usb_sink','bed_tidy','k_sink','lroom_tidy'], phase:3 },
   ];
 
@@ -4634,7 +4691,7 @@
     { label:'Phase 1 — Sanitize', phase:1,
       ids:['house_doorknobs','dsb_toilet','dsb_sink','usb_toilet','usb_sink','k_counters','bed_sheets','bed_trash','dsb_trash'] },
     { label:'Phase 2 — Restore', phase:2,
-      ids:['l_start','k_dishwasher','k_tidy','lr_tidy','c_scoop_ds','c_water_ds','c_water_up','rob_run_ds'] },
+      ids:['k_dishwasher','k_tidy','lr_tidy','c_scoop_ds','c_water_ds','c_water_up','rob_run_ds'] },
   ];
 
   function loadPostIllnessPhase(maxPhase) {
@@ -6320,7 +6377,7 @@
         const bits = [freqLabel(t.freq).replace(/^./, c => c.toUpperCase())];
         if (!inSeason(t)) bits.push('<span class="task-notdue">off-season</span>');
         else if (isDoneToday) bits.push('done today');
-        else if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + ' day' + (Math.floor(overdue) === 1 ? '' : 's') + ' overdue</span>');
+        else if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>');
         else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
         // Nothing for "due now": with a due filter right above the list, saying it
         // on most of 186 rows is noise, and "last done" already implies it.
@@ -6419,6 +6476,51 @@
     renderVacChips();
   }
 
+  // The cycle picker's options come from CYCLES, so a new definition appears here
+  // without a second list to keep in step.
+  function renderCycleOptions(selected) {
+    const sel = document.getElementById('f_cycle');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">None — a single task</option>' +
+      Object.keys(CYCLES).map(k =>
+        '<option value="' + k + '">' + CYCLES[k].label + ' (' + CYCLES[k].stages.length + ' steps)</option>').join('');
+    sel.value = selected || '';
+  }
+
+  // Machine time per step, editable. The built-in waits are a starting point —
+  // her washer is not mine — and an override is stored per definition-and-step,
+  // not per task, because it is a property of the machine.
+  function renderCycleTimings() {
+    const box = document.getElementById('cycleTimings');
+    const sel = document.getElementById('f_cycle');
+    if (!box || !sel) return;
+    const defKey = sel.value;
+    const def = CYCLES[defKey];
+    if (!def) { box.innerHTML = ''; return; }
+    box.innerHTML =
+      '<div class="cyc-timing-note">How long each step waits on the machine before you can do it. Leave a step at 0 if there is nothing to wait for.</div>' +
+      def.stages.map((st, i) =>
+        '<div class="cyc-timing-row">' +
+          '<span class="cyc-timing-name">' + st.action + '</span>' +
+          '<input class="field-input" type="number" min="0" step="1" value="' + stageReadyIn(defKey, i) + '" ' +
+            'onchange="setStageReadyIn(\'' + defKey + '\',' + i + ',this.value)"> min' +
+        '</div>').join('');
+  }
+
+  function setStageReadyIn(defKey, stageIdx, value) {
+    const def = CYCLES[defKey];
+    const stage = def && def.stages[stageIdx];
+    if (!stage) return;
+    if (!state.cycleTimings) state.cycleTimings = {};
+    const key = defKey + '.' + stage.key;
+    const n = parseInt(value, 10);
+    if (isNaN(n) || n < 0) return;
+    if (n === (stage.readyIn || 0)) delete state.cycleTimings[key];   // back to the default
+    else state.cycleTimings[key] = n;
+    saveState();
+    showToast(CYCLES[defKey].label + ' · ' + stage.action + ': ' + n + ' min');
+  }
+
   function openModal(id) {
     editingId = id;
     const modal = document.getElementById('taskModal');
@@ -6441,6 +6543,7 @@
       document.getElementById('f_owner').value = task.owner;
       document.getElementById('f_cat').checked = !!task.cat;
       document.getElementById('f_load').checked = !!task.load;
+      renderCycleOptions(cycleDefFor(task));
     } else {
       document.getElementById('f_name').value = '';
       document.getElementById('f_room').value = '';
@@ -6449,7 +6552,9 @@
       document.getElementById('f_owner').value = 'either';
       document.getElementById('f_cat').checked = false;
       document.getElementById('f_load').checked = false;
+      renderCycleOptions('');
     }
+    renderCycleTimings();
     showSheet('taskModal');
   }
   
@@ -6496,6 +6601,7 @@
     const owner = document.getElementById('f_owner').value;
     const cat = document.getElementById('f_cat').checked;
     const load = document.getElementById('f_load').checked;
+    const cycle = (document.getElementById('f_cycle') || {}).value || null;
   
     if (!name || !room || !freq || !time) { showToast('Fill in all fields'); return; }
   
@@ -6509,13 +6615,13 @@
     if (editingId) {
       const isBase = TASKS.find(t => t.id === editingId);
       if (isBase) state.deletedIds = [...new Set([...state.deletedIds, editingId])];
-      state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat, load };
+      state.customTasks[editingId] = { id: editingId, name, room, freq, time, owner, cat, load, cycle };
       if (months.length && months.length < 12) state.taskMonths[editingId] = months;
       else delete state.taskMonths[editingId];
       state.taskVac[editingId] = editingVac;
     } else {
       const newId = 'custom_' + Date.now();
-      state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat, load };
+      state.customTasks[newId] = { id: newId, name, room, freq, time, owner, cat, load, cycle };
       state.completions[newId] = Date.now() - freq * 86400000;
       if (months.length && months.length < 12) state.taskMonths[newId] = months;
       state.taskVac[newId] = editingVac;
@@ -6550,6 +6656,14 @@
   function addToHand(id) {
     if (!state.hand) dealHand();
     unremoveToday(id);
+    // For a cycle owner, being added by hand is a decision about which one today's
+    // slot holds — otherwise the next redeal picks by score and undoes it.
+    const t = getAllTasks().find(x => x.id === id);
+    const defKey = cycleDefFor(t);
+    if (defKey) {
+      if (state.cycleChoiceDate !== todayStr()) { state.cycleChoice = {}; state.cycleChoiceDate = todayStr(); }
+      state.cycleChoice[defKey] = id;
+    }
     if (!state.hand.includes(id)) {
       state.hand.push(id);
       saveState();

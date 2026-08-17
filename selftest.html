@@ -368,7 +368,9 @@ group('Dealing');
 // never drift out of sync with the app's own notion of a laundry load. A function,
 // not a const: G() is only bound once the frame has booted, well after parse time.
 function loadIds() { return G('getAllTasks')().filter(t => t.load).map(t => t.id); }
-const PROCESS_IDS = ['l_start','l_dryer','l_fold','l_put_away'];
+// Cycle owners are dealt through their own slot, never the ordinary pool, so a
+// probe that needs a plain pool task must avoid all of them. Derived, not listed.
+function cycleOwnerIds() { return G('getAllTasks')().filter(t => G('cycleDefFor')(t)).map(t => t.id); }
 
 // Pick a probe task by its properties rather than hardcoding an id. Hardcoding
 // cost a vacuous case once already: bed_sheets is owner 'bob', so it never enters
@@ -380,7 +382,7 @@ function probeTask(opts) {
     (t.owner === 'alina' || t.owner === 'either') &&
     t.freq >= (o.minFreq || 5) && t.freq <= (o.maxFreq || 30) &&
     !t.oneOff &&
-    loadIds().indexOf(t.id) === -1 && PROCESS_IDS.indexOf(t.id) === -1 && t.id !== 'c_fountain' &&
+    cycleOwnerIds().indexOf(t.id) === -1 &&
     G('inSeason')(t)
   );
   if (!t) throw new Error('no suitable probe task found in TASKS');
@@ -438,188 +440,292 @@ test('at most one laundry load task per hand', () => {
 });
 
 // ─── Cycles ────────────────────────────────────────────────────────────────
-// A cycle is a multi-stage job (wash → dryer → fold → away) held as an INSTANCE
-// in state.cycles. The stages are ordinary tasks that must never be scheduled on
-// their own, and the LOAD only completes when its last stage does.
+// A cycle is a multi-stage job held as an instance in state.cycles. One TASK owns
+// it and carries the frequency; the stages are steps in the CYCLES constant and
+// are NOT tasks. The owning task completes only when the last step is done.
 
-test('every cycle stage id resolves in TASKS', () => {
-  // Same trap as the preset id sweep: a stage naming a task that does not exist
-  // would make the cycle un-advanceable, because completeTask returns early on an
-  // unknown id and the stage would never bank.
-  const all = G('getAllTasks')();
+function aCycleOwner(defKey) {
+  const t = G('getAllTasks')().find(t => G('cycleDefFor')(t) === defKey);
+  if (!t) throw new Error('no task owns the ' + defKey + ' cycle — every case below is vacuous');
+  return t;
+}
+
+test('every cycle definition is well formed and has an owning task', () => {
   const defs = G('CYCLES');
-  Object.keys(defs).forEach(k => {
-    defs[k].stages.forEach(s => {
-      ok(all.some(t => t.id === s.task), 'cycle ' + k + ' stage names a missing task: ' + s.task);
+  const keys = Object.keys(defs);
+  ok(keys.length >= 3, 'expected laundry, dishwasher and fountain, got ' + keys.join(', '));
+  const all = G('getAllTasks')();
+  keys.forEach(k => {
+    const def = defs[k];
+    ok(def.label, k + ' has no label');
+    ok(def.stages.length >= 2, k + ' has fewer than two steps — that is a task, not a cycle');
+    def.stages.forEach((st, i) => {
+      ok(st.key, k + ' step ' + i + ' has no key — timings are stored against it');
+      ok(st.action, k + ' step ' + i + ' has no action');
+      ok(st.phase, k + ' step ' + i + ' has no phase, so the card cannot say where the job is');
+      ok(typeof st.mins === 'number', k + ' step ' + i + ' has no time');
     });
+    // Step keys must be unique: stageReadyIn stores an override at def.key.
+    const keysSeen = def.stages.map(st => st.key);
+    eq(new Set(keysSeen).size, keysSeen.length, k + ' has duplicate step keys: ' + keysSeen.join(','));
+    ok(all.some(t => G('cycleDefFor')(t) === k), 'no task owns the ' + k + ' cycle');
   });
 });
 
-test('cycle stages are never dealt on their own, load due or not', () => {
-  // Replaces "process steps are suppressed when no load is assigned". That case
-  // asserted the OLD conditional rule and went vacuous the moment stages stopped
-  // being dailies at all. The rule now is unconditional, so probe both states.
-  const stageIds = G('CYCLE_STAGE_IDS');
-  ok(stageIds.size >= 4, 'the stage set is empty — every assertion below is vacuous');
-
-  const nothingDue = deal(st => {
-    // Two days ago, not today: every load is freq 7 or 14 so none is due, and
-    // dealHand adds anything completed TODAY back in, defeating the precondition.
-    loadIds().forEach(id => { st.completions[id] = Date.now() - 2 * DAY; });
-  });
-  eq(nothingDue.ids.filter(id => loadIds().indexOf(id) !== -1).length, 0, 'precondition: no load assigned');
-  ok(nothingDue.ids.filter(id => stageIds.has(id)).length === 0,
-     'stages leaked in with nothing to wash: ' + nothingDue.ids.filter(id => stageIds.has(id)).join(', '));
-
-  const loadDue = deal();
-  eq(loadDue.ids.filter(id => loadIds().indexOf(id) !== -1).length, 1, 'precondition: a load was assigned');
-  ok(loadDue.ids.filter(id => stageIds.has(id)).length === 0,
-     'stages leaked in alongside a load: ' + loadDue.ids.filter(id => stageIds.has(id)).join(', '));
+test('the dishwasher and the fountain both wait 2h 9m on the machine', () => {
+  // The fountain is cleaned IN the dishwasher, so the two share a wait. If one is
+  // edited without the other this drifts silently.
+  const defs = G('CYCLES');
+  const dwUnload = defs.dishwasher.stages[defs.dishwasher.stages.length - 1];
+  const fountainBack = defs.fountain.stages[defs.fountain.stages.length - 1];
+  eq(dwUnload.readyIn, 129, 'the dishwasher run is not 2h 9m');
+  eq(fountainBack.readyIn, 129, 'the fountain does not wait for the dishwasher');
 });
 
-test('cycle stages accrue no starvation', () => {
-  withState(st => {
-    st.hand = null; st.handDate = null; st.starvationDate = null; st.starvation = {};
-    G('CYCLE_STAGE_IDS').forEach(id => { st.completions[id] = Date.now() - 30 * DAY; });
-  }, () => {
-    G('dealHand')();
-    G('CYCLE_STAGE_IDS').forEach(id => {
-      eq((G('state').starvation || {})[id] || 0, 0, id + ' accrued starvation despite never being dealable');
-    });
+test('the fountain still bypasses the budget when due', () => {
+  const r = deal(st => {
+    st.budgetWeekday = 5; st.budgetWeekend = 5;      // no room for anything optional
+    st.completions['c_fountain'] = Date.now() - 400 * DAY;
+  });
+  ok(r.ids.indexOf('c_fountain') !== -1, 'the fountain was squeezed out by the budget');
+});
+
+test('a cycle owner is not also dealt from the ordinary pool', () => {
+  const r = deal(st => {
+    G('getAllTasks')().filter(t => G('cycleDefFor')(t))
+      .forEach(t => { st.completions[t.id] = Date.now() - 400 * DAY; });
+  });
+  const perDef = {};
+  r.tasks.forEach(t => {
+    const d = G('cycleDefFor')(t);
+    if (d) perDef[d] = (perDef[d] || 0) + 1;
+  });
+  Object.keys(perDef).forEach(d => {
+    eq(perDef[d], 1, d + ' put ' + perDef[d] + ' owners in one hand — the slot allows one');
   });
 });
 
-test('ticking a load starts its cycle instead of completing it', () => {
-  const load = 'lroom_whites';
+test('ticking a cycle owner starts its cycle instead of completing it', () => {
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    const before = G('state').completions[load];
-    G('toggleComplete')(load);
+    const before = G('state').completions[owner.id];
+    G('toggleComplete')(owner.id);
     const cycles = Object.values(G('state').cycles || {});
     eq(cycles.length, 1, 'no cycle was opened');
-    eq(cycles[0].taskId, load, 'the cycle is not attached to the load');
-    // Stage 0 (start the wash) banks immediately — she taps the card when the
-    // machine is already running — so the cycle settles on stage 1.
-    eq(cycles[0].stage, 1, 'the cycle did not bank the first stage');
-    eq(G('state').completions[load], before, 'the LOAD was completed at stage 0');
-    ok(G('dayKeyOf')(G('state').completions['l_start']) === G('todayStr')(),
-       'stage 0 did not record l_start as done today');
+    eq(cycles[0].taskId, owner.id, 'the cycle is not attached to the task');
+    // Step 0 banks immediately — she taps the card once the machine is running —
+    // so the cycle settles on step 1.
+    eq(cycles[0].stage, 1, 'the cycle did not bank the first step');
+    eq(G('state').completions[owner.id], before, 'the task was completed at step 0');
   });
 });
 
-test('the load completes only when its last stage does', () => {
-  const load = 'lroom_whites';
+test('the owning task completes only when the last step does', () => {
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    const stages = G('CYCLES').laundry.stages.length;
-    G('toggleComplete')(load);                       // start; banks stage 0
-    for (let i = 1; i < stages; i++) {
-      ok(G('dayKeyOf')(G('state').completions[load]) !== G('todayStr')(),
-         'the load completed early, at stage ' + i + ' of ' + stages);
-      G('toggleComplete')(load);
+    const steps = G('CYCLES').laundry.stages.length;
+    G('toggleComplete')(owner.id);
+    for (let i = 1; i < steps; i++) {
+      ok(G('dayKeyOf')(G('state').completions[owner.id]) !== G('todayStr')(),
+         'the task completed early, at step ' + i + ' of ' + steps);
+      G('toggleComplete')(owner.id);
     }
-    eq(Object.keys(G('state').cycles || {}).length, 0, 'the cycle outlived its last stage');
-    eq(G('dayKeyOf')(G('state').completions[load]), G('todayStr')(),
-       'the last stage did not complete the load');
+    eq(Object.keys(G('state').cycles || {}).length, 0, 'the cycle outlived its last step');
+    eq(G('dayKeyOf')(G('state').completions[owner.id]), G('todayStr')(),
+       'the last step did not complete the task');
   });
 });
 
-test('a running cycle rides into the next hand and blocks a second load', () => {
-  const load = 'lroom_whites';
+test('the card shows where the job is before the machine is free, and what to do after', () => {
+  // Her ask, and the reason phase exists: she will not tap "move it to the dryer"
+  // while it is still washing, so being told to is noise.
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    // Every load badly overdue, so without the block a second one would deal.
-    loadIds().forEach(id => { st.completions[id] = Date.now() - 60 * DAY; });
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    G('toggleComplete')(load);
-    // Force a fresh deal, as a new day would.
+    G('toggleComplete')(owner.id);
+    const cid = Object.keys(G('state').cycles)[0];
+    const c = G('state').cycles[cid];
+    const stage = G('CYCLES').laundry.stages[c.stage];
+    ok(stage.readyIn > 0, 'precondition: this step waits on the machine');
+
+    c.readyAt = Date.now() + 30 * 60000;               // still running
+    let html = G('renderCard')(owner, false);
+    ok(html.indexOf(stage.phase) !== -1, 'the card does not say where the load is: ' + stage.phase);
+    ok(html.indexOf(stage.action) === -1, 'the card told her to act while the machine was still going');
+    ok(html.indexOf('ready ~') !== -1, 'no ready time while waiting');
+
+    c.readyAt = Date.now() - 60000;                    // machine finished
+    html = G('renderCard')(owner, false);
+    ok(html.indexOf(stage.action) !== -1, 'the card never switches to the action: ' + stage.action);
+    ok(html.indexOf('ready ~') === -1, 'still advertising a ready time after it passed');
+  });
+});
+
+test('an edited machine time is used instead of the built-in one', () => {
+  const defs = G('CYCLES');
+  const idx = defs.laundry.stages.findIndex(st => st.readyIn > 0);
+  ok(idx > 0, 'precondition: a laundry step waits on the machine');
+  const key = defs.laundry.stages[idx].key;
+  withState(st => {
+    st.cycleTimings = { ['laundry.' + key]: 999 };
+  }, () => {
+    eq(G('stageReadyIn')('laundry', idx), 999, 'the override was ignored');
+  });
+  withState(st => { st.cycleTimings = {}; }, () => {
+    eq(G('stageReadyIn')('laundry', idx), defs.laundry.stages[idx].readyIn, 'the default was lost');
+  });
+});
+
+test('a running cycle rides into the next hand and blocks a second of its kind', () => {
+  const owner = aCycleOwner('laundry');
+  withState(st => {
+    st.hand = null; st.handDate = null;
+    G('getAllTasks')().filter(t => G('cycleDefFor')(t) === 'laundry')
+      .forEach(t => { st.completions[t.id] = Date.now() - 60 * DAY; });
+  }, () => {
+    G('toggleComplete')(owner.id);
     G('state').hand = null; G('state').handDate = null;
     G('dealHand')();
     const hand = G('state').hand;
-    ok(hand.indexOf(load) !== -1, 'the cycling load fell out of the redealt hand');
-    const loads = hand.filter(id => loadIds().indexOf(id) !== -1);
-    eq(loads.length, 1, 'a second load was dealt alongside a running cycle: ' + loads.join(', '));
+    ok(hand.indexOf(owner.id) !== -1, 'the cycling task fell out of the redealt hand');
+    const laundry = hand.filter(id => {
+      const t = G('getAllTasks')().find(x => x.id === id);
+      return t && G('cycleDefFor')(t) === 'laundry';
+    });
+    eq(laundry.length, 1, 'a second load was dealt alongside a running cycle: ' + laundry.join(', '));
   });
 });
 
-test('a cycling load survives being removed from the hand', () => {
-  // Remove is a one-day dismissal everywhere else. On a running cycle it would
-  // hide wet clothes with nothing on screen to say the washer is full, so the
-  // card carries Drop it instead and the removal must not take.
-  const load = 'lroom_whites';
+test('she can start a second cycle by hand even though the dealer opens one', () => {
+  // dealMax governs the DEALER. Two loads in an afternoon is a real thing.
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    G('toggleComplete')(load);
-    G('markRemovedToday')(load);
+    G('toggleComplete')(owner.id);
+    eq(G('cyclesForTask')(owner.id).length, 1, 'precondition: one running');
+    G('startExtraCycle')(owner.id);
+    eq(G('cyclesForTask')(owner.id).length, 2, 'a second cycle could not be started by hand');
+    const ids = Object.keys(G('state').cycles);
+    eq(new Set(ids).size, ids.length, 'the two cycles collided on one id');
+  });
+});
+
+test('a cycling task survives being removed from the hand', () => {
+  const owner = aCycleOwner('laundry');
+  withState(st => {
+    st.hand = null; st.handDate = null;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
+  }, () => {
+    G('toggleComplete')(owner.id);
+    G('markRemovedToday')(owner.id);
     G('state').hand = null; G('state').handDate = null;
     G('dealHand')();
-    ok(G('state').hand.indexOf(load) !== -1, 'a running cycle was dismissed by removedToday');
+    ok(G('state').hand.indexOf(owner.id) !== -1, 'a running cycle was dismissed by removedToday');
   });
 });
 
-test('a finished load is one card, not five', () => {
-  // Each stage banks a completion, and the hand pulls in anything completed today.
-  // Unguarded, that puts all four steps back as their own Completed rows next to
-  // the load — the sprawl the cycle card exists to replace.
-  const load = 'lroom_whites';
+test('cycleBack steps back and restores that step\'s wait', () => {
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    const stages = G('CYCLES').laundry.stages.length;
-    for (let i = 0; i < stages; i++) G('toggleComplete')(load);
-    eq(G('dayKeyOf')(G('state').completions[load]), G('todayStr')(), 'precondition: the load finished');
-    const shown = G('getHandTasks')().map(t => t.id);
-    const leaked = shown.filter(id => G('CYCLE_STAGE_IDS').has(id));
-    eq(leaked.length, 0, 'finished stages surfaced as their own rows: ' + leaked.join(', '));
-    ok(shown.indexOf(load) !== -1, 'the finished load itself fell out of the hand');
-  });
-});
-
-test('cycleBack restores the real previous date, not an invented one', () => {
-  // The two-undos rule applies to stages. Faking "now - freq" on l_dryer would
-  // move a real completion date and there is no way back from that.
-  const load = 'lroom_whites';
-  const realDryerDate = Date.now() - 9 * DAY;
-  withState(st => {
-    st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
-    st.completions['l_dryer'] = realDryerDate;
-  }, () => {
-    G('toggleComplete')(load);        // → stage 1 (l_dryer)
-    G('toggleComplete')(load);        // bank l_dryer → stage 2
-    eq(G('dayKeyOf')(G('state').completions['l_dryer']), G('todayStr')(), 'precondition: l_dryer banked');
+    G('toggleComplete')(owner.id);      // → step 1
+    G('toggleComplete')(owner.id);      // → step 2
     const cid = Object.keys(G('state').cycles)[0];
+    eq(G('state').cycles[cid].stage, 2, 'precondition: two steps in');
     G('cycleBack')(cid);
-    eq(G('state').cycles[cid].stage, 1, 'cycleBack did not step the stage back');
-    eq(G('state').completions['l_dryer'], realDryerDate, 'cycleBack invented a date instead of restoring one');
+    eq(G('state').cycles[cid].stage, 1, 'cycleBack did not step back');
+    // Going back to "in the washer" must not claim the wash is already finished.
+    const wait = G('stageReadyIn')('laundry', 1);
+    ok(G('state').cycles[cid].readyAt - Date.now() > (wait - 2) * 60000,
+       'stepping back did not restore the machine wait');
   });
 });
 
-test('a stale cycle says so on its card', () => {
-  const load = 'lroom_whites';
+test('today\'s cycle pick survives a redeal', () => {
+  // redealHand() nulls the hand, so the slot re-sorts six near-identical wash
+  // tasks from scratch. Without a dated choice, today's laundry quietly became a
+  // different load every time she redealt.
+  withState(st => { st.hand = null; st.handDate = null; }, () => {
+    G('dealHand')();
+    const all = G('getAllTasks')();
+    const first = G('state').hand.find(id => {
+      const t = all.find(x => x.id === id);
+      return t && G('cycleDefFor')(t) === 'laundry';
+    });
+    ok(!!first, 'fixture needs a laundry load in the hand');
+    for (let i = 0; i < 4; i++) {
+      G('state').hand = null; G('state').handDate = null;
+      G('dealHand')();
+      const now = G('state').hand.find(id => {
+        const t = all.find(x => x.id === id);
+        return t && G('cycleDefFor')(t) === 'laundry';
+      });
+      eq(now, first, 'redeal ' + (i + 1) + ' swapped today\'s load');
+    }
+  });
+});
+
+test('a cycle owner added back by hand is the one dealt', () => {
+  withState(st => { st.hand = null; st.handDate = null; }, () => {
+    G('dealHand')();
+    const all = G('getAllTasks')();
+    const dealt = G('state').hand.find(id => {
+      const t = all.find(x => x.id === id);
+      return t && G('cycleDefFor')(t) === 'laundry';
+    });
+    // A DIFFERENT load, so the assertion cannot pass by the slot's own default.
+    const other = all.find(t => G('cycleDefFor')(t) === 'laundry' && t.id !== dealt && G('dealtByMe')(t));
+    ok(!!other, 'fixture needs a second wash task');
+    G('addToHand')(other.id);
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    ok(G('state').hand.indexOf(other.id) !== -1, 'the load she chose was swapped out on redeal');
+  });
+});
+
+test('a stale cycle says so on its card, with a way out', () => {
+  const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
-    st.completions[load] = Date.now() - 30 * DAY;
+    st.completions[owner.id] = Date.now() - 30 * DAY;
   }, () => {
-    G('toggleComplete')(load);
+    G('toggleComplete')(owner.id);
     const cid = Object.keys(G('state').cycles)[0];
-    const task = G('getAllTasks')().find(t => t.id === load);
-    ok(G('renderCard')(task, false).indexOf('still going?') === -1, 'a fresh cycle is already crying stale');
+    ok(G('renderCard')(owner, false).indexOf('still going?') === -1, 'a fresh cycle is already crying stale');
     G('state').cycles[cid].stageAt = Date.now() - 5 * DAY;
-    // Assert on the rendered HTML, not on cycleIsStale: the prompt is only useful
-    // if it reaches the card, and a card-side bug is invisible to the predicate.
-    const html = G('renderCard')(task, false);
+    const html = G('renderCard')(owner, false);
     ok(html.indexOf('still going?') !== -1, 'a five-day-old cycle does not prompt on its card');
     ok(html.indexOf('Drop it') !== -1, 'no way out of the stale cycle from the card');
   });
 });
+
+test('saveTask keeps the cycle field', () => {
+  // The documented trap: saveTask rebuilds a custom task from an explicit field
+  // list, so any task-level flag missing from it is stripped on the first edit.
+  withState(st => {
+    st.customTasks = { probe_cyc: { id:'probe_cyc', name:'Probe', room:'Kitchen', freq:7, time:5,
+                                    owner:'alina', cat:false, load:false, cycle:'dishwasher' } };
+  }, () => {
+    G('openModal')('probe_cyc');
+    G('saveTask')();
+    const saved = G('state').customTasks['probe_cyc'];
+    eq(saved.cycle, 'dishwasher', 'editing the task stripped its cycle');
+    eq(G('cycleDefFor')(saved), 'dishwasher', 'the saved task no longer owns a cycle');
+  });
+});
+
 
 // ─── Bob's work ────────────────────────────────────────────────────────────
 // Bob's tasks sit outside her pool: she logs them, she is not dealt them. Two
@@ -900,8 +1006,12 @@ test('a populated state survives an export → import round-trip', () => {
     // applyImport ends in render(), which deals a hand and ticks starvation, so
     // those four fields are legitimately different afterwards. Everything else
     // must round-trip byte-for-byte.
+    // cycleChoice/cycleChoiceDate are written by dealHand next to hand/handDate —
+    // they record which task took each cycle's slot today — so they are deal
+    // output, not stored preferences, and move for the same reason.
     const volatile = new Set(['hand', 'handDate', 'starvation', 'starvationDate',
-                              'removedToday', 'removedTodayDate']);
+                              'removedToday', 'removedTodayDate',
+                              'cycleChoice', 'cycleChoiceDate']);
     const checked = Object.keys(st).filter(k => !volatile.has(k));
     ok(checked.length > 20, 'sanity: expected to check most of the state, got ' + checked.length + ' fields');
     checked.forEach(k => {
