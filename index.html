@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v14">
+  <meta name="app-version" content="2026-08-17 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -280,6 +280,23 @@
     .task-notdue  { color: var(--text3); white-space: nowrap; }
     .task-pinned-word { color: var(--amber); font-weight: 600; }
     .task-started { font-size: var(--fs-label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); font-weight: 700; border-left: 2px solid var(--green); padding-left: var(--s-3); white-space: nowrap; flex-shrink: 0; }
+
+    /* Cycles — a load in flight. The step name is the actionable half of the meta
+       line, so it carries the accent; the dots say how far through the load is. */
+    .cyc-step { color: var(--green); font-weight: 600; white-space: nowrap; }
+    .cyc-ready { color: var(--text3); white-space: nowrap; }
+    .cyc-dots { display: inline-flex; align-items: center; gap: var(--s-2); margin-left: var(--s-3); flex-shrink: 0; }
+    .cyc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border2); }
+    .cyc-dot.done { background: var(--green); }
+    /* The current step is HOLLOW, not a second colour — one accent, and "done" vs
+       "doing" has to be readable at 5px. A filled green ringed in --green-bg was
+       indistinguishable from a done dot in dark mode, so the stepper read one
+       step further along than the load actually was. */
+    .cyc-dot.now { width: 7px; height: 7px; background: transparent; box-shadow: inset 0 0 0 2px var(--green); }
+    /* Ticking a cycling card advances it, so the circle is a step control, not a
+       completion box. The lighter ring says the tap will not finish anything. */
+    .task-card.cycling .task-check { border-color: var(--green); }
+    .task-card.cycling .cyc-step { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
 
     /* Swipe rail — revealed under the row, mockup 3b. */
     .task-swipe { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
@@ -1544,12 +1561,18 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v14';
+  const APP_VERSION = '2026-08-17 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v1', notes: [
+      'Laundry is now one card instead of five. Tap "Wash whites" when the machine is running and the same card becomes "Move to dryer", then "Fold", then "Put away" — with dots showing how far through the load you are. Swipe it for Back if you tap a step too early.',
+      'The load only counts as done when you put it away, not when you start it. So "every 7 days" on whites now measures whole loads. Your washing will look slightly less up to date than it used to, because the old count was measuring the wrong end.',
+      'The four old steps (start a load, move to dryer, fold, put away) no longer appear as separate daily tasks. They are the steps inside the load now.',
+      'A load you have not touched for three days says "still going?" so it cannot sit there invisibly holding up the next wash.',
+    ]},
     { v: '2026-08-16 v14', notes: [
       'Small buttons are now much easier to hit. Nothing looks different — each one keeps its size but the area your finger has to land in is bigger, which matters most on the Stats list where the buttons were 23 pixels tall.',
       'The quietest grey text was slightly too faint to meet the accessibility standard, in both light and dark. It is a shade stronger now.',
@@ -1708,7 +1731,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {} };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -2149,10 +2172,84 @@
       .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
   }
   
+  // ─── CYCLES ────────────────────────────────────────────────────────────────
+  // A cycle is a multi-stage job you start once and come back to: wash, move to
+  // the dryer, fold, put away. Its stages are ORDINARY TASKS, so ticking one
+  // still writes completions and history and still feeds Stats and the real-
+  // cadence hint. What the cycle adds is order and an INSTANCE: the running load
+  // knows which step it is on, which is what lets two loads be in flight at once
+  // without fighting over a single row in TASKS.
+  //
+  // Only the FIRST thing is scheduled. The load task carries the freq; the stages
+  // have no frequency of their own, because "move to dryer" is not due every day
+  // — it is due 55 minutes after the wash started. Giving them a frequency is
+  // exactly what produced the four freq-1 dailies that dealHand had to suppress
+  // with a special case.
+  //
+  // `readyIn` is minutes of machine time before a stage can really be done. It is
+  // stored and displayed and does NOT block the tick — see cycleReadyLabel().
+  const CYCLES = {
+    laundry: {
+      maxOpen: 1,          // one washer. Raise this to allow concurrent loads.
+      stages: [
+        { task: 'l_start',    readyIn: 0  },
+        { task: 'l_dryer',    readyIn: 55 },
+        { task: 'l_fold',     readyIn: 60 },
+        { task: 'l_put_away', readyIn: 0  },
+      ],
+    },
+  };
+  const CYCLE_STALE_DAYS = 3;
+
+  // Which cycle a task starts. `load: true` is the marker rather than a new
+  // task-level field on purpose: saveTask rebuilds a custom task from an explicit
+  // field list, so a `cycle:'laundry'` property would be silently stripped the
+  // first time she edited the task. `load` survives only because it owns the
+  // f_load checkbox, and it already means "this is a wash".
+  function cycleDefFor(task) { return task && task.load ? 'laundry' : null; }
+
+  // A stage task is never scheduled on its own. It reaches the hand only as the
+  // current step of a running cycle — without this the four laundry steps, all
+  // freq 1, would deal every single day and starve forever between loads.
+  const CYCLE_STAGE_IDS = new Set(
+    Object.keys(CYCLES).reduce((acc, k) => acc.concat(CYCLES[k].stages.map(s => s.task)), [])
+  );
+  function isCycleStage(id) { return CYCLE_STAGE_IDS.has(id); }
+
+  function openCycles() {
+    const c = state.cycles || {};
+    return Object.keys(c).map(cid => Object.assign({ cid }, c[cid]));
+  }
+  function cycleForTask(taskId) {
+    const c = state.cycles || {};
+    const cid = Object.keys(c).find(k => c[k].taskId === taskId);
+    return cid ? Object.assign({ cid }, c[cid]) : null;
+  }
+  function cycleStageDef(c) {
+    const def = CYCLES[c && c.def];
+    return def ? def.stages[c.stage] : null;
+  }
+  function cycleStageTask(c) {
+    const s = cycleStageDef(c);
+    return s ? getAllTasks().find(t => t.id === s.task) : null;
+  }
+  function cycleIsStale(c) {
+    return Date.now() - (c.stageAt || c.startedAt || 0) > CYCLE_STALE_DAYS * 86400000;
+  }
+  // Inert by design: the label says when the machine should be finished, and the
+  // tick is never blocked on it. Nothing else in the app resolves finer than a
+  // calendar day, so making this a gate would be the first sub-day due rule.
+  function cycleReadyLabel(c) {
+    const at = c && c.readyAt;
+    if (!at || at - Date.now() <= 60000) return '';
+    return 'ready ~' + new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
   function getDailies() {
     return getAllTasks().filter(t =>
       t.freq === 1 &&
       !t.oneOff &&
+      !isCycleStage(t.id) &&
       isDue(t) &&
       inSeason(t) &&
       (t.owner === 'alina' || t.owner === 'either')
@@ -2190,20 +2287,27 @@
     // Membership is declared per-task via `load: true` rather than a hardcoded id list,
     // so a new wash task (base or custom) joins the slot by declaring it, in one place.
     const LAUNDRY_LOAD_IDS = new Set(allTasks.filter(t => t.load).map(t => t.id));
-    const LAUNDRY_PROCESS_IDS = new Set(['l_start','l_dryer','l_fold','l_put_away']);
     const pinnedLaundryLoad = pinned.some(id => LAUNDRY_LOAD_IDS.has(id));
     const completedLaundryLoadToday = allTasks.some(t => LAUNDRY_LOAD_IDS.has(t.id) && wasCompletedToday(t));
     const inProgressLaundryLoad = Object.keys(state.inProgress || {}).some(id => LAUNDRY_LOAD_IDS.has(id));
-    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday || inProgressLaundryLoad;
+    // A load whose cycle is still running IS the hand's laundry, however many days
+    // ago it started — so it blocks a new one and never re-enters the draw. This is
+    // CYCLES.laundry.maxOpen expressed against the one washer she owns; the instance
+    // model itself would happily run several at once.
+    const cyclingLoadIds = new Set(openCycles().map(c => c.taskId));
+    const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday || inProgressLaundryLoad ||
+      cyclingLoadIds.size >= (CYCLES.laundry.maxOpen || 1);
     const dueLaundryLoads = allTasks
-      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
+      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && !cyclingLoadIds.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
       .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
     // Don't assign another laundry load if one was already completed today or is pinned
     const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
 
+    // The four process steps used to be filtered out here when nothing was due to
+    // wash. getDailies() now drops every cycle stage unconditionally, because a
+    // stage only ever reaches the hand through its running cycle.
     const dailyIds = getDailies().map(t => t.id)
-      .filter(id => !pinnedSet.has(id))
-      .filter(id => laundryLoadId !== null || hasLaundryToday || !LAUNDRY_PROCESS_IDS.has(id));
+      .filter(id => !pinnedSet.has(id));
 
     // Always-assign: c_fountain bypasses all tiers when due; laundry load slot
     const ALWAYS_ASSIGN_IDS = ['c_fountain'];
@@ -2261,10 +2365,17 @@
       ...pinned.filter(id => { const t = allTasks.find(x => x.id === id); return t && t.freq === 1 && !t.oneOff; }),
       ...allTasks.filter(t => t.freq === 1 && !t.oneOff && mine(t) && wasCompletedToday(t)).map(t => t.id),
     ]);
+    // A running cycle's next step is forced into the hand exactly like a daily, so
+    // it comes off the top of the day's total rather than competing for extras.
+    // The load task's own time is not charged as well — the card shows the step.
+    const cycleStepTime = openCycles().reduce((s, c) => {
+      const t = cycleStageTask(c);
+      return s + (t ? taskTime(t) : 0);
+    }, 0);
     const dailyTime = [...dailyLoadIds].reduce((s, id) => {
       const t = allTasks.find(x => x.id === id);
       return s + (t ? taskTime(t) : 0);
-    }, 0);
+    }, 0) + cycleStepTime;
 
     // The dated override is a TOTAL for the day — dailies come off the top and
     // whatever is left buys extras. The stored weekday/weekend budgets keep their
@@ -2344,6 +2455,11 @@
 
     const newHandIds = new Set([...pinned, ...dailyIds, ...alwaysAssigned, ...selected.map(t => t.id)]);
     allTasks.forEach(t => {
+      // A banked stage is completed-today, so without the guard each one comes
+      // back as its own Completed row and a finished load shows five cards — the
+      // exact sprawl the single cycle card exists to replace. The completion is
+      // still recorded; it just belongs to the cycle, not to the hand.
+      if (isCycleStage(t.id)) return;
       if (wasCompletedToday(t) && !newHandIds.has(t.id)) newHandIds.add(t.id);
     });
     // In-progress tasks carry into every new hand until finished — including when
@@ -2352,10 +2468,20 @@
     Object.keys(state.inProgress || {}).forEach(id => {
       if (allTasks.find(t => t.id === id)) newHandIds.add(id);
     });
+    // A load with a cycle open rides into every hand until the cycle ends — same
+    // rule as inProgress, and for the same reason: the machine is running whether
+    // or not the task reads as due.
+    cyclingLoadIds.forEach(id => {
+      if (allTasks.find(t => t.id === id)) newHandIds.add(id);
+    });
     // Tasks removed today stay out of any redeal until tomorrow (unless completed today)
     const removedSet = new Set(state.removedToday || []);
     state.hand = [...newHandIds].filter(id => {
       if (!removedSet.has(id)) return true;
+      // A running cycle is not dismissible. Removing it for the day would leave wet
+      // clothes in the machine with nothing on screen to say so; the card carries
+      // its own "Drop it" for the case where she really has abandoned the load.
+      if (cyclingLoadIds.has(id)) return true;
       const t = allTasks.find(x => x.id === id);
       return t && wasCompletedToday(t);
     });
@@ -2367,6 +2493,10 @@
       state.starvationDate = today;
       const handSet = new Set(state.hand);
       allTasks.forEach(t => {
+        // A cycle stage is never dealt on its own, so it can never be "due but not
+        // dealt". Left in, all four laundry steps would tick up forever and their
+        // score bonus would sit at the cap permanently.
+        if (isCycleStage(t.id)) return;
         if (isDue(t) && inSeason(t) && !handSet.has(t.id)) {
           state.starvation[t.id] = (state.starvation[t.id] || 0) + 1;
         } else if (handSet.has(t.id)) {
@@ -2385,6 +2515,7 @@
     const handIds = new Set(state.hand);
     const completedToday = getAllTasks().filter(t =>
       !handIds.has(t.id) &&
+      !isCycleStage(t.id) &&          // shown by its cycle's card, not as its own row
       (t.owner === 'alina' || t.owner === 'either') &&
       wasCompletedToday(t)
     );
@@ -2422,6 +2553,7 @@
     return getAllTasks()
       .filter(t =>
         (t.owner === 'alina' || t.owner === 'either') &&
+        !isCycleStage(t.id) &&      // only reachable through its cycle
         !isDue(t) &&
         inSeason(t) &&
         !state.hand.includes(t.id)
@@ -2630,8 +2762,15 @@
 
   function undoComplete() {
     if (!_undoBuffer) return;
-    const { id, prev, hadHistoryToday, wasInProgress, milestoneKey, prevBestStreak } = _undoBuffer;
+    const { id, prev, hadHistoryToday, wasInProgress, milestoneKey, prevBestStreak, restoreCycle } = _undoBuffer;
     _undoBuffer = null;
+    // Undoing the completion of a cycle's last stage puts the cycle back on that
+    // stage, rather than leaving a finished load with no way to reopen it.
+    if (restoreCycle) {
+      if (!state.cycles) state.cycles = {};
+      state.cycles[restoreCycle.cid] = restoreCycle.cycle;
+      uncompleteCycleStage((CYCLES[restoreCycle.cycle.def].stages[restoreCycle.cycle.stage] || {}).task);
+    }
     // Un-spend the milestone this completion earned, or a mis-tap permanently burns
     // a once-ever key like "first time". Unconditional: the key was spent whether or
     // not a history entry was added.
@@ -2754,8 +2893,130 @@
   function toggleComplete(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
+    // Ticking a cycle's load task starts the cycle instead of completing it. The
+    // load is only complete when its last stage is, so "Wash whites" now means
+    // whites got washed AND put away, not whites got put in the machine.
+    if (cycleDefFor(task) && !wasCompletedToday(task)) {
+      const running = cycleForTask(id);
+      if (running) { advanceCycle(running.cid); return; }
+      startCycle(id);
+      return;
+    }
+    // The stages are still ordinary tasks and still appear on preset checklists
+    // (Full Reset, Express Reset, Return Home…). Ticking one there advances the
+    // cycle waiting on exactly that step, so the two never disagree about how far
+    // through the load she is.
+    if (isCycleStage(id) && !wasCompletedToday(task)) {
+      const owner = openCycles().find(c => {
+        const s = cycleStageDef(c);
+        return s && s.task === id;
+      });
+      if (owner) { advanceCycle(owner.cid); return; }
+    }
     if (wasCompletedToday(task)) uncompleteTask(id);
     else completeTask(id);
+  }
+
+  // ─── CYCLE LIFECYCLE ───────────────────────────────────────────────────────
+  // Record a stage as done without completeTask's ceremony: no undo toast (the
+  // card's own Back is the undo), no milestone, no auto-unpin. What it must keep
+  // is everything Stats and the cadence hint read.
+  function completeCycleStage(id) {
+    const t = getAllTasks().find(x => x.id === id);
+    if (!t) return;
+    stashPrevCompletion(id);
+    state.completions[id] = Date.now();
+    if (!state.completionHistory) state.completionHistory = {};
+    if (!state.completionHistory[id]) state.completionHistory[id] = [];
+    const alreadyToday = state.completionHistory[id].some(ts => dayKeyOf(ts) === todayStr());
+    if (!alreadyToday) { state.completionHistory[id].push(Date.now()); pruneHistory(id); }
+    if (state.starvation) state.starvation[id] = 0;
+    if (state.snoozed) delete state.snoozed[id];
+  }
+
+  // The exact inverse, for Back. Never fabricate "now - freq" here — the two
+  // undos rule applies to stages too.
+  function uncompleteCycleStage(id) {
+    const stashed = (state.prevCompletions || {})[id];
+    if (stashed !== undefined) {
+      if (stashed) state.completions[id] = stashed;
+      else delete state.completions[id];
+      delete state.prevCompletions[id];
+    }
+    if (state.completionHistory && state.completionHistory[id]) {
+      state.completionHistory[id] = state.completionHistory[id].filter(ts => dayKeyOf(ts) !== todayStr());
+    }
+  }
+
+  function startCycle(taskId) {
+    const task = getAllTasks().find(t => t.id === taskId);
+    const defKey = cycleDefFor(task);
+    if (!task || !defKey || cycleForTask(taskId)) return;
+    if (!state.cycles) state.cycles = {};
+    const now = Date.now();
+    const cid = 'cy_' + now;
+    state.cycles[cid] = { def: defKey, taskId, stage: 0, startedAt: now, stageAt: now, readyAt: now };
+    unremoveToday(taskId);
+    // Tapping the card IS doing the first stage — she taps "Wash whites" when the
+    // machine is already running, not before. So the new cycle immediately banks
+    // stage 0 and settles on whatever comes next.
+    advanceCycle(cid);
+  }
+
+  function advanceCycle(cid) {
+    const c = state.cycles && state.cycles[cid];
+    if (!c) return;
+    const def = CYCLES[c.def];
+    const stage = def && def.stages[c.stage];
+    if (!stage) return;
+    completeCycleStage(stage.task);
+    const next = c.stage + 1;
+    if (next >= def.stages.length) { finishCycle(cid); return; }
+    c.stage = next;
+    c.stageAt = Date.now();
+    c.readyAt = Date.now() + (def.stages[next].readyIn || 0) * 60000;
+    saveState();
+    render();
+    const nt = getAllTasks().find(t => t.id === def.stages[next].task);
+    showToast('Next: ' + (nt ? nt.name : 'carry on') + (cycleReadyLabel(c) ? ' · ' + cycleReadyLabel(c) : ''));
+  }
+
+  function cycleBack(cid) {
+    const c = state.cycles && state.cycles[cid];
+    if (!c || c.stage === 0) return;
+    const def = CYCLES[c.def];
+    c.stage -= 1;
+    c.stageAt = Date.now();
+    c.readyAt = Date.now();
+    uncompleteCycleStage(def.stages[c.stage].task);
+    saveState();
+    render();
+    const t = getAllTasks().find(x => x.id === def.stages[c.stage].task);
+    showToast('Back to: ' + (t ? t.name : 'previous step'));
+  }
+
+  // The last stage is what completes the load, so the load's freq now measures
+  // whole loads rather than loads started.
+  function finishCycle(cid) {
+    const c = state.cycles && state.cycles[cid];
+    if (!c) return;
+    const snapshot = Object.assign({}, c);
+    delete state.cycles[cid];
+    completeTask(c.taskId);
+    // completeTask built the undo buffer; hang the cycle off it so undoing the
+    // toast puts the load back where it was instead of stranding it complete.
+    if (_undoBuffer && _undoBuffer.id === c.taskId) _undoBuffer.restoreCycle = { cid, cycle: snapshot };
+  }
+
+  // A cycle nobody finished. The stages that did happen keep their completions;
+  // the only question is whether the LOAD counts as done.
+  function finishStaleCycle(cid) { finishCycle(cid); }
+  function dropCycle(cid) {
+    if (!state.cycles || !state.cycles[cid]) return;
+    delete state.cycles[cid];
+    saveState();
+    render();
+    showToast('Dropped — the load stays due');
   }
   
   // Putting a task into today's hand has to lift the for-today removal, or the
@@ -3257,12 +3518,32 @@
     const isFlagged = (state.flaggedIds || []).includes(task.id);
     const timerRunning = getTimer() && getTimer().id === task.id;
 
+    // A load whose cycle is running renders as the cycle: ONE card carrying the
+    // step she actually has to do next, plus a dot per stage. Four separate rows
+    // for one load of laundry is exactly what this replaces.
+    const cyc = (task.load && !isDone) ? cycleForTask(task.id) : null;
+    const cycDef = cyc ? CYCLES[cyc.def] : null;
+    const cycStep = cyc ? cycleStageTask(cyc) : null;
+    const cycStale = cyc ? cycleIsStale(cyc) : false;
+
     // The meta line, in priority order — it ellipsizes, so what matters goes first.
     const bits = [];
-    if (task.room) bits.push(task.room);
-    if (!task.oneOff) bits.push(freqLabel(task.freq));
+    if (cyc) {
+      // The step replaces the overdue chip. A load two days into its cycle is not
+      // late in any way she can act on; what she needs is "move it to the dryer".
+      bits.push('<span class="cyc-step">' + (cycStep ? cycStep.name : 'next step') + '</span>');
+      const ready = cycleReadyLabel(cyc);
+      if (ready) bits.push('<span class="cyc-ready">' + ready + '</span>');
+      if (cycStale) bits.push('<span class="task-overdue">still going?</span>');
+      if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
+    }
+    // The line ellipsizes, and on a cycling card the step name plus the ready time
+    // already fill it. "step 2 of 4" is what the dots say, and the room is implied
+    // by the load — both were pushing the ready time off the end.
+    if (task.room && !cyc) bits.push(task.room);
+    if (!task.oneOff && !cyc) bits.push(freqLabel(task.freq));
     if (task.oneOff) bits.push('one-off');
-    if (!isDone) {
+    if (!isDone && !cyc) {
       if (isSnoozed) {
         const snoozeDate = new Date(snoozeUntil).toLocaleDateString('en-US', {month:'short', day:'numeric'});
         bits.push('<span class="task-snoozed">snoozed until ' + snoozeDate + '</span>');
@@ -3275,7 +3556,9 @@
       if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
       if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
     }
-    const cad = task.oneOff ? null : cadenceInfo(task);
+    // The cadence hint is real but the cycle line is already full, and "~9d real"
+    // next to "Move to dryer" answers a question she is not asking mid-load.
+    const cad = (task.oneOff || cyc) ? null : cadenceInfo(task);
     if (cad) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + task.freq + 'd">~' + cad.real + 'd real</span>');
     if (task.owner === 'bob') bits.push('<span class="owner-badge owner-bob">Bob</span>');
 
@@ -3283,9 +3566,25 @@
     const startedHtml = !isDone && isInProgress && !timerRunning
       ? '<span class="task-started">Started</span>' : '';
 
+    // Sprint drops the whole meta line, so the step has to ride on the name line
+    // there or a cycling load reads as a bare "Wash whites" with nothing to do.
+    const cycStepHtml = (cyc && cycStep) ? '<span class="cyc-step">' + cycStep.name + '</span>' : '';
+
+    // A cycling card is timed by its current STEP, not by the load. Ticking it
+    // moves the load one stage on, and three minutes is the honest answer to
+    // "what does this tap cost me".
+    const stepMins = (cyc && cycStep) ? taskTime(cycStep) : taskTime(task);
     const timeHtml = timerRunning
       ? '<span class="task-time" id="timerElapsed_' + task.id + '" style="color:var(--green);font-weight:600">' + fmtElapsed(Date.now() - getTimer().startedAt) + '</span>'
-      : (isDone ? '' : '<span class="task-time">' + fmtMinutes(taskTime(task)) + '</span>');
+      : (isDone ? '' : '<span class="task-time">' + fmtMinutes(stepMins) + '</span>');
+
+    // Not in compact rows. Sprint is a walkthrough — "Fold laundry" is the
+    // instruction and "how far through" is a nicety, and with both on one line the
+    // name wrapped to two rows and the step truncated to "Fold laun…".
+    const dotsHtml = (cyc && !compact)
+      ? '<span class="cyc-dots" aria-hidden="true">' + cycDef.stages.map((s, i) =>
+          '<span class="cyc-dot' + (i < cyc.stage ? ' done' : (i === cyc.stage ? ' now' : '')) + '"></span>').join('') + '</span>'
+      : '';
 
     const pinGlyph = isPinned && !isDone
       ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '';
@@ -3300,17 +3599,27 @@
       rail += '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' +
         icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>';
     }
-    if (inHand && !isDone) {
+    // A running cycle swaps Remove for its own two ways out. Remove would hide the
+    // card for a day and leave the washer full with nothing on screen saying so.
+    if (cyc) {
+      if (cyc.stage > 0) {
+        rail += '<button class="sw-pin" onclick="cycleBack(\'' + cyc.cid + '\')" aria-label="Back a step">' +
+          icon('checkBack', 17) + '<span>Back</span></button>';
+      }
+      rail += '<button class="sw-remove" onclick="dropCycle(\'' + cyc.cid + '\')" aria-label="Drop this load">' +
+        icon('trash', 17) + '<span>Drop it</span></button>';
+    } else if (inHand && !isDone) {
       rail += '<button class="sw-remove" onclick="removeFromHand(' + q + ')" aria-label="Remove from today">' +
         icon('trash', 17) + '<span>Remove</span></button>';
     }
 
-    return '<div class="task-card' + (isDone ? ' done' : '') + (compact ? ' compact' : '') + '" id="card_' + task.id + '" data-task-id="' + task.id + '" data-can-swap="' + (canSwap ? '1' : '0') + '">' +
+    return '<div class="task-card' + (isDone ? ' done' : '') + (compact ? ' compact' : '') + (cyc ? ' cycling' : '') + '" id="card_' + task.id + '" data-task-id="' + task.id + '" data-can-swap="' + (canSwap ? '1' : '0') + '">' +
       '<div class="task-swipe">' + rail + '</div>' +
       '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
         '<div class="task-body">' +
-          '<div class="task-name">' + pinGlyph + '<span class="task-name-text">' + task.name + '</span>' +
+          '<div class="task-name">' + pinGlyph + '<span class="task-name-text">' + task.name + '</span>' + dotsHtml +
+            (compact && cycStepHtml ? cycStepHtml : '') +
             (compact && startedHtml ? startedHtml : '') + '</div>' +
           (compact ? '' :
           '<div class="task-meta">' +
@@ -3862,7 +4171,10 @@
     // ── LAUNCH: passive/cycle-starting tasks ──
     // Today's laundry load (towels, microfiber, whites…) rides along next to
     // "Start a load of laundry" so you know what to wash when you launch it.
-    const SPRINT_LOAD_IDS = hand.filter(t => t.load).map(t => t.id);
+    // Only a load that still has to be STARTED belongs in Launch. Once its cycle
+    // is past stage 0 the card says "Fold laundry", which is not a set-it-going
+    // job — it falls through to the Laundry Room block where the folding happens.
+    const SPRINT_LOAD_IDS = hand.filter(t => t.load && !cycleForTask(t.id)).map(t => t.id);
     // Every robot RUN belongs here — they are the passive jobs you set going and
     // walk away from. rob_mop_us was added in the per-unit split and missed, so it
     // fell through to a one-task block at the very end of the sprint.
