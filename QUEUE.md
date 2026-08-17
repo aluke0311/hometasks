@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-16 · app at `2026-08-16 v13` · selftest 73/73 green.
+Last touched: 2026-08-16 · app at `2026-08-16 v14` · selftest 73/73 green.
 
 ---
 
@@ -32,7 +32,7 @@ Three tools, three jobs:
 ## Code queue
 
 ### C-7 — reduce the inline styles · S4 · **at a stable floor**
-**92** inline `style="` attributes remain (was 219 → 211 → 184 → 145 → 104 → 92). Every
+**90** inline `style="` attributes remain (219 → 211 → 184 → 145 → 104 → 92 → 90). Every
 shared component has been named. What is left does not want a class:
 
 | Count | What | Why it stays |
@@ -85,7 +85,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 1 | Flow | **Not run** | Optional: which journeys currently annoy her |
 | 2 | Behaviour | **Partly run** | — (simulator exists) |
 | 3 | State | **Done** (2026-08-16) — 5 found, 5 fixed | — |
-| 4 | Surface | **Run 2026-08-16** — 7 findings, unfixed | — |
+| 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
 | 5 | Content | **Half run** | Copy sweep outstanding |
 | 6 | Coherence | **Done** | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
@@ -128,58 +128,42 @@ only as things that must not regress, because all five were invisible to a green
 Passes worth not re-deriving: export → import round trip is clean across all 41 fields;
 storage settles at **≈62 KB, 83× under a 5 MB quota**, so `pruneHistory` genuinely bounds it.
 
-### 4. Surface — **run 2026-08-16.** 7 findings, none fixed
+### 4. Surface — **run and fixed 2026-08-16.** Nothing open.
 
-Trend numbers: **92** inline styles (219 → 211 → 184 → 145 → 104 → 92) · **13** colour
-literals outside token definitions, of which 4 are shadows and 4 are documented
-swipe-rail fills · **0** colour literals in JS-built markup · **34** distinct type triples.
+Trend numbers: **90** inline styles (219 → 211 → 184 → 145 → 104 → 92 → 90) · **34**
+distinct type triples · **0** contrast failures in either theme (was 5 light, 19 dark) ·
+**0** controls short of a 44×44 tap target (was 539 instances / 76 shapes).
 
-**S2 · Hit targets, systemic. 539 instances under 44×44, 76 distinct shapes.** Height is
-almost always the failing dimension — plenty are wide and 23–34px tall. By volume:
-`.task-more-btn` 30×30 (**216** instances, Hand/Sprint/All Tasks). By severity:
-`.settings-save-btn.quiet` 98×**23**, `.manage-hand-btn.sm` 61×**26**, `.stepper-btn` 28×28,
-and `.cad-name` — a tappable text link **15px** tall. Fix once as a policy (a minimum
-block-size plus transparent padding), not per-component.
+Invariants the fixes leave behind:
 
-**S2 · `importTextarea` computes to 13px.** Every other input clears the 16px floor; this
-one does not, so iOS Safari zooms the page on focus and does not zoom back — on the
-restore-from-backup field, which is a bad place to be fighting the viewport.
+- **Tap targets are a transparent `::before` box, not a resize.** Controls keep their drawn
+  size; the pseudo-element gives them 44×44. Use `::before` — `.toggle` and `.field-check`
+  already own `::after`. A new small control must join the two selector lists or it silently
+  keeps a 26px target.
+- **`select` and `input` cannot use it** — pseudo-elements on replaced elements are
+  unreliable, so `.zone-select`, `.room-select` and `.search-input` take `min-height`
+  directly. This is the one part of the fix with a visible consequence: the mode strip grew
+  from 55px to 69px.
+- **`.task-swipe button` is (0,1,1).** A bare `.sw-today` override is (0,1,0) and loses
+  silently. Rail overrides must be written `.task-swipe .sw-*`.
+- **Three rail fills stay dark in both themes** (`--slate-strong`, `--amber-strong`,
+  `--red-strong`) so their literal `#fffdf8` label keeps working. `.sw-today` is the
+  exception — its fill is `var(--green)`, which lightens, so it pairs with `--on-accent`.
+- **`--text3` is the lighter of the two quiet greys and must stay that way.** It cannot be
+  darkened far enough to clear AA on `--bg3` without inverting the hierarchy against
+  `--text2`; it is not used on `--bg3`, and that is why.
+- **A `<summary>` sets `--text3` for its chevron**, so anything inside it needs its colour
+  restored or it reads as disabled rather than collapsed.
 
-**S3 · Dark `--text3` misses AA by 0.03.** `#8b8574` on `--card` = **4.47:1** against 4.5.
-Sixteen of the 19 dark failures are this single token: `.caption`, `.muted`, `.cad-sub`,
-`.task-notdue`, `.sheet-group-label`, `.tab-label` (inactive), `.settings-summary`. One
-nudge clears the lot. On `--bg2` it is 4.36 (`.settings-stat-label`, `.vac-legend-label`).
+**Method trap, cost four false findings on two separate runs.** Changing the emulated colour
+scheme *without reloading* leaves elements resolving old foreground colours against new
+backgrounds — the active tab measured 2.00:1 where a reloaded page measures 7.96:1. Reload
+after every theme switch, then measure. Same shape as the simulator producing findings about
+itself.
 
-**S3 · The swipe rail's literal text colour is wrong for one of its four buttons.**
-`.task-swipe button { color: #fffdf8 }` is deliberate — the comment says those fills stay
-dark in both themes. True for `.sw-more`/`.sw-pin`/`.sw-remove`, but `.sw-today` was added
-later using `var(--green)`, which lightens to sage in dark mode: **2.04:1**. Separately
-`.sw-pin` is 3.11:1 and `.sw-more` 3.62:1 in *both* themes.
-
-**S3 · A collapsible card's title is dimmer than a fixed card's, for no reason she can
-read.** `.ed-details > summary { color: var(--text3) }` and `.settings-card-title` inherits
-it, so "How Scoring Works" and "Recent Activity" sit at 4.47:1 while "System Overview" and
-"Vacation Mode" are ~11:1. Plainly visible side by side in Settings.
-
-**S4 · Light-mode near-misses:** `.settings-stat-label` / `.vac-legend-label` 4.32:1,
-`.rp-zone` 4.17:1.
-
-**S4 · Dead CSS.** `.owner-badge`, `.owner-alina`, `.owner-bob` are defined and never
-emitted by any code path.
-
-**Type scale — the near-duplicates are on the line-height axis, not size.** 13px/400 renders
-at five different line-heights (19.5, normal, 23.4, 18.85, 22.1); 12px/400 at four. Whether
-34 triples should be 34 is Coherence's question; that one size/weight resolves five ways is
-this one's.
-
-**Passed:** no horizontal overflow at 375px on any tab. Zero colour literals in JS-built
-markup — the only two matches are `&#10003;` tick entities. Every other input ≥16px.
-
-**Method trap, cost me four false findings twice.** Changing the emulated colour scheme
-*without reloading* leaves elements resolving old foreground colours against new
-backgrounds, which reads as catastrophic contrast failures: the active tab measured 2.00:1
-and the active mode button 1.87:1. After a reload they are **7.96:1** and **7.43:1**.
-Reload after every theme switch, then measure.
+**Left for Coherence, not a Surface failure:** 34 distinct type triples, whose near-duplicates
+are all on the **line-height** axis — 13px/400 resolves five different ways, 12px/400 four.
+Surface produces the inventory; whether 34 should be 34 is audit 6's question.
 
 ### 5. Content — numbers done, copy not
 Done: pool economics, calibration, tier demand. Outstanding: read every user-visible string
