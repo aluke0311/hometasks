@@ -148,37 +148,65 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — **blocked twice.** Still never run.
+### 1. Flow — **blocked three times.** Still never run. Diagnosis is now precise.
 
-Not a finding about the app. The pane renders and screenshots fine but will not dispatch
-synthetic input. Retried 2026-08-17 at the mobile preset against the standing instruction
-to "confirm the pane accepts a single click inside 30s on something harmless":
+Not a finding about the app. Retried 2026-08-17 with the pane reopened and confirmed
+**displayed**, which disproves the earlier hidden-pane theory:
 
-| Attempt | Result |
+| Action | Result |
 |---|---|
-| `left_click` by coordinate on the Sprint tab | 30s timeout; screenshot confirms the tap never landed |
-| `left_click` by `ref` from `read_page` | 30s timeout |
+| `hover` | **works** — returns immediately |
+| `screenshot`, `read_page`, `javascript_tool` | work |
+| `left_click` by coordinate | 30s timeout, tap never lands (verified by screenshot) |
+| `left_click` by `ref` | 30s timeout |
 
-Both errors report **"The Browser pane is currently hidden"**, which is the likeliest cause —
-a hidden pane appears unable to receive dispatched events. `read_page`, `screenshot` and
-`javascript_tool` all work normally.
+So the input channel is alive and it is **specifically click dispatch that hangs**. The page
+is responsive throughout and the console is clean. Nothing here is fixable from inside the
+repo; it needs either a harness fix or her hands.
 
-**Why this cannot be worked around.** Flow's method says "tapping only what a person could
-see. No `javascript_tool` shortcuts to reach a state — if you cannot get there by tapping,
-that *is* the finding." Its evidence bar is "a screenshot at the moment of failure plus the
-exact tap sequence". Driving it through `javascript_tool` would produce statements about the
-handlers, not about the journeys, and every finding would be indistinguishable from a driver
-artefact — which is exactly what sank the 2026-08-16 attempt.
+**Do not retry without a new hypothesis.** Three attempts across two sessions have produced
+the same result; a fourth costs minutes and yields nothing.
 
-**Three ways forward, in order of value:**
-1. Un-hide the Browser pane and retry — if that is the cause it is a one-click fix.
-2. She walks the ten journeys herself and reports where she stalled. Journey 10 (the escape)
-   is the one to protect if time is short.
-3. Run a **reachability** pass instead and call it that, not Flow: `read_page` works, so the
-   question "is every control reachable from every screen" is answerable without tapping. It
-   would have caught this session's real defect — no route from the hand to the task editor —
-   and it is worth adding to `AUDITS.md` as its own small lens rather than smuggling it in
-   under Flow's name.
+**Two ways forward:**
+1. She walks the ten journeys and reports where she stalled. Journey 10 (the escape) first.
+2. The **Reachability** pass below, which is what was run instead. It answers "does a route
+   exist" without tapping. It is NOT Flow and must never be recorded as Flow — Flow asks
+   whether a route is *findable and cheap*, which only a person tapping can answer.
+
+### 1b. Reachability — **new lens, run 2026-08-17.** 2 findings
+
+Proposed as its own small lens rather than smuggled under Flow. Method: render each tab and
+overlay, enumerate every on-screen control and its handler, and ask whether each destination
+has a route. It would have caught this session's real defect (no route from the hand to the
+task editor), which Flow's absence let through for months.
+
+**R-1 · S3 · A task on a preset checklist has no route to its own page.** Preset rows are
+`.sprint-card.preset-row`; the swipe and long-press delegation binds to `.task-card`
+(`index.html`, the two `closest('.task-card')` sites in `initSwipe`). So a preset row has no
+long-press, no swipe rail and no ⋯. It carries three inline buttons — add to today, flag, pin
+— out of the thirteen the task page offers. Snooze, "did it earlier", the timer, "why this
+task", edit last done and the vacation setting are all unreachable from a preset. Reproduced
+by generating Weekly Reset: 26 rows, none a `.task-card`. Same shape as the bug fixed today.
+
+**R-2 · S3 · Three controls are under the 44×44 tap target**, against Surface's recorded
+"0 controls short". All three are the Guest Prep radio labels — `label.opt-label` at
+**155×20, 91×20 and 84×20**. Measured across all six tabs including a rendered preset; every
+other control clears 44×44. This is exactly the case Surface's fix warned about: a new small
+control must join the two `::before` selector lists or it silently keeps its drawn size.
+
+**Checked and cleared — do not re-report these:**
+
+| Suspicion | Why it is not a finding |
+|---|---|
+| Bottom-nav buttons unnamed | `read_page`'s tree does not resolve the label span; they have visible text and an accessible name |
+| Guest Prep radios unlabelled | They sit inside `<label class="opt-label">`, so the text is clickable and names them |
+| Preset action buttons drawn at 26px | Effective hit area measures **44×44** via `::before`; the CSS size is not the target |
+| Stats has no route to the task page | The route exists (`cad-name` → `openModal`); the cadence list needs ≥3 completions and the preview fixture has none. **Fixture limit, not a defect** |
+| Task page has no backdrop-tap exit | Correct for a full page; it keeps a ✕ in a sticky header |
+
+**Method note.** Three of those five started as findings and died on contact with a
+measurement. Two came from reading CSS or an accessibility tree instead of measuring the
+rendered element. Measure, then report.
 
 ### 2. Behaviour — **re-run 2026-08-16.** Numbers refreshed; 3 findings, unfixed
 
@@ -324,11 +352,12 @@ deleted**. The task is hidden and its history IS kept, so the second prompt and 
 both false. Introduced 2026-08-17 when the confirm was added without removing the old one.
 Fix is two lines: drop the inner `confirm`, and make the toast say hidden or deleted to match.
 
-**C-2 · S3 · Copy points at two tabs that do not exist.** Nav reads
+**C-2 · S3 · Copy points at tabs that do not exist — three instances.** Nav reads
 `Hand · Sprint · Tasks · Presets · Stats · Settings`. The Sprint empty state says *"check the
 **Alina** tab first"*, and the Vacation Mode card says *"Change any task in its editor on the
-**All Tasks** tab"*. Both reproduced on screen. The second is also stale in substance: that
-setting is now on the task page, reachable from anywhere.
+**All Tasks** tab"*, and the Active Zone card says *"Override from the **My Hand** tab"*.
+All three reproduced on screen. The second is also stale in substance: that setting is now on
+the task page, reachable from anywhere.
 
 **C-3 · S4 · Three phrasings for the same act.** Adding to today says *"Added to today!"*,
 *"Added to today's hand"*, and *"Added N more tasks"* from three call sites.
