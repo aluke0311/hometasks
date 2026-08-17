@@ -82,8 +82,8 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 
 | # | Audit | State | Needs from her |
 |---|-------|-------|----------------|
-| 1 | Flow | **Not run** | Optional: which journeys currently annoy her |
-| 2 | Behaviour | **Partly run** | — (simulator exists) |
+| 1 | Flow | **Blocked** — see note | Optional: which journeys annoy her |
+| 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
 | 3 | State | **Done** (2026-08-16) — 5 found, 5 fixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
 | 5 | Content | **Half run** | Copy sweep outstanding |
@@ -91,23 +91,86 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — not run
-Ten journeys, each ending by getting back *out*. The exit leg is not optional: the
-2026-08-16 sheet bug lived entirely on the way out and no one-way journey could reach it.
+### 1. Flow — **attempted 2026-08-16, blocked by the harness.** Still not run.
 
-### 2. Behaviour — simulator built, needs a re-run
-`simulate.html` works. **The numbers in the last report are stale** — they were measured
-before the Catch Up split, so Keep Up's figures no longer apply. Re-run and record:
+Not a finding about the app. The Browser pane renders and screenshots fine but times out on
+synthetic input — three consecutive `left_click` / `left_click_drag` calls each hung for 30s,
+and one of them was held long enough that it registered as a **long-press and opened the task
+actions sheet instead of ticking the task**. Flow's method is explicitly "tapping only what a
+person could see" and its evidence bar is "a screenshot at the moment of failure plus the
+exact tap sequence". With input that unreliable, every finding would be indistinguishable
+from a driver artefact — and this session already produced two of those (four false contrast
+readings from an un-reloaded theme switch). Abandoned rather than reported.
 
-- Keep Up coverage is expected to return to ~54% with tier C at 0%. That is now by design;
-  tier C progress depends on using Catch Up.
-- Catch Up should show a large tier C improvement.
-- **Run a second seed before trusting any percentage.** By Freq shuffles within equal
-  frequency and only one seed has ever been run.
+**Before retrying:** confirm the pane accepts a single click inside 30s on something
+harmless. If it does not, Flow cannot be run from here and needs either a fixed harness or
+her walking the ten journeys herself. Journey 10 (the escape) is the one to protect if time
+is short — it is the only journey that would have caught the 2026-08-16 sheet bug.
 
-Known gaps in the simulator: it uses the default task pool rather than her customised one
-(hidden tasks, edited frequencies), and it models three completion policies, none of which
-is actually her.
+### 2. Behaviour — **re-run 2026-08-16.** Numbers refreshed; 3 findings, unfixed
+
+180 simulated days × 7 scenarios, against the **default pool**, one draw. Read the caveats
+under the table before acting on any percentage.
+
+**Coverage — share of her pool dealt at least once**
+
+| Mode | Policy | Budget | All | A | B | C | Never dealt |
+|---|---|---|---|---|---|---|---|
+| byfreq | realistic | **30/60** | **27%** | 100% | 5% | 0% | **123** |
+| maintenance | realistic | 30/60 | 54% | 100% | 77% | 0% | 77 |
+| catchup | realistic | 30/60 | **81%** | 100% | 100% | **48%** | 32 |
+| byfreq | realistic | 45/90 | 38% | 100% | 33% | 0% | 105 |
+| maintenance | realistic | 45/90 | 71% | 100% | 100% | 23% | 48 |
+| maintenance | compliant | 90/120 | **100%** | 100% | 100% | 100% | **0** |
+| maintenance | sporadic | 45/90 | 65% | 100% | 98% | 6% | 59 |
+
+**Starvation (days due but not dealt, end of run) · Budget · Repeat rate**
+
+| Mode | Policy | Budget | Median starv. | ≥100 days | vs budget | Repeat |
+|---|---|---|---|---|---|---|
+| byfreq | realistic | 30/60 | **180** | 123 | −1.5 | **74%** |
+| maintenance | realistic | 30/60 | 27 | 77 | −1 | 54% |
+| catchup | realistic | 30/60 | 14.5 | 46 | −2 | 42% |
+| byfreq | realistic | 45/90 | **180** | 105 | −1 | **78%** |
+| maintenance | realistic | 45/90 | 8 | 48 | −1 | 64% |
+| maintenance | compliant | 90/120 | 0 | 0 | −35 | 0% |
+| maintenance | sporadic | 45/90 | 11 | 59 | −1 | 76% |
+
+**B-1 · S2 · By Freq services almost nothing over time, and this is in tension with a
+recorded decision.** At her real budget it deals 27% of the pool in 180 days and leaves
+**123 tasks never dealt once**; its median task's starvation counter ends at 180, meaning
+the median task was never dealt at all. Repeat rate 74–78% — it re-offers the same short
+list. Worst service intervals, all against a 7-day target: *Tidy back porch* **12.0×**
+(~84 days), *Dust surfaces (living room)* 5.0×, *Sweep stairs* 3.9×. *Kitchen tidy* is a
+**daily** task running at 2.0×. The recorded decision "By Freq stays — 14 routine tasks
+against Keep Up's 6" is not wrong, but it measured **one morning's hand on her real state**;
+this measures **service over 180 days on the default pool**. Both can be true: By Freq fills
+today's hand best and starves everything outside its front rank. Worth putting to her as a
+trade-off rather than treating either number as the answer.
+
+**B-2 · S3 · Tier C is 0% in every mode except Catch Up.** Confirmed as designed — but at
+her real 30/60 budget, Keep Up also reaches 0% and only Catch Up gets to 48%. Raising the
+budget to 45/90 moves Keep Up's tier C to 23%, so the budget is the binding constraint, not
+the scoring. Consistent with the standing 141% utilisation note.
+
+**B-3 · S4 · The dealer never overshoots the budget.** −1 to −2 minutes against target in
+every realistic scenario, so budget adherence is not a problem anywhere. Under
+compliant/90–120 it undershoots by 35 because the pool runs out of due work — and that same
+scenario reaches **100% coverage with zero starvation**, which is the useful result: the
+algorithm is sound, and everything above is a capacity problem.
+
+**Caveats — do not quote these percentages without them.**
+- **`simulate.html` has no seed.** `?seed=` is ignored; the `freq > 60` jitter is unseeded
+  `Math.random()`. The audit's evidence bar asks for "a seeded, reproducible run, plus the
+  seed", so **the harness cannot currently meet its own bar**, and the standing instruction
+  to "run a second seed" was never satisfiable. Adding a seeded PRNG is the first fix here.
+- **One draw.** A second independent run was started and abandoned — see below.
+- **Default pool, not hers.** Her hidden tasks and edited frequencies are absent, which is
+  exactly what makes B-1's tension with the recorded decision unresolvable from here.
+- **The `sporadic` scenario is pathologically slow** — minutes, and on the second run it had
+  not finished after ~15. Under 3-days-on/4-off nearly everything ends up overdue, so the
+  candidate list `dealHand` sorts grows every day. Budget for it, or cut the scenario when
+  iterating.
 
 ### 3. State — **run and fixed 2026-08-16.** Nothing open.
 
