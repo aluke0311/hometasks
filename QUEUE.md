@@ -139,30 +139,46 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 
 | # | Audit | State | Needs from her |
 |---|-------|-------|----------------|
-| 1 | Flow | **Blocked** — see note | Optional: which journeys annoy her |
+| 1 | Flow | **Blocked again** (2026-08-17) — harness | A working input path, or her walking it |
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
 | 3 | State | **Done** (2026-08-16) — 5 found, 5 fixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
-| 5 | Content | **Half run** | Copy sweep outstanding |
+| 5 | Content | **Copy sweep done** (2026-08-17) — 4 findings, unfixed | Her call on C-1..C-4 |
 | 6 | Coherence | **Done** | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — **attempted 2026-08-16, blocked by the harness.** Still not run.
+### 1. Flow — **blocked twice.** Still never run.
 
-Not a finding about the app. The Browser pane renders and screenshots fine but times out on
-synthetic input — three consecutive `left_click` / `left_click_drag` calls each hung for 30s,
-and one of them was held long enough that it registered as a **long-press and opened the task
-actions sheet instead of ticking the task**. Flow's method is explicitly "tapping only what a
-person could see" and its evidence bar is "a screenshot at the moment of failure plus the
-exact tap sequence". With input that unreliable, every finding would be indistinguishable
-from a driver artefact — and this session already produced two of those (four false contrast
-readings from an un-reloaded theme switch). Abandoned rather than reported.
+Not a finding about the app. The pane renders and screenshots fine but will not dispatch
+synthetic input. Retried 2026-08-17 at the mobile preset against the standing instruction
+to "confirm the pane accepts a single click inside 30s on something harmless":
 
-**Before retrying:** confirm the pane accepts a single click inside 30s on something
-harmless. If it does not, Flow cannot be run from here and needs either a fixed harness or
-her walking the ten journeys herself. Journey 10 (the escape) is the one to protect if time
-is short — it is the only journey that would have caught the 2026-08-16 sheet bug.
+| Attempt | Result |
+|---|---|
+| `left_click` by coordinate on the Sprint tab | 30s timeout; screenshot confirms the tap never landed |
+| `left_click` by `ref` from `read_page` | 30s timeout |
+
+Both errors report **"The Browser pane is currently hidden"**, which is the likeliest cause —
+a hidden pane appears unable to receive dispatched events. `read_page`, `screenshot` and
+`javascript_tool` all work normally.
+
+**Why this cannot be worked around.** Flow's method says "tapping only what a person could
+see. No `javascript_tool` shortcuts to reach a state — if you cannot get there by tapping,
+that *is* the finding." Its evidence bar is "a screenshot at the moment of failure plus the
+exact tap sequence". Driving it through `javascript_tool` would produce statements about the
+handlers, not about the journeys, and every finding would be indistinguishable from a driver
+artefact — which is exactly what sank the 2026-08-16 attempt.
+
+**Three ways forward, in order of value:**
+1. Un-hide the Browser pane and retry — if that is the cause it is a one-click fix.
+2. She walks the ten journeys herself and reports where she stalled. Journey 10 (the escape)
+   is the one to protect if time is short.
+3. Run a **reachability** pass instead and call it that, not Flow: `read_page` works, so the
+   question "is every control reachable from every screen" is answerable without tapping. It
+   would have caught this session's real defect — no route from the hand to the task editor —
+   and it is worth adding to `AUDITS.md` as its own small lens rather than smuggling it in
+   under Flow's name.
 
 ### 2. Behaviour — **re-run 2026-08-16.** Numbers refreshed; 3 findings, unfixed
 
@@ -295,9 +311,40 @@ itself.
 are all on the **line-height** axis — 13px/400 resolves five different ways, 12px/400 four.
 Surface produces the inventory; whether 34 should be 34 is audit 6's question.
 
-### 5. Content — numbers done, copy not
-Done: pool economics, calibration, tier demand. Outstanding: read every user-visible string
-in one pass for voice, terms used two ways, and empty states that do not say what to do next.
+### 5. Content — **copy sweep run 2026-08-17.** 4 findings, none fixed
+
+Swept: 47 toasts, 14 action-sheet rows, 13 empty states, 18 Settings card titles and 29
+descriptions, the nav labels and the mode labels. Numbers half was already done.
+
+**C-1 · S3 · Delete asks twice, and the second question contradicts the first.** Reproduced
+against the running app by tapping Delete on a base task: `confirmDeleteTask()` asks *Hide
+"Clean stovetop"? It is a built-in task, so it is hidden rather than deleted. Its history is
+kept.* — then `deleteTask()` immediately asks *Delete this task?*, and the toast says **Task
+deleted**. The task is hidden and its history IS kept, so the second prompt and the toast are
+both false. Introduced 2026-08-17 when the confirm was added without removing the old one.
+Fix is two lines: drop the inner `confirm`, and make the toast say hidden or deleted to match.
+
+**C-2 · S3 · Copy points at two tabs that do not exist.** Nav reads
+`Hand · Sprint · Tasks · Presets · Stats · Settings`. The Sprint empty state says *"check the
+**Alina** tab first"*, and the Vacation Mode card says *"Change any task in its editor on the
+**All Tasks** tab"*. Both reproduced on screen. The second is also stale in substance: that
+setting is now on the task page, reachable from anywhere.
+
+**C-3 · S4 · Three phrasings for the same act.** Adding to today says *"Added to today!"*,
+*"Added to today's hand"*, and *"Added N more tasks"* from three call sites.
+
+**C-4 · S4 · Two strings for an empty search.** *"No tasks match."* in quick-log versus
+*"Nothing matches those filters."* in All Tasks.
+
+**Checked and clean:** voice is consistent second-person plain English throughout; mode names
+(`Keep up` / `Catch up` / `By freq`) are used identically everywhere they appear; most empty
+states already say what to do next.
+
+**A trap, not a finding.** `showToast` uses `textContent` when no undo action is passed and
+`innerHTML` when one is. The what's-new toast contains a literal `&mdash;` and renders
+correctly **only** because it passes an action. Verified both branches: without an action the
+same string renders as `Updated &mdash; 3 changes`. Any new toast copying that phrasing without
+an action will show the entity raw.
 
 ### 7. Opportunity — run last
 Needs a fresh export and the other audits' output. Standing kill list: **weather**
