@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v1">
+  <meta name="app-version" content="2026-08-17 v2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1561,12 +1561,17 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v1';
+  const APP_VERSION = '2026-08-17 v2';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v2', notes: [
+      'New in Settings: "Bob\'s away". Switch it on and his 18 tasks join your hand until you switch it back. The card tells you what that costs — about 58 minutes a week of non-daily work on top of yours — because his list is not free.',
+      'Flagging one of Bob\'s tasks now sends that one task to you. Before, flagging his work set a marker and changed nothing at all, which meant the button was lying.',
+      'His tasks keep their real due dates either way, and nothing changes who owns them. Switching it off hands the list straight back.',
+    ]},
     { v: '2026-08-17 v1', notes: [
       'Laundry is now one card instead of five. Tap "Wash whites" when the machine is running and the same card becomes "Move to dryer", then "Fold", then "Put away" — with dots showing how far through the load you are. Swipe it for Back if you tap a step too early.',
       'The load only counts as done when you put it away, not when you start it. So "every 7 days" on whites now measures whole loads. Your washing will look slightly less up to date than it used to, because the old count was measuring the wrong end.',
@@ -1731,7 +1736,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {} };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, bobAway: false, bobAwaySince: null };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -1742,7 +1747,7 @@
     hand: 'array', guestHand: 'array', resetHand: 'array', goingOutHand: 'array',
     handDate: 'string', starvationDate: 'string', tierCLastDate: 'string',
     lastBackupDate: 'string', removedTodayDate: 'string', pausedAt: 'number', seenVersion: 'string',
-    todayBudget: 'number', todayBudgetDate: 'string', activeTimer: 'object',
+    todayBudget: 'number', todayBudgetDate: 'string', activeTimer: 'object', bobAwaySince: 'number',
   };
 
   // The single place a parsed blob becomes a valid state object — used by both the
@@ -2160,12 +2165,28 @@
     return score;
   }
   
+  // Who a task actually lands on. Bob's 18 tasks are normally outside her pool
+  // entirely — she logs them, she does not get dealt them. Two things override
+  // that, and this helper is the single place both live, so a new pool filter
+  // cannot accidentally disagree with the others:
+  //   - "Bob's away" hands his whole list over for the duration
+  //   - flagging one of his tasks means "bring me this one". On a task she is
+  //     never dealt, that is the only thing the flag could usefully mean; before
+  //     this it set a badge in All Tasks and changed nothing.
+  function dealtByMe(task) {
+    if (!task) return false;
+    if (task.owner === 'alina' || task.owner === 'either') return true;
+    if (task.owner !== 'bob') return false;
+    if (state.bobAway) return true;
+    return (state.flaggedIds || []).includes(task.id);
+  }
+
   function getDueTasks(owner) {
     return getAllTasks()
       .filter(t => {
         if (!isDue(t)) return false;
         if (!inSeason(t)) return false;
-        if (owner === 'alina') return t.owner === 'alina' || t.owner === 'either';
+        if (owner === 'alina') return dealtByMe(t);
         if (owner === 'bob')   return t.owner === 'bob';
         return true;
       })
@@ -2252,7 +2273,7 @@
       !isCycleStage(t.id) &&
       isDue(t) &&
       inSeason(t) &&
-      (t.owner === 'alina' || t.owner === 'either')
+      dealtByMe(t)
     ).sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
   }
   
@@ -2298,7 +2319,7 @@
     const hasLaundryToday = pinnedLaundryLoad || completedLaundryLoadToday || inProgressLaundryLoad ||
       cyclingLoadIds.size >= (CYCLES.laundry.maxOpen || 1);
     const dueLaundryLoads = allTasks
-      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && !cyclingLoadIds.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && (t.owner === 'alina' || t.owner === 'either'))
+      .filter(t => LAUNDRY_LOAD_IDS.has(t.id) && !cyclingLoadIds.has(t.id) && (isDue(t) || (state.flaggedIds || []).includes(t.id)) && !pinnedSet.has(t.id) && dealtByMe(t))
       .sort((a,b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
     // Don't assign another laundry load if one was already completed today or is pinned
     const laundryLoadId = (!hasLaundryToday && dueLaundryLoads.length > 0) ? dueLaundryLoads[0].id : null;
@@ -2327,7 +2348,7 @@
       t.freq > 1 &&
       (isDue(t) || flaggedSet.has(t.id)) &&
       inSeason(t) &&
-      (t.owner === 'alina' || t.owner === 'either') &&
+      dealtByMe(t) &&
       !pinnedSet.has(t.id) &&
       !alwaysAssignedSet.has(t.id) &&
       !LAUNDRY_LOAD_IDS.has(t.id)
@@ -2354,7 +2375,7 @@
     const DEEP_MAX = Infinity;  // tier C only reaches the hand in catch-up, which wants them all
     let deepCount = 0;
     const isDeep = t => getTaskTier(t) === 'C';
-    const mine = t => t.owner === 'alina' || t.owner === 'either';
+    const mine = dealtByMe;   // his completions only spend her budget when his work IS hers
 
     // Everything the day is already committed to before a single extra is picked:
     // the dailies that will be forced into the hand, plus any already done today.
@@ -2516,7 +2537,7 @@
     const completedToday = getAllTasks().filter(t =>
       !handIds.has(t.id) &&
       !isCycleStage(t.id) &&          // shown by its cycle's card, not as its own row
-      (t.owner === 'alina' || t.owner === 'either') &&
+      dealtByMe(t) &&
       wasCompletedToday(t)
     );
     return [...handTasks, ...completedToday];
@@ -2532,7 +2553,7 @@
       .filter(t =>
         flaggedSet.has(t.id) && !dueIds.has(t.id) &&
         inSeason(t) &&
-        (t.owner === 'alina' || t.owner === 'either')
+        dealtByMe(t)
       );
     const removedSet = new Set(state.removedToday || []);
     const result = [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id) && !removedSet.has(t.id));
@@ -2552,7 +2573,7 @@
   function getNotDueTasks() {
     return getAllTasks()
       .filter(t =>
-        (t.owner === 'alina' || t.owner === 'either') &&
+        dealtByMe(t) &&
         !isCycleStage(t.id) &&      // only reachable through its cycle
         !isDue(t) &&
         inSeason(t) &&
@@ -2814,7 +2835,21 @@
   function flagTask(id) {
     if (!state.flaggedIds) state.flaggedIds = [];
     if (!state.flaggedIds.includes(id)) state.flaggedIds.push(id);
+    // The flag is the only control that does anything on a task she is never
+    // dealt, so say what it just did rather than leaving her to notice.
+    const t = getAllTasks().find(x => x.id === id);
+    if (t && t.owner === 'bob' && !state.bobAway) showToast('Flagged — it\'ll come to you');
     saveState(); render();
+  }
+
+  function toggleBobAway() {
+    state.bobAway = !state.bobAway;
+    state.bobAwaySince = state.bobAway ? Date.now() : null;
+    // His tasks join or leave the pool, so the standing hand is stale either way.
+    state.hand = null; state.handDate = null;
+    saveNow();
+    render();
+    showToast(state.bobAway ? 'Bob\'s list is yours for now' : 'Handed Bob\'s list back');
   }
   function markTaskDue(id) {
     const task = getAllTasks().find(t => t.id === id);
@@ -5926,6 +5961,29 @@
         return logHtml;
       })() +
   
+      // Card: Bob's away
+      (function() {
+        const bob = all.filter(t => t.owner === 'bob' && !t.oneOff);
+        const flagged = bob.filter(t => (state.flaggedIds || []).includes(t.id));
+        const weekly = Math.round(bob.filter(t => t.freq > 1).reduce((s, t) => s + taskTime(t) * 7 / t.freq, 0));
+        const budget = (state.budgetWeekday || 0) * 5 + (state.budgetWeekend || 0) * 2;
+        return '<div class="settings-card">' +
+          '<div class="settings-card-title">Bob\'s away</div>' +
+          '<div class="settings-card-desc">Hands Bob\'s ' + bob.length + ' tasks to you until you switch it back. They keep their real due dates, so anything already overdue arrives overdue. Turning this on and off never changes a task\'s owner.</div>' +
+          // Say the cost. His list is not free, and the app's standing problem is
+          // capacity, not scoring — a number here is worth more than a warning.
+          '<div class="settings-card-desc">His non-daily work is about <b>' + weekly + ' min a week</b>' +
+            (budget ? ', against your ' + budget + ' min budget' : '') + '. Plus one daily: scooping the downstairs litter.</div>' +
+          (flagged.length
+            ? '<div class="settings-card-desc">Flagged and already coming to you: <b>' + flagged.map(t => t.name).join(' · ') + '</b></div>'
+            : '<div class="settings-card-desc">You can also flag any one of his tasks on All Tasks to have just that one sent over, without switching this on.</div>') +
+          (state.bobAway
+            ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">Yours since ' + (state.bobAwaySince ? new Date(state.bobAwaySince).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
+              '<button class="add-btn wide warn" onclick="toggleBobAway()">Bob\'s back — hand it over</button>'
+            : '<button class="add-btn wide warn" onclick="toggleBobAway()">Bob\'s away — give me his list</button>') +
+        '</div>';
+      })() +
+
       // Card: Vacation mode
       (function() {
         const buckets = { freeze: [], half: [], full: [] };

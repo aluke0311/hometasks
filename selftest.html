@@ -621,6 +621,79 @@ test('a stale cycle says so on its card', () => {
   });
 });
 
+// ─── Bob's work ────────────────────────────────────────────────────────────
+// Bob's tasks sit outside her pool: she logs them, she is not dealt them. Two
+// things override that, and dealtByMe is the single gate both go through.
+
+function aBobTask(minFreq) {
+  const t = G('getAllTasks')().find(t =>
+    t.owner === 'bob' && !t.oneOff && t.freq >= (minFreq || 5) && G('inSeason')(t));
+  if (!t) throw new Error('no Bob-owned task found — every case below is vacuous');
+  return t;
+}
+
+test('Bob\'s tasks stay out of her hand by default', () => {
+  const r = deal(st => {
+    st.bobAway = false;
+    G('getAllTasks')().filter(t => t.owner === 'bob')
+      .forEach(t => { st.completions[t.id] = Date.now() - 400 * DAY; });   // wildly overdue
+  });
+  const bob = r.tasks.filter(t => t.owner === 'bob');
+  eq(bob.length, 0, 'Bob\'s work was dealt to her unasked: ' + bob.map(t => t.id).join(', '));
+});
+
+test('flagging one of Bob\'s tasks sends that one task to her', () => {
+  // The flag used to set a badge and change nothing on a task she is never dealt.
+  const probe = aBobTask(5);
+  const r = deal(st => {
+    st.bobAway = false;
+    st.flaggedIds = [probe.id];
+    st.completions[probe.id] = Date.now() - 400 * DAY;
+  });
+  ok(r.ids.indexOf(probe.id) !== -1, 'flagged Bob task ' + probe.id + ' never reached her hand');
+  // Only that one. A flag is not a transfer of the whole list.
+  const bob = r.tasks.filter(t => t.owner === 'bob');
+  eq(bob.length, 1, 'flagging one task brought ' + bob.length + ': ' + bob.map(t => t.id).join(', '));
+});
+
+test('Bob away hands over his whole list, and back again', () => {
+  const away = deal(st => {
+    st.bobAway = true;
+    G('getAllTasks')().filter(t => t.owner === 'bob')
+      .forEach(t => { st.completions[t.id] = Date.now() - 400 * DAY; });
+  });
+  ok(away.tasks.filter(t => t.owner === 'bob').length > 0, 'Bob away dealt her none of his work');
+
+  const home = deal(st => {
+    st.bobAway = false;
+    G('getAllTasks')().filter(t => t.owner === 'bob')
+      .forEach(t => { st.completions[t.id] = Date.now() - 400 * DAY; });
+  });
+  eq(home.tasks.filter(t => t.owner === 'bob').length, 0, 'his work stayed with her after he came home');
+});
+
+test('Bob\'s completions only spend her budget while his work is hers', () => {
+  // The mirror of a fix that already bit once: letting a Bob-only completion eat
+  // her budget silently shrank her hand, because she logs his chores. That must
+  // stay true when he is home — and must INVERT when his list is hers, or the
+  // day double-counts work she has already done.
+  const probe = aBobTask(5);
+  function extrasWith(bobAway) {
+    return deal(st => {
+      st.bobAway = bobAway;
+      st.budgetWeekday = 30; st.budgetWeekend = 30;
+      // One heavy Bob task, done today. It is his list either way; the only
+      // question is whether finishing it counts against her remaining time.
+      st.completions[probe.id] = Date.now();
+      st.completionHistory[probe.id] = [Date.now()];
+    }).tasks.filter(t => t.freq > 1 && t.owner !== 'bob').length;
+  }
+  const home = extrasWith(false);
+  const away = extrasWith(true);
+  ok(away < home,
+     'his completed task did not charge her budget while he was away (' + away + ' vs ' + home + ' extras)');
+});
+
 test('a flagged not-yet-due task is dealt in by-freq mode', () => {
   // By Freq sorts on raw frequency, which ignores the -50 flag bonus entirely,
   // so flagged handling has to be special-cased. This is that guard.
