@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-16 · app at `2026-08-16 v14` · selftest 73/73 green.
+Last touched: 2026-08-17 · app at `2026-08-17 v2` · selftest 86/86 green.
 
 ---
 
@@ -30,6 +30,52 @@ Three tools, three jobs:
 ---
 
 ## Code queue
+
+### C-9 — cycles beyond laundry · shipped for laundry only, on purpose
+`CYCLES` (2026-08-17) holds one definition. The shape was proven against one real
+process before generalising, which was the whole plan. Adding the next two is data,
+not code — but each has one open question:
+
+| Cycle | Stages | The question |
+|---|---|---|
+| **Dishwasher** | load → run → unload | `k_dishwasher` ("Unload dishwasher") is a freq-1 daily and would become a stage, so it stops being scheduled on its own. It is also on **seven** preset lists. Ticking it there advances a running cycle, but with no cycle open it stays a plain task — check that reads sanely before committing. |
+| **Cat fountain** | clean → reassemble | `c_fountain` is the one task in `ALWAYS_ASSIGN_IDS`, a hack that exists *because* it is a two-stage job. Converting it should delete that special case — the point of the model. Its stages have no tasks yet; they must be added to `TASKS` first or the sweep fails. |
+
+**Blocked on nothing.** The reason to wait is evidence: run the laundry cycle for a
+week first and see whether the one-card form actually helps before spending the
+change twice more.
+
+**What v1 does not do, all deliberate:**
+- **`maxOpen: 1`.** The instance model supports concurrent loads; one washer does
+  not. Raising it is one line, and the card layout has never been seen with two.
+- **`readyAt` is inert.** Stored and displayed ("ready ~1:36 PM"), never a gate.
+  Making it block the tick would be the app's first sub-day due rule — everything
+  else resolves at calendar-day granularity — so it needs a render-time re-check,
+  not a deal-time one.
+- **The hand's minute totals count the load's own `time`, not the current step's.**
+  `renderCard` and the budget use the step; `renderAlina`/`renderSprint`/`copySprint`
+  total `taskTime(task)` across nine call sites. Worth ≤7 minutes on a laundry day.
+  Fixing it means a cycle-aware total helper at all nine, which was not worth the
+  blast radius on the first cut. **Do not make `taskTime()` itself cycle-aware** —
+  it feeds the editor field and the learned-time hint.
+- **A stage ticked with no cycle open is just a task.** Presets still list the four
+  steps; `toggleComplete` advances a cycle waiting on exactly that step and
+  otherwise completes normally. Two representations, reconciled at the tick.
+
+### C-10 — Bob's away: the numbers are unmeasured
+Shipped 2026-08-17. The mechanism is pinned by four mutation-checked cases; what is
+**not** measured is what his list does to her hand over time. The card states
+**58 min/week** of non-daily demand from his 18 tasks. Against her real 30/60 budget
+that moves utilisation from **141% to 163%** — arithmetic, not simulation.
+
+`simulate.html` has no `bobAway` scenario. Adding one is the honest way to answer
+"what falls off while he is gone", and it is the same question the standing capacity
+constraint below already poses. Until then, treat 163% as a projection.
+
+Also unresolved, and small: the Settings **system overview** still counts
+`alinaCount`/`dailyMin` from static ownership, so those two numbers do not move when
+his list is hers. Defensible — they describe the task list, not today's pool — but it
+is the only place `dealtByMe` is deliberately not used.
 
 ### C-7 — reduce the inline styles · S4 · **at a stable floor**
 **90** inline `style="` attributes remain (219 → 211 → 184 → 145 → 104 → 92 → 90). Every
@@ -261,6 +307,11 @@ pool-pressure figure, since the app already has a Room Pressure concept to hang 
 | **No tier reservations** | Reserving budget for deep cleaning takes time from the toilet to service the freezer. Rejected on her rule. | 2026-08-16 |
 | **"Edit last done" writes history** | Setting a date means the task was done, so Stats and real-cadence must see it. | 2026-08-16 |
 | **Removed: `IMPROVEMENT_PLAN.md`, `PLAN_2026-08.md`, `app-design-revision/`** | Work shipped; git holds them. The design bundle was committed once before deletion because it was untracked. | 2026-08-16 |
+| **A cycle completes its load at the LAST stage** | Ticking "Wash whites" used to mean whites were washed while they were still in the machine, so `freq: 7` measured loads *started*. It now measures whole loads. Her washing reads slightly less up to date than before because the old count measured the wrong end. | 2026-08-17 |
+| **Cycle membership keys off `load: true`, not a new task field** | `saveTask` rebuilds a custom task from an explicit field list, so a `cycle:'laundry'` property would be stripped the first time she edited the task. `load` survives only because it owns the `f_load` checkbox — and it already means "this is a wash". | 2026-08-17 |
+| **Cycle stages are never scheduled alone** | "Move to dryer" is not due every day; it is due 55 minutes after the wash started. The four freq-1 dailies were a bad approximation of that, and `dealHand` needed a special case to hide them. Stages are excluded from `getDailies`, starvation, `getNotDueTasks` and the completed-today carry-in. | 2026-08-17 |
+| **Bob's away is a toggle, not a dated pause** | Vacation mode shifts due dates on resume because the house genuinely stops. Bob's tasks still need doing while he is gone, so they age normally and arrive with their real dates. Nothing to shift back. | 2026-08-17 |
+| **Flagging one of Bob's tasks delivers it** | He has no hand, so the flag set a badge and changed nothing — the button was lying. "Bring me this one" is the only thing it could usefully mean. | 2026-08-17 |
 
 ---
 
@@ -296,3 +347,13 @@ that test.
   markup stays in the document, so an inactive tab's controls have no layout at all. Any
   probe that measures the DOM has to skip `offsetParent === null` first, or it reports the
   same control as broken from five tabs where it is merely not on screen.
+- **A contrast reading against `rgba(0,0,0,0)` is a lie.** `.task-card` paints nothing;
+  the colour comes from an ancestor. Measuring the card's own `backgroundColor` gave
+  2.55:1 on text that actually sits at 7.43:1. Walk up to the first non-transparent
+  ancestor before computing any ratio. Same family as the un-reloaded theme switch.
+- **A test whose subject is a hardcoded id list can stop testing without failing.** Case
+  42 deleted the four laundry steps to prove dailies are charged against the day budget.
+  They became cycle stages, stopped being dailies, and the probe quietly compared a hand
+  against itself — it still passed. It now derives its subject from `getDailies()`.
+  When a change moves tasks between categories, grep the suite for those ids before
+  trusting the green.
