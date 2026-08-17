@@ -542,6 +542,80 @@ test('the owning task completes only when the last step does', () => {
   });
 });
 
+test('one page carries both the actions and the settings', () => {
+  // The task used to have two homes: a ⋯ sheet of today-actions and a separate
+  // editor of settings, with no route between them from the hand. That is how the
+  // vacation setting became unfindable while rendering perfectly in the form.
+  withState(st => { st.hand = null; st.handDate = null; }, () => {
+    G('openTaskActions')('lroom_whites', false);
+    const doc = document.querySelector('iframe').contentDocument;
+    // Assert on the container, NOT on body.innerHTML. The app is one file with an
+    // inline <script>, so body.innerHTML contains the source code — every string
+    // this case looks for appears there as a literal, and the assertions passed
+    // against a build where the actions never rendered at all.
+    const box = doc.getElementById('taskPageActions');
+    ok(box && box.innerHTML.length > 0, 'the actions half of the page is empty');
+    ok(box.innerHTML.indexOf('While away:') !== -1, 'the vacation setting is not on the page');
+    ok(box.innerHTML.indexOf('Pin to every day') !== -1, 'the today-actions did not come across');
+    ok(doc.getElementById('f_name').value === 'Wash whites', 'the form is not on the same page');
+    ok(doc.getElementById('vacChips').innerHTML.indexOf('Half speed') !== -1,
+       'the full vacation choice is not shown');
+    eq(doc.getElementById('modalTitle').textContent, 'Wash whites', 'the page is not titled by the task');
+  });
+});
+
+test('editing saves as you type, with no Save button', () => {
+  // The editor was the only surface in the app with Save/Cancel; everything else
+  // commits on touch. Merging it with the actions made that inconsistency visible,
+  // so the form now matches the rest.
+  withState(st => { st.hand = null; st.handDate = null; st.customTasks = {}; }, () => {
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openModal')('lroom_whites');
+    eq(doc.getElementById('modalAdd').style.display, 'none', 'an existing task still shows a commit button');
+    doc.getElementById('f_name').value = 'Wash the whites';
+    G('writeTaskForm')('lroom_whites');
+    eq(G('getAllTasks')().find(t => t.id === 'lroom_whites').name, 'Wash the whites',
+       'the edit did not reach state without a Save press');
+  });
+});
+
+test('a half-typed field is not written', () => {
+  // autoSaveTask runs on every keystroke, so "Wash coo" with an empty frequency is
+  // a state the writer sees constantly and must refuse.
+  withState(st => { st.hand = null; st.handDate = null; st.customTasks = {}; }, () => {
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openModal')('lroom_whites');
+    doc.getElementById('f_freq').value = '';
+    eq(G('writeTaskForm')('lroom_whites'), false, 'an incomplete form was written anyway');
+    eq(G('getAllTasks')().find(t => t.id === 'lroom_whites').name, 'Wash whites', 'the task was damaged mid-type');
+  });
+});
+
+test('the vacation row and the vacation chips do not overwrite each other', () => {
+  // They are two writers for one field on one page. The row moved the setting and
+  // the next keystroke wrote the form's stale editingVac back over it.
+  withState(st => { st.hand = null; st.handDate = null; st.taskVac = {}; }, () => {
+    G('openModal')('lroom_whites');
+    eq(G('vacMode')('lroom_whites'), 'freeze', 'precondition');
+    G('cycleVacMode')('lroom_whites');
+    eq(G('vacMode')('lroom_whites'), 'half', 'the row did not move the setting');
+    G('writeTaskForm')('lroom_whites');            // what a keystroke does next
+    eq(G('vacMode')('lroom_whites'), 'half', 'a later keystroke reverted the setting');
+  });
+});
+
+test('cycleVacMode walks freeze → half → full → freeze', () => {
+  withState(st => { st.taskVac = {}; }, () => {
+    eq(G('vacMode')('lroom_whites'), 'freeze', 'precondition: unset means freeze');
+    G('cycleVacMode')('lroom_whites');
+    eq(G('vacMode')('lroom_whites'), 'half', 'first tap did not reach half speed');
+    G('cycleVacMode')('lroom_whites');
+    eq(G('vacMode')('lroom_whites'), 'full', 'second tap did not reach ages-normally');
+    G('cycleVacMode')('lroom_whites');
+    eq(G('vacMode')('lroom_whites'), 'freeze', 'it does not wrap back to freeze');
+  });
+});
+
 test('a cycle owner names its first step before anything is running', () => {
   // "Wash cools" on its own is not something she will tick when the machine has
   // just been loaded, because the washing is not done. The card has to say what
