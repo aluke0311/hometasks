@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-17 · app at `2026-08-17 v2` · selftest 86/86 green.
+Last touched: 2026-08-17 · app at `2026-08-17 v3` · selftest 92/92 green.
 
 ---
 
@@ -31,36 +31,38 @@ Three tools, three jobs:
 
 ## Code queue
 
-### C-9 — cycles beyond laundry · shipped for laundry only, on purpose
-`CYCLES` (2026-08-17) holds one definition. The shape was proven against one real
-process before generalising, which was the whole plan. Adding the next two is data,
-not code — but each has one open question:
+### C-9 — cycles: what is left open
+All three cycles shipped 2026-08-17 (laundry, dishwasher, fountain). Stages are no
+longer tasks — the four `l_*` steps are deleted, and `ALWAYS_ASSIGN_IDS` is gone with
+them. What remains open:
 
-| Cycle | Stages | The question |
-|---|---|---|
-| **Dishwasher** | load → run → unload | `k_dishwasher` ("Unload dishwasher") is a freq-1 daily and would become a stage, so it stops being scheduled on its own. It is also on **seven** preset lists. Ticking it there advances a running cycle, but with no cycle open it stays a plain task — check that reads sanely before committing. |
-| **Cat fountain** | clean → reassemble | `c_fountain` is the one task in `ALWAYS_ASSIGN_IDS`, a hack that exists *because* it is a two-stage job. Converting it should delete that special case — the point of the model. Its stages have no tasks yet; they must be added to `TASKS` first or the sweep fails. |
+- **Stage times no longer learn.** `actualTimes` fed `taskTime()` for the four step
+  tasks; a stage's `mins` is now a constant in `CYCLES`. The timer still works on the
+  owning task, so a load can be timed end to end, but "fold" specifically cannot.
+  Deliberate — the alternative was keeping four scheduled tasks nobody wanted.
+- **Stats lost the per-step rows.** "Fold laundry" was a real completion history and
+  is not recorded any more. Only whole loads are. This is the same trade as above and
+  it is the reason her washing cadence now reads truthfully.
+- **The hand's minute totals still count the owner's `time`, not the current step's.**
+  Unchanged from the first cut: `renderCard` and the budget use the step, the nine
+  totalling sites in `renderAlina`/`renderSprint`/`copySprint` do not. **Do not fix it
+  by making `taskTime()` cycle-aware** — it feeds the editor field and the learned-time
+  hint.
+- **`readyIn` still never blocks a tick.** It now picks which of phase/action the card
+  shows, which is the useful half. A hard gate would still be the app's first sub-day
+  due rule.
+- **Presets lost their laundry rows.** Full Reset, Express Reset, Return Home, Before
+  Cleaners, Recovery and Evening Shutdown no longer mention laundry at all. If a reset
+  should start a load, that needs a checklist row that opens a cycle — a new
+  interaction, not a restored id.
+- **`dealMax` is 1 everywhere.** "Start another" covers the real case by hand.
 
-**Blocked on nothing.** The reason to wait is evidence: run the laundry cycle for a
-week first and see whether the one-card form actually helps before spending the
-change twice more.
-
-**What v1 does not do, all deliberate:**
-- **`maxOpen: 1`.** The instance model supports concurrent loads; one washer does
-  not. Raising it is one line, and the card layout has never been seen with two.
-- **`readyAt` is inert.** Stored and displayed ("ready ~1:36 PM"), never a gate.
-  Making it block the tick would be the app's first sub-day due rule — everything
-  else resolves at calendar-day granularity — so it needs a render-time re-check,
-  not a deal-time one.
-- **The hand's minute totals count the load's own `time`, not the current step's.**
-  `renderCard` and the budget use the step; `renderAlina`/`renderSprint`/`copySprint`
-  total `taskTime(task)` across nine call sites. Worth ≤7 minutes on a laundry day.
-  Fixing it means a cycle-aware total helper at all nine, which was not worth the
-  blast radius on the first cut. **Do not make `taskTime()` itself cycle-aware** —
-  it feeds the editor field and the learned-time hint.
-- **A stage ticked with no cycle open is just a task.** Presets still list the four
-  steps; `toggleComplete` advances a cycle waiting on exactly that step and
-  otherwise completes normally. Two representations, reconciled at the tick.
+### C-11 — the editor page needs a second look on a real phone
+The task editor is a full-height page now (`.modal-backdrop.as-page`). Verified at
+390px in both themes in the pane, but **not** with a soft keyboard up. The `--kb`
+visual-viewport handling was written for a bottom sheet whose margin moved; a
+full-height panel with a sticky header may want different treatment. Worth one pass on
+her phone with the name field focused.
 
 ### C-10 — Bob's away: the numbers are unmeasured
 Shipped 2026-08-17. The mechanism is pinned by four mutation-checked cases; what is
