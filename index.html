@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v5">
+  <meta name="app-version" content="2026-08-17 v6">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -521,6 +521,16 @@
     .modal-btn.wide-danger { width: 100%; padding: 12px; margin-top: var(--s-5); }
     /* Per-stage machine time. Her machines, not mine — the built-in numbers are a
        starting point and every one of them is editable. */
+    /* The timed runs behind the estimate. taskTime() shrinks the observed median
+       toward the static estimate, so "why does it say 13 when I timed 16" is a fair
+       question — this answers it with the actual numbers. */
+    .time-samples:empty { display: none; }
+    .time-samples { padding: var(--s-6); background: var(--bg2); border-radius: var(--radius); font-size: var(--fs-sub); color: var(--text2); display: flex; flex-direction: column; gap: var(--s-4); }
+    .time-samples-head { display: flex; justify-content: space-between; gap: var(--s-5); align-items: baseline; }
+    .time-samples-used { font-weight: 600; color: var(--text); }
+    .time-chips { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+    .time-chip { padding: 3px 9px; border-radius: var(--radius-xs); background: var(--card); border: 0.5px solid var(--border2); font-size: var(--fs-meta); color: var(--text2); }
+    .time-chip.lo, .time-chip.hi { color: var(--text); font-weight: 600; border-color: var(--green); }
     .cyc-timings:empty { display: none; }
     .cyc-timings { display: flex; flex-direction: column; gap: var(--s-4); margin-top: var(--s-5); padding: var(--s-6); background: var(--bg2); border-radius: var(--radius); }
     .cyc-timing-row { display: flex; align-items: center; gap: var(--s-5); font-size: var(--fs-sub); color: var(--text2); }
@@ -1156,6 +1166,7 @@
             <input class="field-input" id="f_time" oninput="autoSaveTask()" type="number" min="1" placeholder="10">
           </div>
         </div>
+        <div id="timeSamples" class="time-samples"></div>
         <div>
           <div class="field-label">Assigned to</div>
           <select class="field-select" id="f_owner" onchange="autoSaveTask()">
@@ -1591,12 +1602,17 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v5';
+  const APP_VERSION = '2026-08-17 v6';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v6', notes: [
+      'Marking a task in progress now puts it in today\'s hand straight away. It said it would keep it in your hand and then did nothing until the next day, which made the button look broken.',
+      'A started task also survives a redeal now, even if you had removed it from today earlier.',
+      'The task page lists every timed run for that task — each individual time, the range, the median, and the figure the app actually uses. The app blends your timings with your estimate, so the number it uses is usually not the same as any single run, and now you can see why.',
+    ]},
     { v: '2026-08-17 v5', notes: [
       'A task now has one page instead of two. The ⋯ menu and the edit form were separate screens, and there was no way to get from your hand to the form at all — you had to know to go to All Tasks and tap the row. That is why the "while you are away" setting was impossible to find even though it was on the form the whole time.',
       'Everything about a task is now in one place: the actions you take today on top, all the settings below. "While away: Freeze" sits near the top and you tap it to change it.',
@@ -2594,10 +2610,13 @@
     const removedSet = new Set(state.removedToday || []);
     state.hand = [...newHandIds].filter(id => {
       if (!removedSet.has(id)) return true;
-      // A running cycle is not dismissible. Removing it for the day would leave wet
-      // clothes in the machine with nothing on screen to say so; the card carries
-      // its own "Drop it" for the case where she really has abandoned the load.
+      // Neither a running cycle nor a started task is dismissible by a stale removal.
+      // Removing a cycle for the day would leave wet clothes in the machine with
+      // nothing on screen to say so, and a task marked started after being removed
+      // was silently stripped again on the next redeal. Both carry their own way
+      // out: the cycle's "Drop it", and un-marking in progress.
       if (cyclingTaskIds.has(id)) return true;
+      if ((state.inProgress || {})[id]) return true;
       const t = allTasks.find(x => x.id === id);
       return t && wasCompletedToday(t);
     });
@@ -2997,6 +3016,13 @@
       showToast('No longer in progress');
     } else {
       state.inProgress[id] = Date.now();
+      // dealHand carries in-progress tasks into every deal, but it returns early
+      // once today's hand exists — so marking something in progress from All Tasks
+      // promised "it'll stay in your hand" and then did nothing until tomorrow.
+      // Started means started: it goes in now.
+      unremoveToday(id);
+      if (!state.hand) dealHand();
+      if (state.hand && !state.hand.includes(id)) state.hand.push(id);
       showToast('Marked in progress — it\'ll stay in your hand until done');
     }
     saveState();
@@ -3144,6 +3170,10 @@
   }
 
   function swapTask(id) {
+    // Started means it stays. Swapping marks the task removed for the day WITHOUT
+    // clearing the in-progress flag, so the task vanished now and reappeared on the
+    // next redeal via the flag — worse than either outcome on its own.
+    if ((state.inProgress || {})[id]) { showToast('You\'ve started this one — unmark it first'); return; }
     const overflow = getOverflowTasks();
     if (!overflow.length) { showToast('Nothing else available'); return; }
     const idx = state.hand.indexOf(id);
@@ -6538,6 +6568,35 @@
   // Machine time per step, editable. The built-in waits are a starting point —
   // her washer is not mine — and an override is stored per definition-and-step,
   // not per task, because it is a property of the machine.
+  // Every timed run for this task, oldest first, with the extremes marked. The
+  // estimate the app actually uses is a weighted blend of the MEDIAN and the static
+  // figure, so showing only "~13m real" invites the question this answers.
+  function renderTimeSamples(id) {
+    const box = document.getElementById('timeSamples');
+    if (!box) return;
+    const a = (state.actualTimes || {})[id] || [];
+    const task = id ? getAllTasks().find(t => t.id === id) : null;
+    if (!id || !task || !a.length) {
+      box.innerHTML = id && task
+        ? '<div>No timed runs yet. Start the timer on this task and the estimate will learn from it.</div>'
+        : '';
+      return;
+    }
+    const lo = Math.min(...a), hi = Math.max(...a);
+    box.innerHTML =
+      '<div class="time-samples-head">' +
+        '<span>' + a.length + ' timed run' + (a.length === 1 ? '' : 's') +
+          (lo === hi ? '' : ' · ' + lo + '–' + hi + ' min') + ' · median ' + medianOf(a) + '</span>' +
+        '<span class="time-samples-used">uses ' + taskTime(task) + 'm</span>' +
+      '</div>' +
+      '<div class="time-chips">' + a.map(v =>
+        '<span class="time-chip' + (v === lo && lo !== hi ? ' lo' : (v === hi && lo !== hi ? ' hi' : '')) + '">' +
+          v + 'm</span>').join('') + '</div>' +
+      (a.length < 3
+        ? '<div class="cyc-timing-note">Under three runs the app still leans on your estimate above.</div>'
+        : '<div class="cyc-timing-note">Oldest first, newest last. Only the last 10 are kept.</div>');
+  }
+
   function renderCycleTimings() {
     const box = document.getElementById('cycleTimings');
     const sel = document.getElementById('f_cycle');
@@ -6633,6 +6692,7 @@
       renderCycleOptions('');
     }
     renderCycleTimings();
+    renderTimeSamples(id);
     showSheet('taskModal');
   }
   

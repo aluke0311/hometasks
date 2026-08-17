@@ -542,6 +542,87 @@ test('the owning task completes only when the last step does', () => {
   });
 });
 
+test('marking a task in progress puts it in TODAY\'s hand', () => {
+  // dealHand carries in-progress tasks into every deal, but returns early once
+  // today's hand exists — so the toast promised "it'll stay in your hand" and then
+  // nothing happened until tomorrow.
+  withState(st => { st.hand = null; st.handDate = null; st.inProgress = {}; }, () => {
+    G('dealHand')();
+    const all = G('getAllTasks')();
+    const outside = all.find(t => G('dealtByMe')(t) && !G('state').hand.includes(t.id) && !t.oneOff);
+    ok(!!outside, 'fixture needs a task outside the hand');
+    G('toggleInProgress')(outside.id);
+    ok(G('state').hand.includes(outside.id), 'a started task did not join today\'s hand');
+  });
+});
+
+test('a stale removal cannot strip a started task', () => {
+  // Both flags set at once. Reachable from an old export, and it WAS reachable from
+  // swapTask, which marks a task removed without clearing the started flag — so the
+  // task vanished immediately and came back on the next redeal. The swap path is
+  // closed below; this pins the guard that makes the state itself behave.
+  withState(st => {
+    st.hand = null; st.handDate = null;
+    st.inProgress = {}; st.removedToday = []; st.removedTodayDate = G('todayStr')();
+  }, () => {
+    G('dealHand')();
+    const id = G('state').hand.find(h => {
+      const t = G('getAllTasks')().find(x => x.id === h);
+      return t && t.freq > 1 && !G('wasCompletedToday')(t);
+    });
+    ok(!!id, 'fixture needs a non-daily task in the hand');
+    // Construct the conflict directly: started AND removed today.
+    G('state').inProgress[id] = Date.now();
+    G('markRemovedToday')(id);
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    ok(G('state').hand.includes(id), 'a started task was stripped by a stale removal');
+  });
+});
+
+test('a started task cannot be swapped away', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.inProgress = {}; }, () => {
+    G('dealHand')();
+    const id = G('state').hand.find(h => {
+      const t = G('getAllTasks')().find(x => x.id === h);
+      return t && t.freq > 1 && !G('wasCompletedToday')(t);
+    });
+    ok(!!id, 'fixture needs a non-daily task in the hand');
+    G('toggleInProgress')(id);
+    G('swapTask')(id);
+    ok(G('state').hand.includes(id), 'a started task was swapped out of the hand');
+    eq((G('state').removedToday || []).includes(id), false, 'the swap recorded a removal anyway');
+  });
+});
+
+test('the task page lists every timed run, with the range', () => {
+  withState(st => {
+    st.hand = null; st.handDate = null;
+    st.actualTimes = { lroom_whites: [12, 19, 14] };
+  }, () => {
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openModal')('lroom_whites');
+    const box = doc.getElementById('timeSamples');
+    ok(box && box.innerHTML.length > 0, 'the timed runs block is empty');
+    ['12m', '19m', '14m'].forEach(v =>
+      ok(box.innerHTML.indexOf(v) !== -1, 'run ' + v + ' is not listed'));
+    ok(box.innerText.indexOf('12–19') !== -1, 'the range is not shown');
+    ok(box.innerText.indexOf('median 14') !== -1, 'the median is not shown');
+    // The number the app actually uses is a blend, not the median — say so.
+    const used = G('taskTime')(G('getAllTasks')().find(t => t.id === 'lroom_whites'));
+    ok(box.innerText.indexOf('uses ' + used + 'm') !== -1, 'the figure in use is not shown');
+  });
+});
+
+test('a task with no timed runs says so rather than showing nothing', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.actualTimes = {}; }, () => {
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openModal')('lroom_whites');
+    const box = doc.getElementById('timeSamples');
+    ok(box.innerText.indexOf('No timed runs') !== -1, 'an untimed task shows an empty box');
+  });
+});
+
 test('one page carries both the actions and the settings', () => {
   // The task used to have two homes: a ⋯ sheet of today-actions and a separate
   // editor of settings, with no route between them from the hand. That is how the
