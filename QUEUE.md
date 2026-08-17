@@ -109,32 +109,32 @@ is short — it is the only journey that would have caught the 2026-08-16 sheet 
 
 ### 2. Behaviour — **re-run 2026-08-16.** Numbers refreshed; 3 findings, unfixed
 
-180 simulated days × 7 scenarios, against the **default pool**, one draw. Read the caveats
-under the table before acting on any percentage.
+180 simulated days × 7 scenarios, against the **default pool**, **two independent draws**.
+Every aggregate below is draw 1 with draw 2 in brackets where it differs. Read the caveats.
 
 **Coverage — share of her pool dealt at least once**
 
 | Mode | Policy | Budget | All | A | B | C | Never dealt |
 |---|---|---|---|---|---|---|---|
-| byfreq | realistic | **30/60** | **27%** | 100% | 5% | 0% | **123** |
-| maintenance | realistic | 30/60 | 54% | 100% | 77% | 0% | 77 |
-| catchup | realistic | 30/60 | **81%** | 100% | 100% | **48%** | 32 |
-| byfreq | realistic | 45/90 | 38% | 100% | 33% | 0% | 105 |
-| maintenance | realistic | 45/90 | 71% | 100% | 100% | 23% | 48 |
-| maintenance | compliant | 90/120 | **100%** | 100% | 100% | 100% | **0** |
-| maintenance | sporadic | 45/90 | 65% | 100% | 98% | 6% | 59 |
+| byfreq | realistic | **30/60** | **27%** (27) | 100% | 5% | 0% | **123** (123) |
+| maintenance | realistic | 30/60 | 54% (55) | 100% | 77% (80) | 0% | 77 (75) |
+| catchup | realistic | 30/60 | **81%** (81) | 100% | 100% | **48%** (48) | 32 (32) |
+| byfreq | realistic | 45/90 | 38% (38) | 100% | 33% | 0% | 105 (105) |
+| maintenance | realistic | 45/90 | 71% (71) | 100% | 100% | 23% (21) | 48 (49) |
+| maintenance | compliant | 90/120 | **100%** (100) | 100% | 100% | 100% | **0** (0) |
+| maintenance | sporadic | 45/90 | 65% (67) | 100% | 98% | 6% (13) | 59 (55) |
 
 **Starvation (days due but not dealt, end of run) · Budget · Repeat rate**
 
 | Mode | Policy | Budget | Median starv. | ≥100 days | vs budget | Repeat |
 |---|---|---|---|---|---|---|
-| byfreq | realistic | 30/60 | **180** | 123 | −1.5 | **74%** |
-| maintenance | realistic | 30/60 | 27 | 77 | −1 | 54% |
-| catchup | realistic | 30/60 | 14.5 | 46 | −2 | 42% |
-| byfreq | realistic | 45/90 | **180** | 105 | −1 | **78%** |
-| maintenance | realistic | 45/90 | 8 | 48 | −1 | 64% |
-| maintenance | compliant | 90/120 | 0 | 0 | −35 | 0% |
-| maintenance | sporadic | 45/90 | 11 | 59 | −1 | 76% |
+| byfreq | realistic | 30/60 | **180** (180) | 123 | −1.5 | **74%** (73) |
+| maintenance | realistic | 30/60 | 27 (27) | 77 | −1 | 54% (54) |
+| catchup | realistic | 30/60 | 14.5 (13.5) | 46 | −2 | 42% (42) |
+| byfreq | realistic | 45/90 | **180** (180) | 105 | −1 | **78%** (76) |
+| maintenance | realistic | 45/90 | 8 (9.5) | 48 | −1 | 64% (64) |
+| maintenance | compliant | 90/120 | 0 (0) | 0 | −35 | 0% (0) |
+| maintenance | sporadic | 45/90 | 11 (10) | 59 | −1 | 76% (75) |
 
 **B-1 · S2 · By Freq services almost nothing over time, and this is in tension with a
 recorded decision.** At her real budget it deals 27% of the pool in 180 days and leaves
@@ -147,6 +147,14 @@ against Keep Up's 6" is not wrong, but it measured **one morning's hand on her r
 this measures **service over 180 days on the default pool**. Both can be true: By Freq fills
 today's hand best and starves everything outside its front rank. Worth putting to her as a
 trade-off rather than treating either number as the answer.
+
+**The aggregate survives a second draw; the per-task ranking does not.** 27%, 123 never
+dealt and a median starvation of 180 came back identical. But *Tidy back porch* was 12.0× in
+draw 1 and **3.9× in draw 2** — the worst-offender ordering is unstable and no single task's
+ratio should be quoted. What repeats across both draws is the shape: several 7-day tasks run
+at **3–5×** target (*Dust surfaces (living room)* 5.0× / 5.1×, *Clean stovetop* 3.0× / 3.1×,
+*Tidy up (bedroom)* 2.5× / 2.0×), and *Kitchen tidy* — a **daily** — runs at exactly **2.0×
+in both**. That last one is the durable finding in this table.
 
 **B-2 · S3 · Tier C is 0% in every mode except Catch Up.** Confirmed as designed — but at
 her real 30/60 budget, Keep Up also reaches 0% and only Catch Up gets to 48%. Raising the
@@ -164,7 +172,9 @@ algorithm is sound, and everything above is a capacity problem.
   `Math.random()`. The audit's evidence bar asks for "a seeded, reproducible run, plus the
   seed", so **the harness cannot currently meet its own bar**, and the standing instruction
   to "run a second seed" was never satisfiable. Adding a seeded PRNG is the first fix here.
-- **One draw.** A second independent run was started and abandoned — see below.
+- **Two draws, unseeded.** Both completed and agree on every aggregate; the per-task service
+  ranking does not repeat (see B-1). Because there is no seed, neither draw is reproducible —
+  "it agreed twice" is the strongest claim available until a PRNG is added.
 - **Default pool, not hers.** Her hidden tasks and edited frequencies are absent, which is
   exactly what makes B-1's tension with the recorded decision unresolvable from here.
 - **The `sporadic` scenario is pathologically slow** — minutes, and on the second run it had
