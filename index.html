@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-16 v13">
+  <meta name="app-version" content="2026-08-16 v14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -24,13 +24,20 @@
       --hairline: rgba(0,0,0,0.07);
       /* --text3 is the meta line under every task name — the most-repeated
          small text in the app. Mockup #9c968a is 2.65:1 on paper; this is 4.71. */
-      --text: #23211c; --text2: #6b675d; --text3: #726c5e;
+      /* Surface audit 2026-08-16: --text3 was 4.32:1 on --bg2 and --text2 4.17:1 on
+         --bg3, both under AA's 4.5. Darkened by the minimum that clears it (3 and 6
+         steps). --text3 stays the LIGHTER of the two — it is the quieter role, and
+         darkening it far enough to clear --bg3 as well would invert the hierarchy. */
+      --text: #23211c; --text2: #656157; --text3: #6f695b;
       /* Uppercase tracked section label. Mockup #a08f6a is 2.86:1; this is 4.84. */
       --eyebrow: #7d6839;
       --red: #a8442f; --red-bg: #f7e6e0;
       /* Darker red for white text sitting ON the accent. Same value in both
          themes, since the pairing is white-on-red either way. */
       --red-strong: #9b3c2a;
+      /* Same contract as --red-strong: fills that stay dark in both themes so the
+         rail's literal light label keeps working. */
+      --slate-strong: #7a7567; --amber-strong: #986d0d;
       /* Pin amber. Mockup #a8791f is 3.53:1 as text; this is 4.77. */
       --amber: #96600d; --amber-bg: #f4ead4;
       /* Pine — the one accent. 7.4:1 on paper, 8.2:1 under white. */
@@ -38,11 +45,6 @@
       /* Warm slate stands in for the old blue: one-off and custom badges were
          the only cold thing left on a warm-paper screen. */
       --blue: #3c5a7a; --blue-bg: #e7ecf1;
-      /* Owner badges referenced these via fallback and they were never defined, so
-         the light-mode literals applied in dark mode too — a pale lilac chip glowing
-         on a near-black card. */
-      --purple: #534ab7; --purple-bg: #eeedfe;
-      --teal: #0f6e56; --teal-bg: #e1f5ee;
       /* Text sitting ON a filled accent. Must be a token: in dark mode the accents
          are lightened, and white on a light accent fails. Paper-white, not pure
          white — pure white on pine is the one place the warmth visibly breaks. */
@@ -101,7 +103,10 @@
         --bg: #1c1a16; --bg2: #24211c; --bg3: #33302a;
         --card: #211f1a; --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.22);
         --hairline: rgba(255,255,255,0.08);
-        --text: #efe9dc; --text2: #a6a08f; --text3: #8b8574;
+        /* #8b8574 sat at 4.47:1 on --card — sixteen of the nineteen dark-mode
+           contrast failures were this one token missing AA by 0.03. Three steps
+           lighter clears --bg, --card and --bg2 (4.91 / 4.66 / 4.54). */
+        --text: #efe9dc; --text2: #a6a08f; --text3: #8e8877;
         --eyebrow: #a89a6f;
         --red-bg: #3a221c; --amber-bg: #332813; --green-bg: #1e3129; --blue-bg: #1c2937;
         /* The foreground accents have to be lightened too, not just the -bg pairs.
@@ -109,8 +114,6 @@
            .tab.active { color: var(--green) } is the ONLY indicator of which tab
            you're on. */
         --red: #e08a6f; --amber: #d6a94a; --green: #8fbfa3; --blue: #8fb3d9;
-        --purple: #a99ef5; --purple-bg: #2b2550;
-        --teal: #5fcfae;  --teal-bg: #123a30;
         /* Accents are light here, so text on them must be dark. A @media rule
            setting these per-component would silently lose the cascade to a later
            base rule at equal specificity; a custom property is what works. */
@@ -282,16 +285,15 @@
     .task-swipe { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
     .task-swipe button { width: 64px; border: none; color: #fffdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2); font-size: var(--fs-label); font-weight: 600; cursor: pointer; padding: 0; }
     /* Literal light text, not --on-accent: these three fills stay dark in both
-       themes, so the label must not flip to dark ink in dark mode. */
-    .task-swipe .sw-more   { background: #8a8577; }
-    .task-swipe .sw-pin    { background: #b58a2a; }
+       themes, so the label must not flip to dark ink in dark mode. Both were also
+       too light for #fffdf8 to clear AA (3.62:1 and 3.11:1); darkened to 4.52 and
+       4.56. .sw-today is NOT one of these — see below. */
+    .task-swipe .sw-more   { background: var(--slate-strong); }
+    .task-swipe .sw-pin    { background: var(--amber-strong); }
     .task-swipe .sw-remove { background: var(--red-strong); }
     .task-swipe button:active { transform: none; }
     .task-swipe svg { display: block; }
   
-    .owner-badge { font-size: var(--fs-label); padding: 1px var(--s-3); border-radius: var(--radius); font-weight: 500; }
-    .owner-alina { background: var(--purple-bg, #eeedfe); color: var(--purple, #534ab7); }
-    .owner-bob   { background: var(--teal-bg, #e1f5ee);   color: var(--teal, #0f6e56); }
   
     /* Reachable, but not part of the row's resting state: transparent on touch,
        revealed on hover, always visible once focused by keyboard. Swipe is the
@@ -354,7 +356,12 @@
     /* No completion circle in the library (3d draws none) — the name starts at the
        margin. Mark done lives in the sheet, and swipe-right still completes. */
     .manage-row .task-main { gap: var(--s-6); }
-    .sw-today { background: var(--green); }
+    /* The one rail button whose fill is a theme token, not a fixed dark colour: in
+       dark mode --green lightens to sage and the rail's literal #fffdf8 label fell to
+       2.04:1. It needs the accent-aware pairing the other three deliberately avoid.
+       Written as `.task-swipe .sw-today` on purpose: a bare `.sw-today` is (0,1,0)
+       and loses to `.task-swipe button` (0,1,1), so the colour silently did nothing. */
+    .task-swipe .sw-today { background: var(--green); color: var(--on-accent); }
     .in-hand-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: var(--fs-sub); display: flex; align-items: center; justify-content: center; }
     .icon-btn.danger { color: var(--red); border-color: var(--red); }
@@ -608,7 +615,10 @@
        both reference material and both long enough to swallow the tab. */
     .ed-details > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); cursor: pointer; list-style: none; color: var(--text3); }
     .ed-details > summary::-webkit-details-marker { display: none; }
-    .ed-details > summary .settings-card-title { margin-bottom: 0; }
+    /* summary sets --text3 for its chevron; without this the TITLE inherited it too,
+       so "How Scoring Works" sat at 4.47:1 beside "System Overview" at ~11:1 and read
+       as disabled rather than collapsed. */
+    .ed-details > summary .settings-card-title { margin-bottom: 0; color: var(--text); }
     .ed-details > summary svg { transition: transform 0.2s; flex-shrink: 0; }
     .ed-details[open] > summary svg { transform: rotate(180deg); }
     /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
@@ -799,6 +809,63 @@
     /* The flag icon dims rather than disappearing when the task is not flagged. */
     .flag-mark { display: flex; }
     .flag-mark.off { opacity: 0.35; }
+
+    /* Random Task's tier filter. Was nine inline properties rebuilt per button. */
+    .tier-filter { flex: 1; padding: var(--s-3) var(--s-2); font-size: var(--fs-meta); font-weight: 400;
+      border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2);
+      color: var(--text); cursor: pointer; }
+    .tier-filter.on { font-weight: 700; border-color: var(--green); background: var(--green); color: var(--on-accent); }
+    /* A whole room-pressure row is tappable — it opens that room's Deep checklist. */
+    .rp-row { cursor: pointer; }
+
+    /* ── Tap targets (Surface audit 2026-08-16) ────────────────────────────
+       539 interactive boxes computed below 44×44, across 76 distinct shapes, and
+       height was almost always the failing dimension — plenty are 100–300px wide
+       and 23–34px tall. Resizing 76 shapes would wreck the row rhythm the whole
+       design rests on, so instead each control KEEPS ITS DRAWN SIZE and gains a
+       transparent 44×44 area centred on it. Zero visual change; the finger gets
+       what Apple asks for.
+
+       ::before, not ::after — .toggle and .field-check already draw themselves
+       with ::after, and .vac-details uses ::before but is not in this list.
+       position:relative is required or the box would resolve against some distant
+       positioned ancestor. */
+    .icon-btn, .task-more-btn, .stepper-btn, .tier-pill-sm, .tier-pill,
+    .header-action, .toast-undo-btn, .manage-hand-btn, .settings-save-btn,
+    .edit-btn, .date-save-btn, .date-input, .btn-choice, .add-btn, .btn-line,
+    .modal-btn, .chip, .vac-chip, .preset-due-chip, .mode-btn, .section-label-btn,
+    .more-btn, .overflow-toggle, .btn-dashed, .round-add, .tier-filter, .rp-row,
+    .field-check, .opt-label input[type="radio"] { position: relative; }
+
+    .icon-btn::before, .task-more-btn::before, .stepper-btn::before,
+    .tier-pill-sm::before, .tier-pill::before, .header-action::before,
+    .toast-undo-btn::before, .manage-hand-btn::before, .settings-save-btn::before,
+    .edit-btn::before, .date-save-btn::before, .btn-choice::before,
+    .add-btn::before, .btn-line::before, .modal-btn::before, .chip::before,
+    .vac-chip::before, .mode-btn::before, .section-label-btn::before,
+    .more-btn::before, .overflow-toggle::before, .btn-dashed::before,
+    .round-add::before, .tier-filter::before, .rp-row::before,
+    .field-check::before, .opt-label input[type="radio"]::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%; height: 100%; min-width: 44px; min-height: 44px;
+    }
+    /* The cadence row's task name is a 15px text link stacked directly above and
+       below other rows' links. A full 44px box would reach into its neighbours and
+       open the wrong task, so it gets 36 — contained inside its own row, and still
+       more than twice what it had. */
+    /* select and input are replaced elements — a ::before on them is unreliable
+       across browsers, so these three take the height directly. They are all
+       transparent or filled-well controls with no drawn border of their own, so a
+       taller box costs nothing visually except the row it sits in growing to suit. */
+    .zone-select, .room-select, .search-well .search-input { min-height: 44px; }
+
+    .cad-name { position: relative; }
+    .cad-name::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%; height: 100%; min-height: 36px;
+    }
 
     /* Dashed "add" affordance. */
     .btn-dashed { width: 100%; border: 1px dashed var(--border2); border-radius: var(--radius); padding: var(--s-5); font-size: var(--fs-sub); color: var(--text2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: var(--s-3); }
@@ -1477,12 +1544,19 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-16 v13';
+  const APP_VERSION = '2026-08-16 v14';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-16 v14', notes: [
+      'Small buttons are now much easier to hit. Nothing looks different — each one keeps its size but the area your finger has to land in is bigger, which matters most on the Stats list where the buttons were 23 pixels tall.',
+      'The quietest grey text was slightly too faint to meet the accessibility standard, in both light and dark. It is a shade stronger now.',
+      'Fixed: the green "+ Today" button on the swipe rail had near-white text on a pale green background in dark mode, which was close to unreadable.',
+      'Fixed: the collapsed cards in Settings had dimmer titles than the open ones, which made them look switched off rather than folded up.',
+      'The paste box for restoring a backup no longer makes the page zoom when you tap it.',
+    ]},
     { v: '2026-08-16 v13', notes: [
       'Fixed, and this one could lose real data: if you set "last done" to today and then unticked the task, the app threw away the true last-done date and made one up. On a twice-a-year job that moved the date six months backwards with no way back.',
       'Fixed: if you left the app open overnight, tapping a ticked task the next morning marked it done a second time instead of unticking it. The app now notices when the day has changed.',
@@ -4667,7 +4741,7 @@
       '<div style="display:flex;gap:6px;margin-bottom:12px">';
     ['all','A','B','C'].forEach(tier => {
       const active = randomTier === tier;
-      html += '<button onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()" style="flex:1;padding:6px 4px;font-size:var(--fs-meta);font-weight:' + (active?'700':'400') + ';border-radius:8px;border:1px solid ' + (active?'var(--green)':'var(--border)') + ';background:' + (active?'var(--green)':'var(--bg2)') + ';color:' + (active?'var(--on-accent)':'var(--text)') + ';cursor:pointer">' + tierLabels[tier] + '</button>';
+      html += '<button class="tier-filter' + (active ? ' on' : '') + '" onclick="randomTier=\'' + tier + '\';randomPick=null;renderPresets()">' + tierLabels[tier] + '</button>';
     });
     html += '</div>';
     if (randomTier !== 'all') {
@@ -5336,7 +5410,7 @@
         const color = r.median >= 1.5 ? 'var(--red)' : r.median >= 1 ? 'var(--amber)' : 'var(--green)';
         const width = Math.round(Math.min(r.median / 2, 1) * 100);
         const zoneChip = r.zone ? '<span class="rp-zone">Z' + r.zone + '</span>' : '';
-        const tap = r.presetId ? ' onclick="openRoomPressurePreset(\'' + r.presetId + '\')" style="cursor:pointer"' : '';
+        const tap = r.presetId ? ' class="rp-row" onclick="openRoomPressurePreset(\'' + r.presetId + '\')"' : '';
         return '<div' + tap + '>' +
           '<div class="rp-head">' +
             '<div class="rp-room">' + r.room + ' ' + zoneChip + '</div>' +
@@ -5612,7 +5686,7 @@
         '<div class="settings-card-desc">Back up your data before recreating your home screen shortcut, switching phones, or clearing Safari. Each shortcut has its own isolated storage — this is the only way to move your history.</div>' +
         '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:8px">Export</div>' +
         '<button class="add-btn wide gap-b" onclick="exportData()">Copy data to clipboard</button>' +
-        '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
+        '<textarea id="exportTextarea" readonly style="display:none;width:100%;height:100px;font-size:16px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--bg2);color:var(--text);resize:none;-webkit-user-select:all;user-select:all"></textarea>' +
         '<div style="height:16px;border-top:0.5px solid var(--border);margin:16px -24px 0;padding-top:16px;margin-bottom:0"></div>' +
         '<div style="font-size:var(--fs-sub);font-weight:600;margin-bottom:4px;margin-top:16px">Import</div>' +
         '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">Overwrites all current data.</div>' +
@@ -5620,7 +5694,7 @@
         '<input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">' +
         '<button class="add-btn wide gap-b-sm" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">Or paste exported data:</div>' +
-        '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:var(--fs-sub);font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
+        '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:16px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
         '<button class="add-btn wide danger" onclick="importData()">Import &amp; restore</button>' +
       '</div>' +
   
