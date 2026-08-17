@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-17 · app at `2026-08-17 v3` · selftest 92/92 green.
+Last touched: 2026-08-17 · app at `2026-08-17 v5` · selftest 98/98 green.
 
 ---
 
@@ -57,12 +57,21 @@ them. What remains open:
   interaction, not a restored id.
 - **`dealMax` is 1 everywhere.** "Start another" covers the real case by hand.
 
-### C-11 — the editor page needs a second look on a real phone
-The task editor is a full-height page now (`.modal-backdrop.as-page`). Verified at
-390px in both themes in the pane, but **not** with a soft keyboard up. The `--kb`
-visual-viewport handling was written for a bottom sheet whose margin moved; a
-full-height panel with a sticky header may want different treatment. Worth one pass on
-her phone with the name field focused.
+### C-11 — the task page needs a second look on a real phone
+The ⋯ sheet and the editor are one full-height page now (`.modal-backdrop.as-page`),
+and the form saves as you type. Verified at 390px in both themes in the pane, but
+**not** with a soft keyboard up, and that matters more than it did:
+
+- The `--kb` visual-viewport handling was written for a bottom sheet whose margin
+  moved. A full-height panel with a sticky header may want different treatment.
+- The page is now ~2000px tall. Focusing the name field near the top with a keyboard
+  up is the case to check.
+
+**A rule this created:** a field on the task page needs a writer in `writeTaskForm`
+AND, if it is also shown as an action row, a sync in the row's handler. The vacation
+setting is both, and it desynced immediately — the row moved it and the next keystroke
+wrote the form's stale `editingVac` back over it. Any second setting promoted to a row
+inherits that trap.
 
 ### C-10 — Bob's away: the numbers are unmeasured
 Shipped 2026-08-17. The mechanism is pinned by four mutation-checked cases; what is
@@ -353,6 +362,11 @@ that test.
   the colour comes from an ancestor. Measuring the card's own `backgroundColor` gave
   2.55:1 on text that actually sits at 7.43:1. Walk up to the first non-transparent
   ancestor before computing any ratio. Same family as the un-reloaded theme switch.
+- **Never assert against `document.body.innerHTML`.** The app is one file with an
+  inline `<script>`, so the body's HTML contains the entire source. Every string a
+  case looks for is present as a literal whether or not it was ever rendered. A case
+  written that way passed against a build where the feature never rendered at all.
+  Assert on the specific container. The suite has no other use of it — keep it that way.
 - **A test whose subject is a hardcoded id list can stop testing without failing.** Case
   42 deleted the four laundry steps to prove dailies are charged against the day budget.
   They became cycle stages, stopped being dailies, and the probe quietly compared a hand
