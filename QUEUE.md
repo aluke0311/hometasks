@@ -135,7 +135,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
 | 5 | Content | **Fully run** (2026-08-17) — 6 found, 5 fixed | An export for calibration |
 | 6 | Coherence | **Re-run** (2026-08-17) — 3 found, 2 fixed | — |
-| 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
+| 7 | Opportunity | **Run 2026-08-18** — 10 live, 5 killed | Her ranking |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
 ### 1. Flow — **cannot be run from here.** Three input paths tried, all closed.
@@ -563,11 +563,95 @@ Not reported: `openRoomPressurePreset` was flagged as an outlived name in the la
 
 ---
 
-### 7. Opportunity — run last
-Needs a fresh export and the other audits' output. Standing kill list: **weather**
-(declined — costs the zero-external-connections property) and **anything multi-user**
-(declined — Bob does not use the app). P1 candidate already identified: surface the
-pool-pressure figure, since the app already has a Room Pressure concept to hang it on.
+### 7. Opportunity — **run 2026-08-18** on her real export. 10 live ideas, 5 killed
+
+Evidence base: 945 completions across 70 active days, 126 tasks with history, 11 tasks with
+timed runs, her live pool of 177.
+
+**The three numbers everything below leans on:**
+
+| Measurement | Value |
+|---|---|
+| Real cadence vs declared target, 52 tasks with ≥3 completions | **median 1.60×** (worst 3.8×) |
+| Timed runs vs static estimate, 11 tasks | **median 0.67×** — she is *faster* than her estimates |
+| Live non-daily tasks with **no completion history at all** | **68 of 177** = 58 min/wk = 14% of demand |
+| Her non-daily demand vs her actual 45/90 budget | 427 vs 405 min/wk = **106%** |
+
+**Correction to the standing constraint:** the queue's "141% utilisation" is computed against a
+30/60 budget. Her export says `budgetWeekday: 45, budgetWeekend: 90`. Against what she actually
+runs, she is at **106%** — still over, but a fifth of the gap the queue has been quoting.
+
+---
+
+#### P1 — build next
+
+**O-1 · Right-size the pool from her own data.** One screen: "38 of your tasks are consistently
+done less often than their target. Adopt the real interval?" Modelled: adopting real cadence on
+the 38 tasks running >1.25× target takes non-daily demand **427 → 342 min/wk, i.e. 106% → 84%
+utilisation.** That is the standing capacity constraint solved with data she already owns, and no
+task is lost — only re-targeted to the rhythm she actually keeps. *Evidence:* median cadence
+ratio 1.60 across 52 measured tasks. *Cost:* no new state; Stats already has per-task "set target
+Nd" and `cadenceInfo()`. This is a bulk wrapper over an existing action. *Smallest version:* the
+list with a checkbox per row and one Apply.
+
+**O-2 · Tell her the estimates are high.** Her timed runs come in at **0.67× the static
+estimate** — counters estimated 5 min take 1, the dishwasher 5 takes 3. `taskTime()` only blends
+once a task has samples, and just **11 of 177** do. So the budget is buying her fewer tasks than
+she can actually do, every day. *Evidence:* the ratio table above. *Cost:* Budget Insight already
+exists and is exactly this shape; add a second line. *Smallest version:* one sentence in Budget
+Insight — "your timed tasks run about a third quicker than estimated" — with no automatic change.
+
+**O-3 · An amnesty for the 68.** 68 live tasks have never been completed once and 36 have starved
+past 150 days; they are 14% of demand and produce nothing but noise in every pool. Offer, once a
+quarter: hide, halve the frequency, or keep. *Evidence:* the counts above. *Cost:* small; hiding
+is `deletedIds` and already exists. *This is the removal angle the spec makes mandatory.*
+
+#### P2 — build this round
+
+**O-4 · Two sessions a day, not one.** Her completions cluster at **12:00–14:00 (29%)** and
+**20:00–22:00 (25%)** — two distinct work windows, and the app deals one hand for the whole day.
+An evening view of what is left, sized to the time she has left, fits her actual rhythm.
+*Cost:* no new state — a filter over the existing hand. *Character:* none spent.
+
+**O-5 · Kitchen is five times every other room.** 193 completions and ~964 min in 90 days against
+Bedroom's 74 / 376 and Living Room's 18 / 144. Room Pressure shows *overdue*; it does not show
+*where the effort goes*. A share-of-effort view would tell her something she cannot currently see
+and probably does not know. *Cost:* derivable from history, no new state.
+
+**O-6 · Surface the pool-pressure figure.** The standing P1 candidate from the last round, and it
+now has a real number to show (106%, or 84% after O-1). Room Pressure is the place to hang it.
+
+#### P3 — worth having
+
+**O-7 · "What did I actually do this week?"** 945 completions and 70 active days are recorded and
+the app shows a 13-week heatmap but no plain sentence. Median 13 completions on an active day,
+busiest 40.
+
+**O-8 · Let a preset row start a cycle.** Six presets lost their laundry rows in the rewrite
+(C-9). A checklist row that opens a cycle restores them without restoring four dead tasks.
+
+**O-9 · Stale-state sweep on load.** Her export carries `inProgress: {lroom_myclothes}` for a task
+that no longer exists — stuck 9 days, unclearable from the UI because it has no card — plus 17
+orphan history entries and a stored `returnHome` preset holding four deleted ids. *Cost:* a few
+lines in `coerceState`, same shape as the cycle guard already added.
+
+**O-10 · Cycle timings are being used — show they exist.** She changed `laundry.dry` from 55 to
+47 unprompted. Nothing advertises that the other steps are editable.
+
+#### Kill list — declined, with the reason, permanently
+
+| Idea | Why not |
+|---|---|
+| **Weather** | Costs the zero-external-connections property. Standing. |
+| **Anything multi-user** | Bob does not use the app. Standing. |
+| **Push notifications / reminders** | Needs a service worker and a permission prompt, and the app's whole character is that it is a thing she opens. The two-session pattern (O-4) is the version of this that spends nothing. |
+| **Auto-adopting real cadence without asking** | O-1 must stay a proposal. Frequencies are her judgement about her house; the app measuring them is help, the app overruling them is not. |
+| **Gamification beyond the existing streak** | `bestStreak` is 9 and the milestone set already fires. No evidence she responds to more, and the character is a tool rather than a game. |
+
+**A claim I withdrew before reporting it.** I nearly filed "she never uses *did it earlier* — remove
+it" on the basis that 0 of 945 stamps were midnight-exact. `completeEarlier` writes `now − N days`,
+which keeps the current hour, so that probe cannot detect it. The feature's usage is **unmeasured**,
+not zero. To measure it, the write path would have to record its source.
 
 ---
 
