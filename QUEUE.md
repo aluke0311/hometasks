@@ -143,7 +143,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
 | 3 | State | **Re-run 2026-08-17** — 2 findings, unfixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
-| 5 | Content | **Copy sweep done** (2026-08-17) — 4 findings, unfixed | Her call on C-1..C-4 |
+| 5 | Content | **Fully run 2026-08-17** — 6 findings, unfixed | An export for calibration |
 | 6 | Coherence | **Done** | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
@@ -392,7 +392,66 @@ itself.
 are all on the **line-height** axis — 13px/400 resolves five different ways, 12px/400 four.
 Surface produces the inventory; whether 34 should be 34 is audit 6's question.
 
-### 5. Content — **copy sweep run 2026-08-17.** 4 findings, none fixed
+### 5. Content — **fully run 2026-08-17.** 6 findings, unfixed
+
+#### Pool economics — recomputed after the cycle work
+
+Seasonal tasks prorated by active months, per the spec's trap.
+
+| Quantity | Before today | Now | Note |
+|---|---|---|---|
+| Pool size | 186 | **182** | four `l_*` laundry steps deleted |
+| Whole-pool demand | 113.8 min/day | **85.8** | |
+| Alina + either | 102.5 | **74.5** | |
+| — of which daily (`freq ≤ 1`) | 48.0 | **20.0** | the 28 min/day of forced laundry steps is gone |
+| — non-daily | 54.5 → 382 min/wk | **54.5 → 382 min/wk** | **unchanged** |
+| Utilisation @ 30/60 (her real budget) | 141% | **141%** | unchanged |
+| Utilisation @ 45/90 (default) | 94% | **94%** | unchanged |
+
+**The headline did not move, and that is the finding.** Every task deleted was a `freq: 1`
+daily, and dailies do not compete for the non-daily budget. So the standing 141% constraint
+survives the cycle work untouched — nothing was bought there.
+
+**What did improve is the daily fixed cost: 48 → 20 min/day.** Under the Today's-time slider,
+which is a whole-day total, that is 28 minutes a day returned. The cycles do not give it all
+back: an open cycle charges only its *current* step (3–10 min) rather than all four at once,
+and only while it is running. **This is the real win from the cycle work and it is invisible in
+the utilisation figure.**
+
+Tier balance **A 42 / B 73 / C 67** (was 46/73/67 — the four deleted steps were tier A).
+Owners **26 alina / 138 either / 18 bob**. Eight tasks now own a cycle.
+
+#### C-5 · S3 · "Dishwasher" no longer distinguishes itself from "Clean dishwasher"
+
+Introduced 2026-08-17: `k_dishwasher` was renamed from *"Unload dishwasher"* to *"Dishwasher"*
+to serve as the cycle owner. The Kitchen now holds **Dishwasher** (1d), **Clean dishwasher**
+(90d), **Clean dishwasher filter** (30d) and **Wipe outside of dishwasher** (60d). In the hand
+the card shows its step ("Load it") so it reads fine; in All Tasks it is a bare "Dishwasher"
+next to "Clean dishwasher" and the two do not separate at a glance. A name like *"Run the
+dishwasher"* would.
+
+#### C-6 · S4 · Two overlap candidates worth her eye
+
+- **"Clean trash can" and "Sweep under trash can"** — Kitchen, both **42d**, same object. Same
+  frequency and same trip; plausibly one task.
+- **"Deep clean robot"** (90d) against **"Clean robot filters"** (30d), **"Wipe robot sensors"**
+  (30d) and **"Clean dock water filter"** (60d), per unit. A deep clean plausibly contains the
+  other three; if it does, doing it should reset them.
+
+**Method note: automated overlap detection does not work on this pool.** Name-similarity
+scoring returned 65 then 47 candidates, almost all false — the naming convention puts the room
+and the object into every name, so *"Tidy up (US bath)"* matches every other *"(US bath)"* task
+on the word "bath". Both findings above came from reading the list. Do not re-run the detector
+expecting signal; either read the 182 names or skip the check.
+
+#### Not run — needs a fresh export
+
+**Estimate calibration** (learned median vs static `time`, ≥3 samples) and **frequency
+plausibility** (declared `freq` vs real cadence from `completionHistory`) both need her real
+data. The preview fixture has neither. These are the two checks most likely to change a
+frequency, so they are the reason to ask for an export next time.
+
+#### Copy sweep — run 2026-08-17
 
 Swept: 47 toasts, 14 action-sheet rows, 13 empty states, 18 Settings card titles and 29
 descriptions, the nav labels and the mode labels. Numbers half was already done.
