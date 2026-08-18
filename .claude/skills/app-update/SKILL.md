@@ -50,9 +50,15 @@ change).
      light and dark mode. A clean console is not evidence the layout is right;
      reading CSS ranks findings by grep count, and grep count is not visual
      weight. Screenshot it and read the screenshot.
-   - Once `selftest.html` exists: any change to scoring, dealing, state shape,
-     or presets requires it green before commit. Pure CSS/copy/task-text changes
-     are exempt.
+   - Any change to scoring, dealing, state shape, or presets requires the
+     selftest green before commit. Pure CSS/copy/task-text changes are exempt.
+   - **Never assert against `document.body.innerHTML`** in a case: the app is one
+     file with an inline `<script>`, so the body's HTML contains the whole source
+     and every string is present whether or not it rendered. Assert on the
+     container. A case written that way passed against a build where the feature
+     never rendered at all.
+   - **Measure the rendered element** — never CSS, an accessibility tree, or a grep
+     count. All three produced false findings in one session.
 
 5. **Commit + push automatically** — no confirmation needed (standing user
    instruction). Branch first only if not on `main` would be unusual here; this
@@ -85,10 +91,19 @@ real data.
   case 3 covers every preset constant; no manual scan needed, and case 4 fails if
   a new preset type is wired into the tab without joining the sweep.
 - **A new per-task setting goes in its own `state.*` map keyed by id**
-  (`taskMonths`, `taskVac`), NOT on the task object. `saveTask` rebuilds a custom
-  task from an explicit field list, so anything stored on the task is silently
-  stripped the first time she edits it. `load: true` is the one flag that lives
-  on the task, and it only survives because it has its own editor checkbox.
+  (`taskMonths`, `taskVac`), NOT on the task object. **`writeTaskForm`** rebuilds a
+  custom task from an explicit field list, so anything stored on the task is
+  silently stripped the first time she edits it. `cycle` is the live example and is
+  pinned by a case; it survives because it is in that list *and* has a picker.
+- **Every path that ends a task calls `endTaskSideEffects(id)`** — snooze,
+  in-progress, starvation, flags and cycles, in one place. Four sites used to each
+  remember the list; when `cycles` joined it, two were not updated and completing a
+  cycling task any way but its last step left the cycle running. Add anything new
+  to the helper, never to a call site.
+- **A field shown both in `writeTaskForm` and as an action row has two writers**
+  and will desync — sync the form's variable in the row's handler.
+- **The task page saves as you type.** No Save button when editing; creating keeps
+  an explicit Add. The hand is redealt once on close, never per keystroke.
 - **Re-query a DOM node after calling anything that can re-render.** The
   date-picker toggles save-and-close the open row first; that save re-renders, so
   a node captured before the loop is detached and opening it does nothing at all.
