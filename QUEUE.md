@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-17 · app at `2026-08-17 v6` · selftest 103/103 green.
+Last touched: 2026-08-17 · app at `2026-08-17 v9` · selftest 111/111 green.
 
 ---
 
@@ -51,27 +51,17 @@ them. What remains open:
 - **`readyIn` still never blocks a tick.** It now picks which of phase/action the card
   shows, which is the useful half. A hard gate would still be the app's first sub-day
   due rule.
-- **Presets lost their laundry rows.** Full Reset, Express Reset, Return Home, Before
-  Cleaners, Recovery and Evening Shutdown no longer mention laundry at all. If a reset
-  should start a load, that needs a checklist row that opens a cycle — a new
+- **Presets lost their laundry rows.** Six presets no longer mention laundry at all. If a
+  reset should start a load, that needs a checklist row that opens a cycle — a new
   interaction, not a restored id.
 - **`dealMax` is 1 everywhere.** "Start another" covers the real case by hand.
 
-### C-11 — the task page needs a second look on a real phone
-The ⋯ sheet and the editor are one full-height page now (`.modal-backdrop.as-page`),
-and the form saves as you type. Verified at 390px in both themes in the pane, but
-**not** with a soft keyboard up, and that matters more than it did:
+### C-11 — the task page, with a keyboard up
+Verified at 390px in both themes; **not** verified with a soft keyboard raised. The `--kb`
+visual-viewport handling was written for a bottom sheet whose margin moved, and the page is
+~2000px tall with a sticky header. One pass on her phone with the name field focused.
 
-- The `--kb` visual-viewport handling was written for a bottom sheet whose margin
-  moved. A full-height panel with a sticky header may want different treatment.
-- The page is now ~2000px tall. Focusing the name field near the top with a keyboard
-  up is the case to check.
-
-**A rule this created:** a field on the task page needs a writer in `writeTaskForm`
-AND, if it is also shown as an action row, a sync in the row's handler. The vacation
-setting is both, and it desynced immediately — the row moved it and the next keystroke
-wrote the form's stale `editingVac` back over it. Any second setting promoted to a row
-inherits that trap.
+*(The two-writers rule this created now lives in `CLAUDE.md`'s watch-out list.)*
 
 ### C-10 — Bob's away: the numbers are unmeasured
 Shipped 2026-08-17. The mechanism is pinned by four mutation-checked cases; what is
@@ -141,10 +131,10 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 |---|-------|-------|----------------|
 | 1 | Flow | **Blocked again** (2026-08-17) — harness | A working input path, or her walking it |
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
-| 3 | State | **Re-run 2026-08-17** — 2 findings, unfixed | — |
+| 3 | State | **Re-run + fixed** (2026-08-17) — 2 found, 2 fixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
-| 5 | Content | **Fully run 2026-08-17** — 6 findings, unfixed | An export for calibration |
-| 6 | Coherence | **Re-run 2026-08-17** — 3 findings, unfixed | — |
+| 5 | Content | **Fully run** (2026-08-17) — 6 found, 5 fixed | An export for calibration |
+| 6 | Coherence | **Re-run** (2026-08-17) — 3 found, 2 fixed | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 

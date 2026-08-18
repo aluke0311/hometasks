@@ -44,7 +44,7 @@ Each task has:
 - `owner` — `'alina'`, `'bob'`, or `'either'`
 - `cat` — boolean, true for cat-care tasks (minor score boost)
 
-The base task list lives in the `TASKS` array (186 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
+The base task list lives in the `TASKS` array (182 entries). Users can add custom tasks and hide base tasks without touching code. Some entries with `custom_…`/`oneoff_…` ids are personal customizations baked into the base array.
 
 ### Scoring (`scoreTask`, `scoreTaskParts`)
 
@@ -79,6 +79,8 @@ Tiers are used only for the `_dealPreferTier` feature (redeal with a tier prefer
 - `c_fountain` — always appears when due, regardless of mode
 - One laundry load task (see Laundry below) — always assigned when due
 
+**Who gets dealt what** is `dealtByMe(task)` — the single gate, replacing eight longhand owner filters. True for `alina`/`either`; true for a `bob` task only when **`bobAway`** is on or **that task is flagged**. Flagging one of his tasks means "bring me this one" — before that, the flag set a badge and changed nothing, because he has no hand.
+
 **The budget being filled** is `budgetWeekday`/`budgetWeekend` (non-daily time only) *unless* a `todayBudget` is set for today, in which case it is `todayBudget − dailyTime` — the slider is a whole-day total, so the daily load comes off the top. `dailyTime` covers the dailies being forced into the hand plus any already completed today. Only tasks the pool could contain (`alina`/`either`) count as time already spent: letting a Bob-only completion consume the budget silently shrank her hand, since she logs his chores.
 
 **Mode-dependent pool filling:**
@@ -93,10 +95,26 @@ If `_dealPreferTier` is set (via redeal with tier button), tasks of that tier fl
 
 **Flagged tasks:** enter the pool even when not yet due (flag bypasses `isDue`) and fill **first in every mode** — critical for By Freq, where the raw-frequency sort would otherwise ignore the -50 flag bonus entirely. They count against the budget and dealing stops at the limit, except the first flagged task is always dealt (so flagging guarantees surfacing even when the budget is spent). Flagged tasks that don't fit, and `getOverflowTasks()` generally, surface via "+ Give me more", which includes flagged not-yet-due tasks.
 
-**Laundry slot logic:**
-- "Load" tasks compete for a single daily slot — at most one is assigned per day, chosen by score (most overdue wins). Membership is declared per-task by **`load: true`**, not a hardcoded id list: `dealHand`'s `LAUNDRY_LOAD_IDS`, the sprint's `SPRINT_LOAD_IDS`, and the selftest's `loadIds()` all derive from the flag. Currently `lroom_whites` (7d), `lroom_cools` (7d), `lroom_warms` (10d), `lroom_towels` (7d), `lroom_microfiber` (14d), `k_towels` (7d) — combined demand ≈ 0.79 loads/day against a slot that serves 1/day, so the queue has little slack; adding another weekly load will make it run late
-- If a load task was already completed today or is pinned, no new load is assigned on redeal
-- "Process" steps (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) are daily tasks suppressed unless a load is assigned today, pinned, or already completed today
+**Cycle slots** (replaced the hardcoded laundry slot and `ALWAYS_ASSIGN_IDS` on 2026-08-17):
+- Each entry in `CYCLES` gets at most `dealMax` (currently 1) running at a time. Candidates are the tasks that own that cycle, picked by score.
+- **Done today, pinned, or in progress** all mean that cycle has had its turn — the rule the wash slot always had, now applied per definition.
+- A cycle the dealer opened **bypasses the budget**, as the wash slot always did and as `c_fountain` used to via its own special case. That case is gone.
+- Cycle owners never enter the ordinary pool; they arrive through their slot.
+- **Today's pick is dated and sticks** (`cycleChoice` / `cycleChoiceDate`). `redealHand()` nulls the hand, so without this a redeal re-sorted six near-identical wash tasks and today's laundry silently became a different load.
+
+### Cycles (`CYCLES`, `state.cycles`)
+
+A cycle is a multi-step job you start once and come back to. **One task owns the cycle and carries the frequency** ("Wash whites", every 7 days); the steps are entries in `CYCLES` and are **not tasks**. They were tasks in the first cut, which meant four `freq: 1` dailies that `dealHand` had to suppress by hand; those four (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) were **deleted on 2026-08-17** along with their rows on six presets.
+
+Three definitions ship: **laundry** (into the washer → into the dryer → fold → put away), **dishwasher** (load → start → unload) and **fountain** (into the dishwasher → reassemble). The dishwasher and the fountain both wait **129 min**, because the fountain is cleaned in the dishwasher; a selftest case pins the two together.
+
+Each stage carries `action` (what she does), `phase` (what is true *while* that action is pending), `mins` and `readyIn` (machine minutes after the previous step). **The card shows `phase` + a ready time until the wait passes, then switches to `action`** — she will not tap "into the dryer" while it is still washing. `readyIn` never blocks a tick; it only picks which of the two is shown. Overridable per step in the task editor via `state.cycleTimings`, keyed `def.stageKey`.
+
+- **A task declares its cycle with `cycle: '<key>'`.** `load: true` is the retired wash-slot flag and survives only as a read fallback in `cycleDefFor` for stored custom tasks; the editor checkbox is gone, and `coerceState` folds `load` into `cycle` on import.
+- **Before a cycle starts**, the card still shows step 0's action and the dots, so ticking "Wash cools" means "into the washer", not "the washing is finished".
+- **The owning task completes only when the last step does**, so `freq: 7` measures whole loads. `finishCycle` deletes the cycle then calls `completeTask`.
+- **`dealMax` governs the dealer, not a cap** — `startExtraCycle` runs a second load by hand.
+- A cycle untouched for `CYCLE_STALE_DAYS` (3) shows "still going?" with **Drop it** and **Finished it**.
 
 ### Modes
 
@@ -120,6 +138,10 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 - `mode` — `'maintenance'` | `'catchup'` | `'byfreq'`
 - `tierCLastDate` — vestigial field kept for migration safety; no longer used in dealing logic
 - `_dealPreferTier` — transient; set before redeal to float a tier, deleted immediately after
+- `cycles` — `{cid: {def, taskId, stage, startedAt, stageAt, readyAt}}` running cycle instances. `coerceState` **drops any entry whose `def` is unknown or whose `stage` is out of range** — such an entry used to reach `renderCard`, which dereferences `CYCLES[def].stages`, and threw, taking My Hand (the default tab) down with no way back
+- `cycleTimings` — `{'<def>.<stageKey>': minutes}` her overrides for machine time
+- `cycleChoice` / `cycleChoiceDate` — which task took each cycle's slot today. Deal output, not a preference: dated, expires on its own, and excluded from export round-trip comparisons alongside `hand`/`starvation`
+- `bobAway` / `bobAwaySince` — hands Bob's 18 tasks to her until switched back. Their due dates are untouched, so anything overdue arrives overdue
 - `pinnedIds`, `flaggedIds`, `snoozed`, `deletedIds`, `customTasks`
 - `guestHand`, `resetHand`, `goingOutHand` — **retired 2026-08-16.** They now migrate into `presetHands` under the keys `guest`/`reset`/`goingout` via `migrateLegacyPresets()`, which runs on every load (not behind a flag) so an old export still converts. The fields stay in `defaultState()` and are always left `null`. Every preset runs on one code path now
 - `presetHands` — `{presetType | room_<id>_<depth>: id[] | null}` generated preset checklists (Full Reset, Guest Prep, Going Out of Town, Express Reset, Weekly Reset, Return Home, Before Cleaners, Recovery, Post-Illness, Evening Shutdown, Seasonal Deep Clean, room presets)
@@ -140,9 +162,15 @@ Stored in `localStorage` as JSON under `STORAGE_KEY = 'hometasks_v8'`. Key field
 
 Six tabs in the bottom nav (internal `currentTab` id in parentheses):
 
-- **My Hand** (`alina`) — the main dealt hand titled "Today's Hand"; header has Redeal (+ A/B/C tier redeal), the zone selector, the three mode pills, the **Today's time slider** (`renderDayBudget`; drag repaints the labels only, the deal happens on release, and "back to usual" clears the override), and "+ one-off task". Cards: check off (undo toast), flag, snooze, **un-snooze**, "did earlier" backdating, pin, remove, started…/in-progress, per-task timer, "why?" score-breakdown modal (`scoreTaskParts`), and a quick-log search to record completions outside the hand. Sections: Daily Tasks, Other Tasks, Completed, "+ Give me more" / Backup list (due + not-due)
+- **My Hand** (`alina`) — the main dealt hand titled "Today's Hand"; header has Redeal (+ A/B/C tier redeal), the zone selector, the three mode pills, the **Today's time slider** (`renderDayBudget`; drag repaints the labels only, the deal happens on release, and "back to usual" clears the override), and "+ one-off task". Cards: check off (undo toast), swipe rail (More / Pin / Remove), long-press, and the ⋯ button — all three open **the task page** (see below). Plus a quick-log search to record completions outside the hand. Sections: Daily Tasks, Other Tasks, Completed, "+ Give me more" / Backup list (due + not-due)
 - **Sprint** (`sprint`) — room-grouped, ordered walkthrough of today's hand (Launch → Kitchen → Cat care → Laundry → room groups), per-block time, hide-done toggle, per-task timer/in-progress/remove buttons, and a 📋 Copy button (`copySprint()`) that writes the sprint to the clipboard as markdown (title + done/total/time-left summary, numbered blocks with labels and time estimates, tasks as `- [ ]`/`- [x]` checkboxes with per-task time); respects the hide-done toggle and renumbers visible blocks
-- **All Tasks** (`manage`) — full task list with search + owner/room/status filters; add/edit/delete custom tasks, hide base tasks, pin/flag, +Today, edit last-done; month chips in the editor set seasonal windows and a three-way chip row sets the task's vacation decay; shows learned-time and real-cadence hints
+- **All Tasks** (`manage`) — full task list with search + owner/room/status filters; tapping a row opens the task page; shows learned-time and real-cadence hints
+
+**The task page** (`#taskModal`, `.modal-backdrop.as-page`) is the one surface for a task, merged from the ⋯ sheet and the editor on 2026-08-17. Before that they were two screens with **no route between them from the hand**, which is why the vacation setting was unfindable in practice while rendering perfectly in the form. Opened by `openModal(id, canSwap)`; `openTaskActions` is an alias. Layout: Mark done, then the actions (cycle steps, pin, in-progress, timer, flag, snooze, mark due, swap, **While away: <mode>**, edit last done, did-it-earlier, why this task, remove), then every setting.
+- **It saves as you type.** No Save/Cancel — that matches the rest of the app, where pins, flags and chips all commit on touch. `writeTaskForm` is the single writer and **refuses a half-typed form**, since it runs on every keystroke. The hand is redealt **once on close**, not per keystroke, or the list moves while she types.
+- **Creating keeps an explicit Add button** — a page that saves as you type would otherwise leave a half-named task behind.
+- Delete confirms once and says whether the task is hidden (base) or deleted (custom).
+- Shows every timed run under the estimate: each figure, the range, the median, and the blended number `taskTime()` actually uses.
 - **Presets** (`presets`) — see the Presets section below
 - **Stats** (`stats`) — This Week box (count/effort/streak/today), Budget Insight (suggests budget changes from median non-daily throughput, apply-only), 13-week activity heatmap, and full Completion Cadence list with due badges, +Today/flag, "set target Nd" adoption, and tap-name-to-edit. Real cadence (`cadenceInfo()`, colored `~Nd real`) also shows inline on My Hand and All Tasks cards
 - **Settings** (`settings`) — budget steppers, active-zone reference table, system overview, scoring explainer, recent-activity log, vacation mode card (pause/resume plus the freeze/half/full counts, with the task lists behind a `<details>` disclosure — the half-speed list alone is 60-odd tasks and swallows the tab if left open), reload-app card (shows `APP_VERSION`), weekly backup card, and export/import (paste or restore-from-file)
@@ -177,13 +205,13 @@ Selecting a zone gives a `-2` score bonus to tasks in that zone.
 
 ## Repository Files
 
-- `index.html` — the entire app (HTML + CSS + JS in one file, ~5960 lines). **Line-number anchors rot within weeks — name the function and grep for it, never cite a line**
+- `index.html` — the entire app (HTML + CSS + JS in one file, ~7000 lines). **Line-number anchors rot within weeks — name the function and grep for it, never cite a line**
 - `CLAUDE.md` — this file: working instructions + architecture summary for Claude
 - `DOCUMENTATION.md` — full reference documentation of the app (data model, algorithms, every tab, state schema, edge cases)
 - `QUEUE.md` — **the living work queue.** What is still open in the code and audit queues, the decisions already made so they are not re-argued, and the standing 141% capacity constraint. Read it before starting anything. It holds only open work — finished items are deleted, not ticked, because git is the record
 - `simulate.html` — the day simulator the Behaviour audit needs. Runs the real `dealHand` forward N days against a shimmed clock and reports coverage by tier, the starvation tail, service intervals and budget adherence. Serve over http like the selftest: `…/simulate.html?days=180`
 - `AUDITS.md` — the eight audit lenses (Flow, Behaviour, State, Surface, Content, Coherence, Opportunity, Housekeeping), each with its own method, evidence bar, severity scale and traps. Read the relevant section **before** starting any audit or review; the `app-update` skill's Mode B carries the operational side (what to request from her, reproduce-before-reporting, report-don't-fix). Behaviour, Content and Opportunity need a fresh state export to be worth running
-- `selftest.html` — the test harness, 63 cases. Serve the folder and open it over **http** (`preview_start` with the `hometasks` launch config, then `http://localhost:7821/selftest.html?cb=N`); it loads `index.html` into an isolated iframe (memory-backed storage, so it can never touch live data) and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked — mutate by copying a broken `index.html` into the repo folder and loading `?src=<that file>`. **Don't run it over `file://`**: the preview pane serves a stale snapshot and strips the query string, so both `?cb=` and `?src=` are silently ignored and a mutation check will report a false green
+- `selftest.html` — the test harness, 111 cases. Serve the folder and open it over **http** (`preview_start` with the `hometasks` launch config, then `http://localhost:7821/selftest.html?cb=N`); it loads `index.html` into an isolated iframe (memory-backed storage, so it can never touch live data) and reports `N/N passed`. **Required green before committing** any change to scoring, dealing, state shape, or presets (pure CSS/copy/task-text changes are exempt). Every case has been mutation-checked — mutate by copying a broken `index.html` into the repo folder and loading `?src=<that file>`. **Don't run it over `file://`**: the preview pane serves a stale snapshot and strips the query string, so both `?cb=` and `?src=` are silently ignored and a mutation check will report a false green
 
 ## Known Issues / Watch-outs
 
@@ -191,9 +219,11 @@ The June 2026 review bugs — dead preset task ids (`k_backsplash`, `dsb_exhaust
 
 Editing pitfalls that remain true (also encoded in the `app-update` skill):
 - **Preset task ids** in lists that render via `getAllTasks()` (`ROOM_PRESETS`, `EXPRESS_RESET_SECTIONS`, `RETURN_HOME_SECTIONS`, `BEFORE_CLEANERS_SECTIONS`, `RECOVERY_SECTIONS`, `POST_ILLNESS_SECTIONS`, `EVENING_*`) must exist in `TASKS`, or they silently vanish; `completeTask` returns early for unknown ids, so a phantom checklist item can never be checked off. `selftest.html` case 3 now pins this.
-- **`saveTask` rebuilds a custom task from an explicit field list**, so any new task-level flag must be added there *and* to the editor form, or editing a task silently strips it. `load: true` is the live example: without the `f_load` checkbox, changing a wash task's frequency would have dropped it out of the laundry slot with no visible cause. Case 12 pins the flag set being populated — note it also guards the two laundry cases below it, which go vacuously green when no task carries the flag.
+- **`writeTaskForm` rebuilds a custom task from an explicit field list**, so any new task-level flag must be added there *and* to the editor form, or editing a task silently strips it. `cycle` is the live example and is pinned by a case. (`saveTask` is now only the *create* path; `writeTaskForm` is the single writer.)
 - **`input { appearance: none }` is a blanket reset**, so a checkbox has no visual unless it is drawn by hand. `.field-check` does this; the cat checkbox had been invisible since it was added.
-- **Every path that ends a task must clear `state.inProgress[id]`.** `dealHand` carries in-progress tasks into every hand *including when they are not due* (the fountain is in the dishwasher; the task was last completed four days ago), so a leftover flag is a task that returns forever with no way to shake it off. `completeTask`, `snoozeTask`, `removeTask` and `completeEarlier` all clear it; case 17 pins the backdating path, case 16 pins the not-due carry-over that stops you from "fixing" this by dropping stale flags in `dealHand`.
+- **Every path that ends a task calls `endTaskSideEffects(id)`** — snooze, in-progress, starvation, flags **and cycles**, in one place. Four call sites used to each remember this list, and when `cycles` joined it, `completeTask` and `endTaskAsOf` were not updated: completing a cycling task any way but its last step left the cycle running, so the next day the card read "In the washer" for a finished load and blocked a new one. **Add anything new to the helper, never to a call site.**
+- **A field shown both in `writeTaskForm` and as an action row has two writers.** The vacation setting is both; the row moved it and the next keystroke wrote the form's stale `editingVac` back over it. Any second setting promoted to a row inherits this — sync the form's variable in the row's handler.
+- **(retired) Every path that ends a task must clear `state.inProgress[id]`.** `dealHand` carries in-progress tasks into every hand *including when they are not due* (the fountain is in the dishwasher; the task was last completed four days ago), so a leftover flag is a task that returns forever with no way to shake it off. `completeTask`, `snoozeTask`, `removeTask` and `completeEarlier` all clear it; case 17 pins the backdating path, case 16 pins the not-due carry-over that stops you from "fixing" this by dropping stale flags in `dealHand`.
 
 Patterns found by the 2026-08-08 audit, all fixed — but the shapes recur:
 - **Two things called "undo".** `undoComplete()` (toast) restores the stored timestamp; `uncompleteTask()` (card button, All Tasks checkbox, Sprint untick) restores `prevCompletions[id]`. Neither may fall back to fabricating `now − freq`: for a 180-day task that moves last-done *backwards* half a year and destroys the real date. Cases 50–51 pin this.
@@ -212,6 +242,10 @@ Patterns found by the 2026-08-08 audit, all fixed — but the shapes recur:
 - **`taskTime()` is the single source for "how long will this take."** Raw `task.time` is correct only in the editor field and the learned-time hint.
 - **16px on inputs is load-bearing** — iOS Safari zooms the page on focus below it. It is deliberately not part of the type scale.
 - **Sheets open and close only via `showSheet()` / `hideSheet()`.** Toggling the `open` class directly loses the exit animation.
+
+**Fixed 2026-08-17 (do not re-report):** the orphaned-cycle bug on every non-last-step completion route; a stored cycle with an unknown `def` crashing My Hand; the double delete-confirm; copy naming an "Alina tab" / "All Tasks tab" / "My Hand tab"; the `load` + `cycle` double control; every control under 44×44 (Guest Prep radios, form inputs, selects, month chips, snooze chips); preset rows having no route to the task page.
+
+**Still open — see `QUEUE.md`:** the preset legacy/new code fork (35 sites, needs a state migration); the hand's minute totals counting the owner's `time` rather than the current cycle step; Behaviour's B-1 (By Freq services almost nothing over time).
 
 Minor known behaviors (by design / low priority):
 - Random Task ignores owner, so it can surface a Bob-only task to add to the hand.
