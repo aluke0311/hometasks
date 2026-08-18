@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v8">
+  <meta name="app-version" content="2026-08-17 v9">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1607,12 +1607,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v8';
+  const APP_VERSION = '2026-08-17 v9';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v9', notes: [
+      'Preset checklists now have a ⋯ button on each row, so you can snooze, time, or open any task from inside a preset. Before, a preset row could only be ticked, added to today, flagged or pinned — everything else meant going and finding the task on the Tasks tab.',
+    ]},
     { v: '2026-08-17 v8', notes: [
       'The task page had both a "Cycle" picker and a "Laundry load" checkbox, which meant the same thing and could disagree — if they did, the checkbox was the one being ignored. The checkbox is gone; the Cycle picker is the only place it is set. Your existing tasks are converted automatically.',
       'Renamed "Dishwasher" to "Run the dishwasher", because next to "Clean dishwasher" in your task list the old name did not tell you which was which.',
@@ -5166,6 +5169,11 @@
       btn('plus', inHand, 'addToHand(' + q + ')', inHand ? 'Already in today\'s hand' : 'Add to today\'s hand') +
       btn('flag', flagged, (flagged ? 'unflagTask' : 'flagTask') + '(' + q + ')', flagged ? 'Unflag' : 'Flag it') +
       btn('pin', pinned, 'togglePin(' + q + ')', pinned ? 'Unpin' : 'Pin to the hand') +
+      // A preset row is a `.sprint-card`, not a `.task-card`, so the swipe and
+      // long-press delegation never reaches it — the row offered three of the
+      // thirteen things a task can do, and snooze, the timer, "why this task",
+      // edit-last-done and the vacation setting were unreachable from a preset.
+      btn('dots', false, 'openTaskActions(' + q + ',false)', 'Everything else for this task') +
     '</div>';
   }
 

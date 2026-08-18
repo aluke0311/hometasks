@@ -980,6 +980,23 @@ test('editing a task does not strip its cycle now the checkbox is gone', () => {
   });
 });
 
+test('a preset row can reach its task page', () => {
+  // Preset rows are `.sprint-card`, so the swipe and long-press delegation — which
+  // binds to `.task-card` — never reaches them. Three of thirteen actions were
+  // available from a preset and the rest were unreachable.
+  const doc = document.querySelector('iframe').contentDocument;
+  withState(st => { st.hand = null; st.handDate = null; st.presetHands = {}; }, () => {
+    G('generateNewPreset')('weeklyReset');
+    G('switchTab')('presets');
+    const rows = [...doc.querySelectorAll('.preset-row')];
+    ok(rows.length > 0, 'fixture needs a generated preset');
+    const handlers = rows.map(r => r.innerHTML).join(' ');
+    ok(/openTaskActions/.test(handlers), 'no route from a preset row to the task page');
+    G('clearNewPreset')('weeklyReset');
+    G('switchTab')('alina');
+  });
+});
+
 test('every control clears the 44x44 tap target', () => {
   // Three Guest Prep radio labels measured 20px tall against Surface's recorded zero.
   const doc = document.querySelector('iframe').contentDocument;
