@@ -141,7 +141,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 |---|-------|-------|----------------|
 | 1 | Flow | **Blocked again** (2026-08-17) — harness | A working input path, or her walking it |
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
-| 3 | State | **Done** (2026-08-16) — 5 found, 5 fixed | — |
+| 3 | State | **Re-run 2026-08-17** — 2 findings, unfixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
 | 5 | Content | **Copy sweep done** (2026-08-17) — 4 findings, unfixed | Her call on C-1..C-4 |
 | 6 | Coherence | **Done** | — |
@@ -283,24 +283,72 @@ algorithm is sound, and everything above is a capacity problem.
   candidate list `dealHand` sorts grows every day. Budget for it, or cut the scenario when
   iterating.
 
-### 3. State — **run and fixed 2026-08-16.** Nothing open.
+### 3. State — **re-run 2026-08-17** after the cycle work. 2 findings, unfixed
 
-All five findings fixed in `2026-08-16 v13`, each with a mutation-checked case. Kept here
-only as things that must not regress, because all five were invisible to a green suite:
+Re-run because the session added five state fields (`cycles`, `cycleTimings`, `cycleChoice`,
+`cycleChoiceDate`, `bobAway`/`bobAwaySince`) and a save-as-you-type path. The method's core
+probe is the writer table: enumerate every writer of `state.completions` and compare what each
+does to the satellite state a completion implies. **`cycles` is a new satellite and two writers
+do not touch it.**
+
+| Writer | inProgress | snoozed | starvation | flagged | history | pins | hand | **cycles** |
+|---|---|---|---|---|---|---|---|---|
+| `completeTask` | yes | yes | yes | yes | yes | yes | yes | **— S-1** |
+| `endTaskAsOf` | yes | yes | yes | yes | yes | yes | yes | **— S-1** |
+| `finishCycle` | via completeTask | | | | | | | yes |
+| `undoComplete` | yes | — | — | — | yes | — | — | yes |
+| `uncompleteTask` | — | — | — | — | yes | — | — | — |
+
+**S-1 · S2 · Completing a cycling task by any route except its last step orphans the cycle.**
+`finishCycle` deletes the cycle and then calls `completeTask`, so the normal path is clean. Every
+other route — the task page's **Mark done**, a preset tick, a Sprint tick, quick-log, and
+"did it earlier" via `endTaskAsOf` — completes the task and leaves the cycle open. Reproduced,
+with the consequence, which is what makes it worth fixing:
+
+```
+start a whites cycle        → stage 1, card reads "In the washer"
+tap Mark done on the page   → completions written, cycle STILL OPEN
+roll to tomorrow            → card reads "In the washer" again, for a load already finished
+                            → it is in the hand, and it BLOCKS a new load being dealt
+```
+
+The laundry slot stays jammed until she finds "Drop it", and nothing connects yesterday's
+Mark done to today's phantom. Fix: clear `cyclesForTask(id)` in the same place `completeTask`
+clears `inProgress`, and in `endTaskAsOf`. **The rule to write down is the one that already
+exists for `inProgress`: every path that ends a task must end its cycle too.**
+
+**S-2 · S2 · A stored cycle naming an unknown definition crashes the hand.** `renderCard` does
+`cycDef.stages.map(...)` without checking that `CYCLES[cyc.def]` resolved, so a cycle whose
+`def` no longer exists throws and takes `renderAlina` down with it. My Hand is the default tab,
+so the app opens broken with no in-app way back.
+
+```
+state.cycles = { cy_old: { def:'laundry_v1', … } }
+dealHand()    → ok
+renderCard()  → THREW: Cannot read properties of undefined (reading 'stages')
+renderAlina() → THREW (same)
+```
+
+Reachable from any export written before a cycle key is renamed or removed — three keys were
+created today and more are queued in C-9. Fix is either a guard in `renderCard` or, better,
+`coerceState` dropping cycles whose `def` is not in `CYCLES`, which also cleans the stored blob.
+A stage index past the end of a real definition is already handled safely.
+
+**Passes worth not re-deriving.** All four new fields survive an export → import round trip;
+malformed types are rejected (`cycles:'nope'` → object, `bobAwaySince:'soon'` → null). Zero
+orphans across `completions`, `taskVac`, `actualTimes`, `taskMonths`, `starvation`,
+`cycleTimings`, `pinnedIds`, and no cycle points at a missing task. `cycleChoiceDate` expires
+on its own and re-dates. A cycle started yesterday survives midnight byte-for-byte, stays in
+the hand, and accrues no starvation.
+
+**Still true from 2026-08-16, and must not regress:**
 
 - **Every path writing `state.completions` to TODAY must call `stashPrevCompletion(id)`.**
-  The stash lived inside `completeTask` alone; `endTaskAsOf` lacked it, and that cost a
-  180-day task its real date. Shared helper now — do not inline it again.
-- **`dealHand`'s daily starvation tick hides missing resets.** It zeroes the counter for
-  anything in the hand, including a task completed today, so a path that forgets to clear
-  starvation looks correct all day. Any test of this must pin `starvationDate` to today.
-- **Vacation mode must survive midnight.** `refreshIfDayChanged` returns early when paused.
-- **`applyImport` validates shape, not truthiness**, and reports counts rather than success.
-- **A completion whose task was deleted still counts.** `ORPHAN_ROOM` keeps `byRoom` summing
-  to `count`; it is excluded from the most/least-attention superlatives on purpose.
-
-Passes worth not re-deriving: export → import round trip is clean across all 41 fields;
-storage settles at **≈62 KB, 83× under a 5 MB quota**, so `pruneHistory` genuinely bounds it.
+- **`dealHand`'s daily starvation tick hides missing resets** — pin `starvationDate` to today
+  in any test of it.
+- **Vacation mode must survive midnight** (`refreshIfDayChanged` returns early when paused).
+- **`applyImport` validates shape, not truthiness**, and reports counts.
+- **A completion whose task was deleted still counts** (`ORPHAN_ROOM`).
 
 ### 4. Surface — **run and fixed 2026-08-16.** Nothing open.
 
