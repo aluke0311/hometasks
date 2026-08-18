@@ -245,7 +245,7 @@ Patterns found by the 2026-08-08 audit, all fixed — but the shapes recur:
 
 **Fixed 2026-08-17 (do not re-report):** the orphaned-cycle bug on every non-last-step completion route; a stored cycle with an unknown `def` crashing My Hand; the double delete-confirm; copy naming an "Alina tab" / "All Tasks tab" / "My Hand tab"; the `load` + `cycle` double control; every control under 44×44 (Guest Prep radios, form inputs, selects, month chips, snooze chips); preset rows having no route to the task page.
 
-**Still open — see `QUEUE.md`:** the preset legacy/new code fork (35 sites, needs a state migration); the hand's minute totals counting the owner's `time` rather than the current cycle step; Behaviour's B-1 (By Freq services almost nothing over time).
+**Still open — see `QUEUE.md`:** the hand's minute totals counting the owner's `time` rather than the current cycle step; Behaviour's B-1 (By Freq services almost nothing over time).
 
 Minor known behaviors (by design / low priority):
 - Random Task ignores owner, so it can surface a Bob-only task to add to the hand.

@@ -508,11 +508,19 @@ list and the picker exists. Converging means a one-line migration (`load → cyc
 deleting the checkbox, and pointing `SPRINT_LOAD_IDS` at `cycleDefFor`. Cheap, and it removes
 a user-visible contradiction.
 
-**CO-3 · S3 · The preset legacy/new fork persists** — 35 call sites across
-`clearLegacyPreset`/`clearNewPreset`, `renderPresetChecklist`/`renderNewPresetChecklist`,
-`loadPresetIntoHand`/`loadNewPreset`. Unchanged since the last run and still the largest scar.
-Converging needs a migration of live user state, which may cost more than the duplication —
-that judgement has not changed.
+**CO-3 · WITHDRAWN — the fork does not exist.** I reported it from a grep that counted a
+pattern including function names that are already gone. Checked properly:
+`clearLegacyPreset`, `loadPresetIntoHand`, `loadPresetDueOnly` and `generateLegacyPreset`
+have **0 references**; `state.guestHand` / `resetHand` / `goingOutHand` are **never read**;
+there is no `renderNewPresetChecklist` competing with `renderPresetChecklist`. Only the
+generic path survives, exactly as `CLAUDE.md` said it did when the legacy presets were
+retired on 2026-08-16. The three fields remain in `defaultState()` for migration safety and
+are always `null` — that is documented and deliberate.
+
+**The lesson, which is the same one this session already learned twice:** a grep count is not
+evidence. `AUDITS.md` now says to measure rather than read for Reachability; it applies here
+too — Coherence's own evidence bar asks for the diverging sites *side by side*, and had I
+printed them I would have seen four of the six were empty.
 
 **Converged since the last run, worth recording as progress:** the six near-identical section
 collapsers are now **one** `toggleSection`. And today's work converged rather than added: eight
