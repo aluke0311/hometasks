@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v9">
+  <meta name="app-version" content="2026-08-18 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1607,12 +1607,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v9';
+  const APP_VERSION = '2026-08-18 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-18 v1', notes: [
+      'The dishwasher used to wait until the next day to start a new load after you finished one. Now it starts the next load right away, so it never goes idle waiting for tomorrow.',
+    ]},
     { v: '2026-08-17 v9', notes: [
       'Preset checklists now have a ⋯ button on each row, so you can snooze, time, or open any task from inside a preset. Before, a preset row could only be ticked, added to today, flagged or pinned — everything else meant going and finding the task on the Tasks tab.',
     ]},
@@ -2335,6 +2338,9 @@
     dishwasher: {
       label: 'Dishwasher',
       dealMax: 1,
+      // A load finishing is the trigger for the next one, not the calendar day —
+      // there is always another rack of dishes. finishCycle restarts it right away.
+      neverEnding: true,
       stages: [
         { key: 'load',   action: 'Load it',   phase: 'Dishes to go in', mins: 5, readyIn: 0   },
         { key: 'run',    action: 'Start it',  phase: 'Loaded',          mins: 1, readyIn: 0   },
@@ -3203,11 +3209,15 @@
     const c = state.cycles && state.cycles[cid];
     if (!c) return;
     const snapshot = Object.assign({}, c);
+    const def = CYCLES[c.def];
     delete state.cycles[cid];
     completeTask(c.taskId);
     // completeTask built the undo buffer; hang the cycle off it so undoing the
     // toast puts the load back where it was instead of stranding it complete.
     if (_undoBuffer && _undoBuffer.id === c.taskId) _undoBuffer.restoreCycle = { cid, cycle: snapshot };
+    // A never-ending cycle (the dishwasher) restarts the moment it finishes —
+    // there is always another rack, so the next load shouldn't wait for tomorrow's deal.
+    if (def && def.neverEnding) startCycle(c.taskId);
   }
 
   // A cycle nobody finished. Two ways out, because "I did it and forgot to tick"
@@ -3711,7 +3721,10 @@
   // either way, so swipe, long-press and the sheet work identically in both.
   function renderCard(task, canSwap, opts) {
     const compact = !!(opts && opts.compact);
-    const isDone = wasCompletedToday(task);
+    // A completed-today cycle owner still counts as "done" UNLESS a never-ending
+    // cycle already restarted it — otherwise the fresh load is invisible until
+    // tomorrow's deal, even though it's running right now.
+    const isDone = wasCompletedToday(task) && !cycleForTask(task.id);
     const overdue = task.oneOff ? 0 : daysOverdue(task);
 
     const snoozeUntil = state.snoozed && state.snoozed[task.id];
@@ -4135,7 +4148,7 @@
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
     _taskActionsId = id;
-    const isDone = wasCompletedToday(task);
+    const isDone = wasCompletedToday(task) && !cycleForTask(id);
     const isPinned = !!(state.pinnedIds && state.pinnedIds.includes(id));
     const isFlagged = (state.flaggedIds || []).includes(id);
     const isInProgress = !!(state.inProgress && state.inProgress[id]);
