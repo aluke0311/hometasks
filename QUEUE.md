@@ -148,30 +148,35 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — **blocked three times.** Still never run. Diagnosis is now precise.
+### 1. Flow — **cannot be run from here.** Three input paths tried, all closed.
 
 Not a finding about the app. Retried 2026-08-17 with the pane reopened and confirmed
-**displayed**, which disproves the earlier hidden-pane theory:
+**displayed**, which disproves the earlier hidden-pane theory.
 
-| Action | Result |
+| Path | Result |
 |---|---|
-| `hover` | **works** — returns immediately |
-| `screenshot`, `read_page`, `javascript_tool` | work |
-| `left_click` by coordinate | 30s timeout, tap never lands (verified by screenshot) |
-| `left_click` by `ref` | 30s timeout |
+| `left_click`, by coordinate and by `ref` | 30s timeout; tap verified never to land |
+| `key` — **Tab** | **works.** Focus walks real controls in a sensible order |
+| `key` — Return / Enter / space on a focused `<button>` | dispatched, but **never activates** it |
+| `hover`, `screenshot`, `read_page`, `javascript_tool` | all work |
+| Real Chrome (`claude-in-chrome`) | **no browser connected** — extension not attached to the account |
 
-So the input channel is alive and it is **specifically click dispatch that hangs**. The page
-is responsive throughout and the console is clean. Nothing here is fixable from inside the
-repo; it needs either a harness fix or her hands.
+So focus can be moved but nothing can be *activated*, by pointer or by keyboard. The page is
+responsive throughout and the console is clean.
 
-**Do not retry without a new hypothesis.** Three attempts across two sessions have produced
-the same result; a fourth costs minutes and yields nothing.
+**Do not retry these three.** Four attempts across two sessions. A fifth costs minutes and
+yields nothing new.
 
-**Two ways forward:**
-1. She walks the ten journeys and reports where she stalled. Journey 10 (the escape) first.
-2. The **Reachability** pass below, which is what was run instead. It answers "does a route
-   exist" without tapping. It is NOT Flow and must never be recorded as Flow — Flow asks
-   whether a route is *findable and cheap*, which only a person tapping can answer.
+**Two ways it becomes runnable:**
+1. **She connects the Chrome extension.** `claude-in-chrome` is separate tooling with its own
+   input implementation and is the most likely to work. `list_connected_browsers` returning
+   `[]` is the only thing stopping it.
+2. She walks the ten journeys herself and reports where she stalled. Journey 10 (the escape)
+   first.
+
+**One incidental positive.** Tab order was checked while testing and walks the header, the
+mode pills and the cards in visual order without traps. That is not a Flow pass — Flow is
+about thumbs — but it is worth knowing the app is keyboard-navigable.
 
 ### 1b. Reachability — **new lens, run 2026-08-17.** 2 findings
 

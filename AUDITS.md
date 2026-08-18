@@ -29,7 +29,7 @@ reproduced by the means that audit specifies. Reading the code and inferring a b
 
 ## Shared severity rubric
 
-Used by audits 1–6 and 8, so findings are comparable across lenses. Audit 7 is generative and
+Used by audits 1, 1b, 2–6 and 8, so findings are comparable across lenses. Audit 7 is generative and
 has its own P1–P4 scale — ideas are not damage and must never be reported as severities.
 
 - **S1 — Data loss or lies.** Destroys real history, or shows a number that is wrong in a way
@@ -89,6 +89,53 @@ metric, and it is how S3 friction gets caught before it is felt.
 tap — a journey that works when driven slowly may fail under a real thumb. Sheets must be
 exercised via their real open/close path. And the hand is dealt once per day: a journey that
 redeals to reach its start state is testing a different code path than the morning one.
+
+---
+
+## 1b. Reachability Audit — does a route exist
+
+**Question.** For every destination the app can show, is there a control that leads to it from
+where she would be standing? And is every control on screen big enough to hit?
+
+**Why it is separate from Flow.** Flow asks whether a route is *findable and cheap* — that
+needs a person tapping and cannot be answered any other way. This asks only whether a route
+*exists*, which is answerable from the rendered DOM. It is the cheap lens that catches the
+expensive class of bug: on 2026-08-17 the app shipped for months with **no route at all** from
+My Hand to the task editor, so every per-task setting was reachable only by knowing to go to
+All Tasks and tap a row. Flow would have caught it; Flow has never run. This would have too.
+
+**Never record a Reachability pass as Flow.** A route that exists can still be unfindable.
+
+**Method.** Render each state and enumerate, rather than tapping. `javascript_tool` is
+*allowed* here — that is the difference from Flow.
+
+- **Overlay exits.** For every `.modal-backdrop`, list its exit affordances (✕, named close,
+  backdrop tap, grab zone). Zero exits is S1. One exit on a long scrolling page is worth a
+  note — check the header is sticky so it stays reachable from the bottom.
+- **Destination matrix.** For each tab, collect every on-screen `[onclick]` handler and test
+  whether each key destination is represented. **Handlers can be delegated** — the swipe and
+  long-press behaviour binds to `.task-card` at the document level, so a row that is not a
+  `.task-card` silently has none of it. Check the class, not just the inline handler.
+- **Action parity.** Where the same task appears on several surfaces, compare the actions each
+  surface offers. A surface showing a task with a third of its actions is a finding.
+- **Tap targets.** Measure the *effective* hit area of every visible control — the rendered
+  box, widened by any `::before` / `::after` pseudo-element. Anything under 44×44 is a finding.
+- **Control naming.** Every interactive element needs an accessible name from an `aria-label`,
+  a `title`, its own text, or an ancestor `<label>`.
+
+**Evidence bar.** The measured number or the enumerated handler list, printed. **Never report
+from CSS or from an accessibility tree** — both lie about the rendered result. On the first
+run, three of five suspicions died on contact with a measurement: buttons declared `26px` in
+CSS measured 44×44 once the pseudo-element was counted, radios that looked unlabelled were
+inside a `<label>`, and nav buttons the accessibility tree showed as unnamed had visible text.
+
+**A fixture with no history is not a missing route.** Lists that need real data to render —
+the Stats cadence list needs ≥3 completions — will look unreachable on a fresh state. Seed the
+data or record it as untested; do not report it.
+
+**Output.** The overlay-exit table, the destination matrix, the list of controls under 44×44,
+and a *cleared* list naming each suspicion that died and why, so the next run does not
+re-report it.
 
 ---
 
