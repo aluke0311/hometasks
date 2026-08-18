@@ -144,7 +144,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 3 | State | **Re-run 2026-08-17** — 2 findings, unfixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
 | 5 | Content | **Fully run 2026-08-17** — 6 findings, unfixed | An export for calibration |
-| 6 | Coherence | **Done** | — |
+| 6 | Coherence | **Re-run 2026-08-17** — 3 findings, unfixed | — |
 | 7 | Opportunity | **Not run** | A fresh export, and the other audits' findings |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
@@ -486,6 +486,84 @@ states already say what to do next.
 correctly **only** because it passes an action. Verified both branches: without an action the
 same string renders as `Updated &mdash; 3 changes`. Any new toast copying that phrasing without
 an action will show the entity raw.
+
+### 6. Coherence — **re-run 2026-08-17.** 3 findings, unfixed
+
+**(a) Constants — both forks closed substantially since the last run.**
+
+| Constant | Last run | Now | Direction |
+|---|---|---|---|
+| `font-size` via token / literal | 151 / 19 | **121 / 8** | distinct literal values **10 → 2** |
+| — the literals that remain | `13.5px`, `13px`, `12.5px`… | `16px` ×7 (deliberate), `9px` ×1 | the three-sizes-nobody-chose problem is **gone** |
+| `border-radius` via token / literal | 22 / 58 | **47 / 28** | distinct corner values **11 → 7** |
+| Inline `style="` | 90 | **90** | holding at the floor |
+| Lines | 5,719 | **7,009** | |
+
+Nothing to raise here except a single stray `9px` font-size. Corners are still the weaker of the
+two but token use has more than doubled.
+
+**(b) Behaviours that forked.**
+
+**CO-2 · S3 · `load` and `cycle` are two controls for one meaning, and they can contradict.**
+Created 2026-08-17. `load: true` was the wash-slot flag; the cycle work made it a legacy alias
+—`cycleDefFor` reads `task.cycle || (task.load ? 'laundry' : null)`. Both are now saved by
+`writeTaskForm`, and **both appear on the task page as separate controls**: a Cycle picker
+offering "Laundry (4 steps)" and a checkbox reading "Laundry load (competes for the one wash
+slot)". Reproduced — a task with `cycle:'dishwasher'` **and** `load:true` resolves to
+dishwasher, so the ticked checkbox is simply a lie on screen.
+
+Decided or accumulated? **Decided at the time** — `load` was kept so existing data and the
+existing checkbox kept working. But the reason has since evaporated: `cycle` is in the field
+list and the picker exists. Converging means a one-line migration (`load → cycle:'laundry'`),
+deleting the checkbox, and pointing `SPRINT_LOAD_IDS` at `cycleDefFor`. Cheap, and it removes
+a user-visible contradiction.
+
+**CO-3 · S3 · The preset legacy/new fork persists** — 35 call sites across
+`clearLegacyPreset`/`clearNewPreset`, `renderPresetChecklist`/`renderNewPresetChecklist`,
+`loadPresetIntoHand`/`loadNewPreset`. Unchanged since the last run and still the largest scar.
+Converging needs a migration of live user state, which may cost more than the duplication —
+that judgement has not changed.
+
+**Converged since the last run, worth recording as progress:** the six near-identical section
+collapsers are now **one** `toggleSection`. And today's work converged rather than added: eight
+longhand owner filters became `dealtByMe`, the ⋯ sheet and the editor became one page, and
+`writeTaskForm` is the single writer for the task form.
+
+**(c) Fixes that patched the symptom.** The `CLAUDE.md` watch-out list has **grown** this
+session, which is the wrong direction. Two new rules now held together by memory alone:
+
+- *"Every path that ends a task must end its cycle too"* — not yet written down, and already
+  violated twice (State's S-1).
+- *"A field shown both in `writeTaskForm` and as an action row needs a sync in the row's
+  handler"* — the vacation setting desynced the moment both existed.
+
+Both are the same shape as the standing `inProgress` rule they sit beside. The structural fix
+for all three is one lifecycle function that ends a task — clearing `inProgress`, snooze,
+starvation and cycles together — instead of four call sites remembering.
+
+**(d) Things that stopped being true.**
+
+**CO-1 · S2 · `CLAUDE.md` describes an app that no longer exists.** It is the first thing the
+workflow tells a new session to read, and after today it is wrong in ways that would cause real
+mistakes:
+
+| Claim | Reality |
+|---|---|
+| "`TASKS` array (186 entries)" | **182** |
+| "~5960 lines" | **7,009** |
+| "selftest.html — 63 cases" | **103** |
+| A whole section on `LAUNDRY_LOAD_IDS` and the one-per-day wash slot | replaced by per-definition cycle slots |
+| "Process steps (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) are daily tasks suppressed unless…" | those four tasks **no longer exist** |
+| Nothing about `CYCLES`, `dealtByMe`, `bobAway`, the merged task page, or save-as-you-type | five new state fields and three new subsystems undocumented |
+
+A session that trusted it would look for functions that are gone and reason about a laundry
+slot that has been replaced. **The fix is a Mode C close-out**, which is a separate job from
+auditing and is the single highest-value thing left in this queue.
+
+Not reported: `openRoomPressurePreset` was flagged as an outlived name in the last run, but
+"Room Pressure" is a current Settings card, so the name is accurate now.
+
+---
 
 ### 7. Opportunity — run last
 Needs a fresh export and the other audits' output. Standing kill list: **weather**
