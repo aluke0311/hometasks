@@ -717,6 +717,65 @@ test('a cycle owner names its first step before anything is running', () => {
   });
 });
 
+test('every route that ends a task also ends its cycle', () => {
+  // completeTask and endTaskAsOf both forgot cycles, so Mark done / a preset tick /
+  // a Sprint tick / quick-log / "did it earlier" all left the cycle open. The next
+  // day the card read "In the washer" for a finished load and blocked a new one.
+  const owner = aCycleOwner('laundry');
+  const routes = {
+    completeTask:   () => G('completeTask')(owner.id),
+    completeEarlier:() => G('completeEarlier')(owner.id, 1),
+    setLastDone:    () => G('setLastDone')(owner.id, G('todayStr')()),
+  };
+  Object.keys(routes).forEach(name => {
+    withState(st => {
+      st.hand = null; st.handDate = null; st.cycles = {};
+      st.completions[owner.id] = Date.now() - 30 * DAY;
+    }, () => {
+      G('toggleComplete')(owner.id);
+      eq(G('cyclesForTask')(owner.id).length, 1, name + ': precondition, a cycle is running');
+      routes[name]();
+      eq(G('cyclesForTask')(owner.id).length, 0, name + ' left the cycle open');
+    });
+  });
+});
+
+test('undoing a Mark done on a running load puts the cycle back', () => {
+  const owner = aCycleOwner('laundry');
+  withState(st => {
+    st.hand = null; st.handDate = null; st.cycles = {};
+    st.completions[owner.id] = Date.now() - 30 * DAY;
+  }, () => {
+    G('toggleComplete')(owner.id);
+    const before = JSON.stringify(G('cyclesForTask')(owner.id).map(c => c.stage));
+    G('completeTask')(owner.id);
+    eq(G('cyclesForTask')(owner.id).length, 0, 'precondition: the cycle was ended');
+    G('undoComplete')();
+    eq(JSON.stringify(G('cyclesForTask')(owner.id).map(c => c.stage)), before,
+       'undo stranded the load as complete instead of restoring it');
+  });
+});
+
+test('a stored cycle naming a missing definition is dropped, not rendered', () => {
+  // It used to reach renderCard, which dereferences CYCLES[def].stages and threw,
+  // taking My Hand — the default tab — down with it.
+  const st = fresh();
+  st.cycles = {
+    gone: { def: 'laundry_v1', taskId: 'lroom_whites', stage: 1, startedAt: 1, stageAt: 2, readyAt: 3 },
+    far:  { def: 'laundry',    taskId: 'lroom_whites', stage: 99, startedAt: 1, stageAt: 2, readyAt: 3 },
+    good: { def: 'laundry',    taskId: 'lroom_whites', stage: 1,  startedAt: 1, stageAt: 2, readyAt: 3 },
+  };
+  const saved = snap();
+  try {
+    G('applyImport')(JSON.stringify(st));
+    const kept = Object.keys(G('state').cycles || {});
+    deepEq(kept, ['good'], 'the unusable cycles were not dropped at the boundary');
+    const task = G('getAllTasks')().find(t => t.id === 'lroom_whites');
+    G('renderCard')(task, false);          // must not throw
+    G('renderAlina')();                    // nor take the default tab down
+  } finally { S('state', saved); }
+});
+
 test('the card shows where the job is before the machine is free, and what to do after', () => {
   // Her ask, and the reason phase exists: she will not tap "move it to the dryer"
   // while it is still washing, so being told to is noise.

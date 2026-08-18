@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v6">
+  <meta name="app-version" content="2026-08-17 v7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1602,12 +1602,17 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v6';
+  const APP_VERSION = '2026-08-17 v7';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v7', notes: [
+      'Fixed, and this one jammed your laundry: marking a load done any way other than ticking its last step left the cycle running. The next day the card said "In the washer" for a load you had already finished, and it blocked a new load from being dealt. Every way of finishing a task now ends its cycle too.',
+      'Undoing a "Mark done" on a load that was mid-cycle now puts the cycle back where it was, instead of leaving a half-done job marked complete.',
+      'Fixed: a backup written before a cycle was renamed could stop your hand from loading at all. Those entries are now discarded when the backup is read.',
+    ]},
     { v: '2026-08-17 v6', notes: [
       'Marking a task in progress now puts it in today\'s hand straight away. It said it would keep it in your hand and then did nothing until the next day, which made the button look broken.',
       'A started task also survives a redeal now, even if you had removed it from today earlier.',
@@ -1853,6 +1858,19 @@
 
     // Genuine migration, not a default: the old 'survival' mode became 'maintenance'.
     if (merged.mode === 'survival') merged.mode = 'maintenance';
+
+    // A cycle whose definition no longer exists would reach renderCard, which
+    // dereferences CYCLES[def].stages and throws — taking My Hand, the default tab,
+    // down with it and leaving no way back from inside the app. Reachable from any
+    // export written before a cycle key is renamed or removed. Dropped here rather
+    // than guarded at the renderer, so the bad entry leaves the stored blob too.
+    if (merged.cycles && typeof merged.cycles === 'object') {
+      Object.keys(merged.cycles).forEach(cid => {
+        const c = merged.cycles[cid];
+        const def = c && CYCLES[c.def];
+        if (!def || !(c.stage >= 0 && c.stage < def.stages.length)) delete merged.cycles[cid];
+      });
+    }
 
     return merged;
   }
@@ -2830,6 +2848,24 @@
     return prev;
   }
 
+  // Everything that must stop when a task is finished, in ONE place. Four call
+  // sites used to each remember this list, and every time something new joined the
+  // list — `cycles` did on 2026-08-17 — the sites drifted apart. completeTask and
+  // endTaskAsOf both forgot cycles, so completing a cycling task by any route
+  // except its own last step left the cycle open: the next day the card read
+  // "In the washer" for a load already finished, sat in the hand, and blocked a
+  // new load from being dealt.
+  function endTaskSideEffects(id) {
+    if (state.snoozed) delete state.snoozed[id];
+    if (state.inProgress) delete state.inProgress[id];   // else it rides into every deal forever
+    if (state.starvation) state.starvation[id] = 0;      // it counts days DUE BUT NOT DEALT
+    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+    // A cycle is only ever ended by finishing it, dropping it, or the task ending.
+    Object.keys(state.cycles || {}).forEach(cid => {
+      if (state.cycles[cid].taskId === id) delete state.cycles[cid];
+    });
+  }
+
   function completeTask(id) {
     const task = getAllTasks().find(t => t.id === id);
     if (!task) return;
@@ -2837,7 +2873,6 @@
     const prevOverdue = (Date.now() - (prev + task.freq * 86400000)) / 86400000;
     stashPrevCompletion(id);
     state.completions[id] = Date.now();
-    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
     if (!state.completionHistory) state.completionHistory = {};
     if (!state.completionHistory[id]) state.completionHistory[id] = [];
     const _alreadyToday = state.completionHistory[id].some(ts => {
@@ -2848,7 +2883,16 @@
       state.completionHistory[id].push(Date.now());
       pruneHistory(id);
     }
-    _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday, wasInProgress: (state.inProgress || {})[id] || null };
+    // Snapshot the cycle BEFORE endTaskSideEffects removes it, so undoing a
+    // "Mark done" on a running load puts it back where it was rather than
+    // stranding a half-done job as complete.
+    const _wasCycles = {};
+    Object.keys(state.cycles || {}).forEach(cid => {
+      if (state.cycles[cid].taskId === id) _wasCycles[cid] = Object.assign({}, state.cycles[cid]);
+    });
+    _undoBuffer = { id, prev, hadHistoryToday: _alreadyToday,
+                    wasInProgress: (state.inProgress || {})[id] || null,
+                    wasCycles: Object.keys(_wasCycles).length ? _wasCycles : null };
     // Timer running on this task: stop it and let the modal confirm the entry
     let _timedMins = null;
     const _t = getTimer();
@@ -2857,15 +2901,8 @@
       setTimer(null);
       clearInterval(timerInterval);
     }
-    // Clear snooze / in-progress on completion
-    if (state.snoozed) delete state.snoozed[id];
-    if (state.inProgress) delete state.inProgress[id];
-    // Starvation counts days DUE BUT NOT DEALT, so finishing the task must clear it.
-    // dealHand's daily tick zeroes it for anything in the hand, which is why this was
-    // invisible: it only bites when a task is ticked off a preset checklist or in
-    // Sprint without ever being dealt. That task kept its accumulated score bonus and
-    // the "why?" modal read "12 days due but not dealt" on a task finished seconds ago.
-    if (state.starvation) state.starvation[id] = 0;
+    endTaskSideEffects(id);
+
     // Auto-unpin on completion
     if (state.pinnedIds && state.pinnedIds.includes(id)) {
       state.pinnedIds = state.pinnedIds.filter(p => p !== id);
@@ -2893,13 +2930,16 @@
 
   function undoComplete() {
     if (!_undoBuffer) return;
-    const { id, prev, hadHistoryToday, wasInProgress, milestoneKey, prevBestStreak, restoreCycle } = _undoBuffer;
+    const { id, prev, hadHistoryToday, wasInProgress, milestoneKey, prevBestStreak, restoreCycle, wasCycles } = _undoBuffer;
     _undoBuffer = null;
     // Undoing the completion of a cycle's last stage puts the cycle back on that
     // stage, rather than leaving a finished load with no way to reopen it.
     if (restoreCycle) {
       if (!state.cycles) state.cycles = {};
       state.cycles[restoreCycle.cid] = restoreCycle.cycle;
+    } else if (wasCycles) {
+      if (!state.cycles) state.cycles = {};
+      Object.keys(wasCycles).forEach(cid => { state.cycles[cid] = wasCycles[cid]; });
     }
     // Un-spend the milestone this completion earned, or a mis-tap permanently burns
     // a once-ever key like "first time". Unconditional: the key was spent whether or
@@ -3305,10 +3345,7 @@
       state.completionHistory[id].sort((a, b) => a - b);
       pruneHistory(id);
     }
-    if (state.starvation) state.starvation[id] = 0;
-    if (state.snoozed) delete state.snoozed[id];
-    if (state.inProgress) delete state.inProgress[id]; // else it rides into every deal forever
-    if (state.flaggedIds) state.flaggedIds = state.flaggedIds.filter(x => x !== id);
+    endTaskSideEffects(id);
     if (!isDue(task)) {
       state.hand = (state.hand || []).filter(h => h !== id);
       if (state.pinnedIds) state.pinnedIds = state.pinnedIds.filter(p => p !== id);
