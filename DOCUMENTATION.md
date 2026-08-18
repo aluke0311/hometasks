@@ -41,13 +41,16 @@ working-instructions version, see [CLAUDE.md](CLAUDE.md).
   a fixed bottom tab bar, dark-mode support via `prefers-color-scheme`, and
   `APP_VERSION` shown in Settings so a reload can be confirmed to have taken.
 
-### Code map (approximate line anchors — re-grep after edits)
+### Code map
+
+**The line anchors below are stale.** `index.html` grew from ~5,700 to ~7,000 lines on
+2026-08-17. Grep for the function name; the column is kept only for rough ordering.
 
 | Area | Lines |
 |------|-------|
 | CSS | 9–265 |
 | Body markup (views, nav, modals) | 266–480 |
-| `TASKS` array (186 entries) | 700–918 |
+| `TASKS` array (182 entries) | re-grep — anchors below are stale after the 2026-08-17 rewrite |
 | `DEFAULT_MONTHS`, vacation decay (`VAC_SHIFT`, `DEFAULT_VAC`), `ZONE_ROOMS` | 920–1000 |
 | Storage layer (`defaultState`/`coerceState`/`loadState`/`saveState`) | 1085–1190 |
 | Core logic (due, season, `vacMode`, zone, scoring) | 1200–1425 |
@@ -255,30 +258,133 @@ Order of operations:
 
 ---
 
-## 6. The laundry system
+## 5b. Who gets dealt what — `dealtByMe`
 
-Laundry is split into **load** tasks and **process** steps, coordinated so only
-one wash happens per day.
+Added 2026-08-17, replacing eight longhand owner filters. One gate decides
+whether a task can reach her hand:
 
-- **Load tasks** compete for a **single daily slot**. The most overdue (lowest
-  score) wins. No new load is chosen if one was already completed today, is
-  pinned, or is in progress. Membership is declared on the task itself with
-  **`load: true`** — there is no hardcoded id list. `dealHand`'s
-  `LAUNDRY_LOAD_IDS`, the Sprint view's `SPRINT_LOAD_IDS`, and the selftest's
-  `loadIds()` all derive from that flag, and the All Tasks editor exposes it as
-  a checkbox, so a custom wash task can join the slot too.
-- The current loads are the three colour-sorted clothing washes —
-  `lroom_whites` (7d), `lroom_cools` (7d), `lroom_warms` (10d) — plus
-  `lroom_towels` (7d), `lroom_microfiber` (14d) and `k_towels` (7d). They
-  replaced a single `lroom_myclothes` "My clothes laundry" task in Aug 2026.
-  Their combined demand is ≈ 0.79 loads/day against a slot serving 1/day, so
-  the queue is near capacity: another weekly load would push it past 1.0 and
-  the most overdue wash would routinely slip a day.
-- **Process steps** (`l_start`, `l_dryer`, `l_fold`, `l_put_away`) are daily
-  tasks that are **suppressed** unless there's a load today (assigned, pinned,
-  in progress, or already completed).
-- In the **Sprint** view, the day's chosen load rides next to "Start a load of
-  laundry" in the Launch block so you know what to wash.
+- `alina` and `either` — always
+- `bob` — only when **`state.bobAway`** is on, or **that specific task is
+  flagged**
+
+Flagging one of Bob's tasks means "bring me this one". Before this the flag set
+a badge in All Tasks and changed nothing, because he has no hand of his own —
+the control was lying. **Bob's away** hands his whole list over until switched
+back; his tasks keep their real due dates, so anything overdue arrives overdue,
+and ownership never changes. The Settings card states the cost: his non-daily
+work is ≈ **58 min/week**, which against her real 30/60 budget moves utilisation
+from 141% to ≈163%. That is arithmetic, not simulation.
+
+The budget's `mine` predicate points at the same helper, which preserves the
+older fix — a Bob-only completion must not eat her budget, since she logs his
+chores — while inverting it correctly when his list *is* hers.
+
+---
+
+## 5c. The task page
+
+Merged 2026-08-17 from what were two separate screens: a ⋯ bottom sheet of
+today-actions and a full-page editor of settings. There was **no route between
+them from the hand**, which is why the vacation setting was unfindable in
+practice while rendering perfectly in the form.
+
+One page now (`#taskModal`, `.modal-backdrop.as-page`), opened by
+`openModal(id, canSwap)`; `openTaskActions` is an alias, and the swipe rail,
+long-press, the ⋯ button, an All Tasks row and a preset row all lead to it.
+Layout: **Mark done**, then the actions (cycle steps, pin, in-progress, timer,
+flag, snooze, mark due, swap, *While away: <mode>*, edit last done,
+did-it-earlier, why this task, remove), then every setting.
+
+- **It saves as you type.** No Save/Cancel — which matches the rest of the app,
+  where pins, flags, chips and the budget slider all commit on touch. The
+  editor was the single surface that did not, and merging it with immediate
+  actions made that inconsistency visible.
+- `writeTaskForm` is the **single writer** and **refuses a half-typed form**,
+  since it runs on every keystroke.
+- The hand is redealt **once on close**, never per keystroke, or the list moves
+  while she types.
+- **Creating keeps an explicit Add button** — a page that saves as you type
+  would otherwise leave a half-named task behind the moment she opened it.
+- Delete confirms once and says whether the task is *hidden* (base, history
+  kept) or *deleted* (custom).
+- Every timed run is listed under the estimate: each figure, the range, the
+  median, and the blended number `taskTime()` actually uses — which is usually
+  not any single run.
+
+**Watch-out:** a field shown both in `writeTaskForm` and as an action row has
+two writers. The vacation setting is both, and desynced immediately — the row
+moved it and the next keystroke wrote the form's stale `editingVac` back over
+it. Sync the form's variable in the row's handler.
+
+---
+
+## 6. Cycles (laundry, dishwasher, cat fountain)
+
+Rewritten 2026-08-17. A **cycle** is a multi-step job you start once and come
+back to. **One task owns the cycle and carries the frequency**; the steps live
+in the `CYCLES` constant and are **not tasks**.
+
+They were tasks in the first cut — `l_start`, `l_dryer`, `l_fold`,
+`l_put_away`, all `freq: 1` — which meant four dailies `dealHand` had to
+suppress by hand, four rows in Stats for one load, and a "Wash whites" tick
+that claimed the washing was finished when the machine had only just started.
+Those four tasks were **deleted**, along with their rows on Full Reset, Express
+Reset, Return Home, Before Cleaners, Recovery and Evening Shutdown.
+
+### The definitions
+
+| Cycle | Owner tasks | Steps (`readyIn` in minutes) |
+|---|---|---|
+| `laundry` | the six `load: true` washes, now also `cycle:'laundry'` | Into the washer (0) → Into the dryer (55) → Fold it (60) → Put it away (0) |
+| `dishwasher` | `k_dishwasher` ("Run the dishwasher") | Load it (0) → Start it (0) → Unload it (**129**) |
+| `fountain` | `c_fountain` | Into the dishwasher (0) → Reassemble and refill it (**129**) |
+
+The dishwasher and the fountain share the 129-minute wait because the fountain
+is cleaned *in* the dishwasher. A selftest case pins the two together so one
+cannot be edited without the other drifting.
+
+### Each step
+
+- `action` — what she does to advance ("Into the dryer")
+- `phase` — what is true *while* that action is pending ("In the washer")
+- `mins` — her hands-on time
+- `readyIn` — machine minutes after the previous step, overridable per step in
+  the task editor and stored in `state.cycleTimings` keyed `def.stageKey`
+
+**The card shows `phase` plus a ready time until the wait passes, then switches
+to `action`.** She will not tap "into the dryer" while it is still washing, so
+being told to is noise. Before a cycle starts the card shows step 0's action
+and the dots, so ticking "Wash cools" means "into the washer" — not "the
+washing is done". `readyIn` never blocks a tick; it only picks which of the two
+is shown, because everything else in the app resolves at calendar-day
+granularity.
+
+### Slots and lifecycle
+
+- Each definition gets at most `dealMax` (currently 1) running at a time,
+  chosen by score among its owner tasks. This replaced both the hardcoded wash
+  slot and `ALWAYS_ASSIGN_IDS`, which existed only because the fountain is a
+  two-step job the old model could not express.
+- Done today, pinned, or in progress all mean that cycle has had its turn.
+- A cycle the dealer opened **bypasses the budget**; its running step is
+  charged against the day's total like a daily, and the owner's own `time` is
+  not charged as well.
+- **Today's pick is dated** (`cycleChoice`/`cycleChoiceDate`). `redealHand()`
+  nulls the hand, so without this a redeal re-sorted six near-identical washes
+  and today's laundry silently became a different load.
+- A running cycle rides into every hand and survives `removedToday`.
+- **The owner completes only when the last step does**, so `freq: 7` measures
+  whole loads. `finishCycle` deletes the cycle then calls `completeTask`.
+- `dealMax` governs the *dealer*, not a cap — `startExtraCycle` runs a second
+  load by hand.
+- Untouched for `CYCLE_STALE_DAYS` (3), the card says "still going?" and offers
+  **Drop it** and **Finished it**.
+- **Every route that ends a task ends its cycle**, via `endTaskSideEffects`.
+
+`cycle: '<key>'` is how a task declares membership. `load: true` is the retired
+wash-slot flag, kept only as a read fallback in `cycleDefFor` for stored custom
+tasks; `coerceState` folds it into `cycle` on import and the editor checkbox is
+gone.
 
 ---
 
