@@ -945,6 +945,94 @@ test('a stale cycle says so on its card, with a way out', () => {
   });
 });
 
+test('the Laundry-load checkbox is gone and cycle is the single declaration', () => {
+  // Two controls for one meaning could contradict on screen: a task carrying
+  // cycle:'dishwasher' AND load:true resolved to dishwasher, so a ticked
+  // "Laundry load" checkbox was simply a lie.
+  const doc = document.querySelector('iframe').contentDocument;
+  eq(doc.getElementById('f_load'), null, 'the Laundry-load checkbox is still in the editor');
+  const all = G('getAllTasks')();
+  all.filter(t => t.load).forEach(t =>
+    eq(G('cycleDefFor')(t), 'laundry', t.id + ' carries load but does not resolve to laundry'));
+  ok(all.filter(t => G('cycleDefFor')(t) === 'laundry').length >= 6,
+     'the laundry cycle lost its owners');
+});
+
+test('a stored task with the old load flag migrates to an explicit cycle', () => {
+  const st = fresh();
+  st.customTasks = { legacy: { id:'legacy', name:'Old wash', room:'Laundry Room', freq:7,
+                               time:5, owner:'alina', cat:false, load:true } };
+  const saved = snap();
+  try {
+    G('applyImport')(JSON.stringify(st));
+    eq(G('state').customTasks.legacy.cycle, 'laundry', 'the load flag did not fold into cycle');
+  } finally { S('state', saved); }
+});
+
+test('editing a task does not strip its cycle now the checkbox is gone', () => {
+  withState(st => {
+    st.customTasks = { probe_cyc: { id:'probe_cyc', name:'Probe', room:'Kitchen', freq:7, time:5,
+                                    owner:'alina', cat:false, load:false, cycle:'dishwasher' } };
+  }, () => {
+    G('openModal')('probe_cyc');
+    G('writeTaskForm')('probe_cyc');
+    eq(G('state').customTasks['probe_cyc'].cycle, 'dishwasher', 'editing stripped the cycle');
+  });
+});
+
+test('every control clears the 44x44 tap target', () => {
+  // Three Guest Prep radio labels measured 20px tall against Surface's recorded zero.
+  const doc = document.querySelector('iframe').contentDocument;
+  const W = document.querySelector('iframe').contentWindow;
+  const eff = el => {
+    const r = el.getBoundingClientRect();
+    let w = r.width, h = r.height;
+    ['::before','::after'].forEach(p => {
+      const cs = W.getComputedStyle(el, p);
+      if (cs.content === 'none' || !cs.content) return;
+      const pw = parseFloat(cs.width), ph = parseFloat(cs.height);
+      if (!isNaN(pw)) w = Math.max(w, pw);
+      if (!isNaN(ph)) h = Math.max(h, ph);
+    });
+    return { w, h };
+  };
+  const small = [];
+  // Measure BOTH states. An earlier sweep missed every control in the task editor
+  // because it happened to be closed, and a prior case had left it open here — the
+  // same set then reported once per tab. Close it, sweep the tabs, then open it and
+  // sweep it on its own.
+  // hideSheet keeps the overlay displayed through its exit animation, so a plain
+  // closeModal() leaves the task page measurable for another ~200ms and its
+  // controls get reported once per tab.
+  const hardClose = () => {
+    G('closeModal')();
+    const m = doc.getElementById('taskModal');
+    if (m) m.classList.remove('open', 'closing');
+  };
+  hardClose();
+  ['alina','sprint','manage','presets','stats','settings'].forEach(tab => {
+    G('switchTab')(tab);
+    [...doc.querySelectorAll('button,select,input,label.opt-label')]
+      .filter(e => e.offsetParent !== null)
+      .forEach(e => {
+        const d = eff(e);
+        if (d.w < 44 || d.h < 44) small.push(tab + ':' + e.tagName + '.' + (e.className || '?') +
+          ' ' + Math.round(d.w) + 'x' + Math.round(d.h));
+      });
+  });
+  G('switchTab')('alina');
+  G('openModal')('lroom_whites');
+  [...doc.querySelectorAll('#taskModal button, #taskModal select, #taskModal input')]
+    .filter(e => e.offsetParent !== null)
+    .forEach(e => {
+      const d = eff(e);
+      if (d.w < 44 || d.h < 44) small.push('taskPage:' + e.tagName + '.' + (e.className || '?') +
+        ' ' + Math.round(d.w) + 'x' + Math.round(d.h));
+    });
+  hardClose();
+  eq(small.length, 0, 'controls under 44x44: ' + [...new Set(small)].join(', '));
+});
+
 test('saveTask keeps the cycle field', () => {
   // The documented trap: saveTask rebuilds a custom task from an explicit field
   // list, so any task-level flag missing from it is stripped on the first edit.

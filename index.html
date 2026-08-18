@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-17 v7">
+  <meta name="app-version" content="2026-08-17 v8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -491,9 +491,9 @@
     .modal-close { background: none; border: none; font-size: var(--fs-title); color: var(--text2); cursor: pointer; padding: var(--s-2) var(--s-4); min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
     .modal-body { padding: var(--s-8) var(--s-9); display: flex; flex-direction: column; gap: var(--s-7); overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
     .field-label { font-size: var(--fs-sub); color: var(--text3); margin-bottom: 5px; }
-    .field-input { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: var(--s-5) var(--s-6); border-radius: var(--radius-sm); }
+    .field-input { width: 100%; min-height: 44px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: var(--s-5) var(--s-6); border-radius: var(--radius-sm); }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
-    .field-select { width: 100%; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: var(--s-5) var(--s-6); border-radius: var(--radius-sm); }
+    .field-select { width: 100%; min-height: 44px; border: 0.5px solid var(--border2); background: var(--card); color: var(--text); font-size: 16px; padding: var(--s-5) var(--s-6); border-radius: var(--radius-sm); }
     .field-check-row { display: flex; align-items: center; gap: var(--s-5); font-size: var(--fs-body); color: var(--text2); }
     /* The blanket `input { appearance: none }` reset above strips the native
        checkbox glyph, so these need drawing by hand or they are invisible. */
@@ -545,9 +545,9 @@
     .sheet-group { }
     .sheet-group-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; margin-bottom: 7px; }
     .sheet-chips { display: flex; gap: var(--s-4); }
-    .sheet-chips > button { flex: 1; padding: 11px 0; font-size: var(--fs-sub); border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .sheet-chips > button { flex: 1; min-height: 44px; padding: 11px 0; font-size: var(--fs-sub); border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .sheet-chips > button.go { border-color: var(--green); color: var(--green); }
-    .modal-btn { font-size: var(--fs-sub); padding: 9px 18px; border-radius: var(--radius); border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+    .modal-btn { font-size: var(--fs-sub); min-height: 44px; padding: 9px 18px; border-radius: var(--radius); border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
     .modal-btn.primary { background: var(--green); color: var(--on-accent); border-color: var(--green); font-weight: 600; }
     .modal-btn.danger { color: var(--red); border-color: var(--red); }
     .empty { padding: 40px var(--s-8); text-align: center; color: var(--text3); font-size: var(--fs-sub); }
@@ -647,6 +647,12 @@
     .day-budget-slider::-moz-range-track { height: 4px; border-radius: var(--radius-xs); background: var(--bg3); }
     .day-budget-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--green); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
     /* Vacation decay picker (task editor) */
+    /* Was an inline style at 26px tall — under the 44 target, and the last inline
+       style in the editor. */
+    .month-chip { min-width: 44px; min-height: 44px; padding: var(--s-3) var(--s-5); font-size: var(--fs-meta);
+                  border-radius: 8px; cursor: pointer; border: 1px solid var(--border2);
+                  background: var(--bg2); color: var(--text2); }
+    .month-chip.on { border-color: var(--green); background: var(--green); color: var(--on-accent); }
     .vac-chips { display: flex; gap: var(--s-3); }
     .vac-chip { flex: 1; padding: var(--s-4) var(--s-2); font-size: var(--fs-meta); border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); cursor: pointer; }
     .vac-chip.on { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
@@ -771,7 +777,10 @@
        invisible — the same way it ate the cat checkbox — so Guest Prep showed
        three bare labels with no way to see which variant was selected. Drawn by
        hand here, the way .field-check draws the checkbox. */
-    .opt-label { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-sub); cursor: pointer; }
+        /* The row measured 20px tall — the last three controls in the app short of the
+       44x44 target. The radio already owns ::after for its dot, so the LABEL takes
+       the min-height rather than a pseudo-element. */
+    .opt-label { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-sub); cursor: pointer; min-height: 44px; }
     .opt-label input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; margin: 0; cursor: pointer;
       border: 1.5px solid var(--border2); border-radius: 50%; background: var(--card); position: relative; }
     .opt-label input[type="radio"]:checked { border-color: var(--green); }
@@ -1184,10 +1193,6 @@
           </select>
           <div id="cycleTimings" class="cyc-timings"></div>
         </div>
-        <div class="field-check-row">
-          <input type="checkbox" id="f_load" onchange="autoSaveTask()" class="field-check">
-          <label for="f_load">Laundry load (competes for the one wash slot)</label>
-        </div>
 
         <div class="ed-section">Priority</div>
         <div class="field-check-row">
@@ -1304,7 +1309,7 @@
     // ── DAILY KITCHEN (either) ──
     { id:'k_tidy',           name:'Kitchen tidy',                        room:'Kitchen',       freq:1,   time:5,  owner:'either' },
     { id:'k_counters',       name:'Wipe counters',                       room:'Kitchen',       freq:1,   time:5,  owner:'either' },
-    { id:'k_dishwasher',     name:'Dishwasher',                          room:'Kitchen',       freq:1,   time:5,  owner:'either', cycle:'dishwasher' },
+    { id:'k_dishwasher',     name:'Run the dishwasher',                  room:'Kitchen',       freq:1,   time:5,  owner:'either', cycle:'dishwasher' },
   
     // ── LAUNDRY PROCESS (daily, alina) ──
   
@@ -1338,7 +1343,7 @@
     { id:'k_trash',          name:'Take out trash',                      room:'Kitchen',       freq:7,   time:2,  owner:'either' },
     { id:'k_sink',           name:'Clean sink',                          room:'Kitchen',       freq:7,   time:5,  owner:'either' },
     { id:'k_stove',          name:'Clean stovetop',                      room:'Kitchen',       freq:7,   time:8,  owner:'alina' },
-    { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  load:true, owner:'alina' },
+    { id:'k_towels',         name:'Wash kitchen towels',                 room:'Kitchen',       freq:7,   time:5,  load:true, cycle:'laundry', owner:'alina' },
     { id:'k_water_bottle',   name:'Wash water bottle',                   room:'Kitchen',       freq:3,   time:3,  owner:'alina' },
     { id:'k_fridge',         name:'Clean out fridge',                    room:'Kitchen',       freq:14,  time:15, owner:'either' },
     { id:'k_hood',           name:'Clean kitchen hood',                  room:'Kitchen',       freq:21,  time:10, owner:'either' },
@@ -1451,11 +1456,11 @@
     { id:'lroom_tidy',       name:'Tidy laundry room',                   room:'Laundry Room',  freq:7,   time:5,  owner:'either' },
     // Colour-sorted clothing loads (split out of the old single 'my clothes' load).
     // load:true makes these owners of the `laundry` cycle — see CYCLES.
-    { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
-    { id:'lroom_cools',      name:'Wash cools',                          room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
-    { id:'lroom_warms',      name:'Wash warms',                          room:'Laundry Room',  freq:10,  time:5,  load:true, owner:'alina' },
-    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:7,   time:5,  load:true, owner:'alina' },
-    { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  load:true, owner:'alina' },
+    { id:'lroom_whites',     name:'Wash whites',                         room:'Laundry Room',  freq:7,   time:5,  load:true, cycle:'laundry', owner:'alina' },
+    { id:'lroom_cools',      name:'Wash cools',                          room:'Laundry Room',  freq:7,   time:5,  load:true, cycle:'laundry', owner:'alina' },
+    { id:'lroom_warms',      name:'Wash warms',                          room:'Laundry Room',  freq:10,  time:5,  load:true, cycle:'laundry', owner:'alina' },
+    { id:'lroom_towels',     name:'Wash towels',                         room:'Laundry Room',  freq:7,   time:5,  load:true, cycle:'laundry', owner:'alina' },
+    { id:'lroom_microfiber', name:'Wash microfiber & bath mats',         room:'Laundry Room',  freq:14,  time:5,  load:true, cycle:'laundry', owner:'alina' },
     { id:'lroom_duvet',      name:'Wash duvet cover',                    room:'Laundry Room',  freq:30,  time:8,  owner:'bob' },
     { id:'lroom_dust',       name:'Dust surfaces (laundry room)',        room:'Laundry Room',  freq:30,  time:5,  owner:'either' },
     { id:'lroom_trash',      name:'Empty trash (laundry room)',          room:'Laundry Room',  freq:30,  time:2,  owner:'either' },
@@ -1602,12 +1607,18 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-17 v7';
+  const APP_VERSION = '2026-08-17 v8';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-17 v8', notes: [
+      'The task page had both a "Cycle" picker and a "Laundry load" checkbox, which meant the same thing and could disagree — if they did, the checkbox was the one being ignored. The checkbox is gone; the Cycle picker is the only place it is set. Your existing tasks are converted automatically.',
+      'Renamed "Dishwasher" to "Run the dishwasher", because next to "Clean dishwasher" in your task list the old name did not tell you which was which.',
+      'The three Guest Prep buttons (Emergency / Day guests / Overnight) were only 20 pixels tall. They are full size to tap now — the last three controls in the app that were too small.',
+      'Tidied wording: the app pointed at an "Alina tab", an "All Tasks tab" and a "My Hand tab", none of which are what the tabs are called. Deleting a built-in task now says it was hidden and its history kept, which is what actually happens, and it only asks you once instead of twice.',
+    ]},
     { v: '2026-08-17 v7', notes: [
       'Fixed, and this one jammed your laundry: marking a load done any way other than ticking its last step left the cycle running. The next day the card said "In the washer" for a load you had already finished, and it blocked a new load from being dealt. Every way of finishing a task now ends its cycle too.',
       'Undoing a "Mark done" on a load that was mid-cycle now puts the cycle back where it was, instead of leaving a half-done job marked complete.',
@@ -1858,6 +1869,12 @@
 
     // Genuine migration, not a default: the old 'survival' mode became 'maintenance'.
     if (merged.mode === 'survival') merged.mode = 'maintenance';
+
+    // One-time: a custom task carrying the old `load` flag becomes an explicit
+    // laundry cycle owner, so `cycle` is the only thing anything has to read.
+    Object.values(merged.customTasks || {}).forEach(t => {
+      if (t && t.load && !t.cycle) t.cycle = 'laundry';
+    });
 
     // A cycle whose definition no longer exists would reach renderCard, which
     // dereferences CYCLES[def].stages and throws — taking My Hand, the default tab,
@@ -2339,6 +2356,10 @@
   // and the wash-slot checkbox keep working; anything else says so explicitly.
   // NOTE: `cycle` is a task-level field, so it MUST stay in saveTask's field list
   // and in the editor form, or editing the task silently strips it.
+  // `cycle` is the single declaration. `load: true` was the old wash-slot flag and
+  // survives ONLY as a read fallback for stored custom tasks written before the
+  // migration below — it is no longer offered in the editor, because two controls
+  // for one meaning could contradict each other on screen.
   function cycleDefFor(task) {
     if (!task) return null;
     if (task.cycle && CYCLES[task.cycle]) return task.cycle;
@@ -3245,7 +3266,7 @@
     state.hand = [...state.hand, ...toAdd];
     saveState();
     render();
-    showToast('Added ' + toAdd.length + ' more task' + (toAdd.length>1?'s':''));
+    showToast('Added to today — ' + toAdd.length + ' more task' + (toAdd.length>1?'s':''));
   }
   
   function pinTask(id) {
@@ -3657,7 +3678,7 @@
     const matches = getAllTasks()
       .filter(t => !t.oneOff && (t.name.toLowerCase().includes(q) || t.room.toLowerCase().includes(q)))
       .slice(0, 6);
-    if (!matches.length) { el.innerHTML = '<div class="note inset">No tasks match.</div>'; return; }
+    if (!matches.length) { el.innerHTML = '<div class="note inset">Nothing matches that search.</div>'; return; }
     el.innerHTML = matches.map(t => {
       const done = wasCompletedToday(t);
       return '<div class="sprint-card' + (done ? ' done' : '') + '" onclick="quickLogComplete(\'' + t.id + '\')" style="margin:0 0 6px">' +
@@ -4394,7 +4415,7 @@
     // Only a load that still has to be STARTED belongs in Launch. Once its cycle
     // is past stage 0 the card says "Fold laundry", which is not a set-it-going
     // job — it falls through to the Laundry Room block where the folding happens.
-    const SPRINT_LOAD_IDS = hand.filter(t => t.load && !cycleForTask(t.id)).map(t => t.id);
+    const SPRINT_LOAD_IDS = hand.filter(t => cycleDefFor(t) === 'laundry' && !cycleForTask(t.id)).map(t => t.id);
     // Every robot RUN belongs here — they are the passive jobs you set going and
     // walk away from. rob_mop_us was added in the per-unit split and missed, so it
     // fell through to a one-task block at the very end of the sprint.
@@ -4473,7 +4494,7 @@
     const container = document.getElementById('sprintContent');
   
     if (!hand.length) {
-      container.innerHTML = '<div class="empty">No tasks dealt yet — check the Alina tab first.</div>';
+      container.innerHTML = '<div class="empty">Nothing dealt yet. Deal today\'s hand on the Hand tab, then come back.</div>';
       return;
     }
   
@@ -4938,7 +4959,7 @@
     randomPick = null;
     saveState();
     renderPresets();
-    showToast('Added to today!');
+    showToast('Added to today');
   }
   
   function getGuestPresetTasks(mode) {
@@ -6073,7 +6094,7 @@
       // Card 2: Active Zone reference (selector lives in My Hand stats bar)
       '<div class="settings-card">' +
         '<div class="settings-card-title">Active Zone</div>' +
-        '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. In Auto mode the zone follows the calendar (1st–7th = Zone 1, 8th–14th = Zone 2, …). Override from the My Hand tab.</div>' +
+        '<div class="settings-card-desc">FlyLady-inspired rotating focus area — tasks in the active zone get a priority boost. In Auto mode the zone follows the calendar (1st–7th = Zone 1, 8th–14th = Zone 2, …). Override it on the Hand tab.</div>' +
         '<table class="zone-ref-table tight">' +
           '<tr><th>Zone</th><th>Rooms</th></tr>' +
           ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
@@ -6144,7 +6165,7 @@
             (budget ? ', against your ' + budget + ' min budget' : '') + '. Plus one daily: scooping the downstairs litter.</div>' +
           (flagged.length
             ? '<div class="settings-card-desc">Flagged and already coming to you: <b>' + flagged.map(t => t.name).join(' · ') + '</b></div>'
-            : '<div class="settings-card-desc">You can also flag any one of his tasks on All Tasks to have just that one sent over, without switching this on.</div>') +
+            : '<div class="settings-card-desc">You can also flag any one of his tasks on the Tasks tab to have just that one sent over, without switching this on.</div>') +
           (state.bobAway
             ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">Yours since ' + (state.bobAwaySince ? new Date(state.bobAwaySince).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
               '<button class="add-btn wide warn" onclick="toggleBobAway()">Bob\'s back — hand it over</button>'
@@ -6172,7 +6193,7 @@
             '<div class="vac-list"><b>Half speed:</b> ' + (names(buckets.half) || 'none') + '</div>' +
             '<div class="vac-list"><b>Frozen:</b> everything else — all washing, dishes, tidying, bathroom supplies and cat care.</div>' +
           '</details>' +
-          '<div class="settings-card-desc" style="margin:8px 0 12px">Change any task in its editor on the All Tasks tab.</div>' +
+          '<div class="settings-card-desc" style="margin:8px 0 12px">Change it on any task&rsquo;s own page &mdash; swipe or long-press a task, or tap it on the Tasks tab.</div>' +
           (state.paused
             ? '<div style="font-size:var(--fs-sub);color:var(--amber);margin-bottom:10px">Paused since ' + (state.pausedAt ? new Date(state.pausedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '?') + '</div>' +
               '<button class="add-btn wide warn" onclick="resumeApp()">Resume — I\'m back</button>'
@@ -6465,7 +6486,7 @@
       byRoom.get(t.room).push(t);
     });
 
-    if (!filtered.length) html += '<div class="empty">Nothing matches those filters.</div>';
+    if (!filtered.length) html += '<div class="empty">Nothing matches that search or those filters.</div>';
 
     [...byRoom.keys()].sort().forEach(room => {
       const list = byRoom.get(room);
@@ -6557,7 +6578,7 @@
     el.innerHTML = labels.map((lab, i) => {
       const m = i + 1;
       const on = editingMonths.has(m);
-      return '<button type="button" onclick="toggleMonthChip(' + m + ')" style="padding:5px 8px;font-size:var(--fs-meta);border-radius:8px;cursor:pointer;border:1px solid ' + (on ? 'var(--green)' : 'var(--border2)') + ';background:' + (on ? 'var(--green)' : 'var(--bg2)') + ';color:' + (on ? 'var(--on-accent)' : 'var(--text2)') + '">' + lab + '</button>';
+      return '<button type="button" class="month-chip' + (on ? ' on' : '') + '" onclick="toggleMonthChip(' + m + ')">' + lab + '</button>';
     }).join('');
   }
 
@@ -6716,7 +6737,6 @@
       document.getElementById('f_time').value = task.time;
       document.getElementById('f_owner').value = task.owner;
       document.getElementById('f_cat').checked = !!task.cat;
-      document.getElementById('f_load').checked = !!task.load;
       renderCycleOptions(cycleDefFor(task));
     } else {
       document.getElementById('f_name').value = '';
@@ -6725,7 +6745,6 @@
       document.getElementById('f_time').value = '';
       document.getElementById('f_owner').value = 'either';
       document.getElementById('f_cat').checked = false;
-      document.getElementById('f_load').checked = false;
       renderCycleOptions('');
     }
     renderCycleTimings();
@@ -6777,7 +6796,7 @@
     saveNow();
     closeOneOffModal();
     render();
-    showToast('Added to today\'s hand');
+    showToast('Added to today');
   }
   
   // The single writer for the task form. Called on every keystroke (debounced) when
@@ -6791,7 +6810,9 @@
     const time = parseInt(document.getElementById('f_time').value);
     const owner = document.getElementById('f_owner').value;
     const cat = document.getElementById('f_cat').checked;
-    const load = document.getElementById('f_load').checked;
+    // Preserved from the stored task rather than read from a control: the checkbox
+    // is gone, and `cycle` is what declares laundry now.
+    const load = !!((state.customTasks || {})[id] || {}).load;
     const cycle = (document.getElementById('f_cycle') || {}).value || null;
     // Half-typed is normal now that this runs while she types. Skip the write
     // rather than saving a task called "Wash coo" with no frequency.
@@ -6835,9 +6856,12 @@
     showToast(isNew ? 'Task added' : 'Task updated');
   }
 
+  // The confirm lives in confirmDeleteTask, which knows whether this is a hide or a
+  // delete. A second one here asked "Delete this task?" about a task that is only
+  // hidden, contradicting the prompt the user had just answered.
   function deleteTask(id) {
     if (!id) return;
-    if (!confirm('Delete this task?')) return;
+    const wasBase = !!TASKS.find(t => t.id === id);
     closeModal();   // it is only ever reached from the editor now
     if (!state.deletedIds) state.deletedIds = [];
     if (!state.customTasks) state.customTasks = {};
@@ -6849,7 +6873,8 @@
     state.hand = null;
     saveState();
     renderManage();
-    showToast('Task deleted');
+    // A built-in task is hidden and keeps its history; only a custom one is gone.
+    showToast(wasBase ? 'Task hidden — history kept' : 'Task deleted');
   }
   
   
@@ -6869,7 +6894,7 @@
       state.hand.push(id);
       saveState();
       render();
-      showToast('Added to today\'s hand');
+      showToast('Added to today');
     }
   }
   
