@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-17 · app at `2026-08-17 v9` · selftest 111/111 green.
+Last touched: 2026-08-20 · app at `2026-08-20 v1` · selftest 113/113 green.
 
 ---
 
@@ -55,6 +55,21 @@ them. What remains open:
   reset should start a load, that needs a checklist row that opens a cycle — a new
   interaction, not a restored id.
 - **`dealMax` is 1 everywhere.** "Start another" covers the real case by hand.
+
+### C-12 — Sprint's "hide done" hides a cycle task that is only partly done
+Reported 2026-08-20. **Checked live the same day and did not reproduce** — see the Flow
+audit's C-12 note below. Tested three cycling tasks across every stage on the Sprint tab;
+Hide done only ever hid a genuinely finished one. Leaving this open in case she can pin down
+the exact steps (which task, which stage, Sprint vs task page) rather than closing it, since
+a live miss on my end doesn't rule out a real path she hit.
+
+### C-13 — time a single cycle step, not just the whole load
+Reported 2026-08-20. Right now the per-task timer runs against the owning task end to end
+(see C-9's "stage times no longer learn"); she wants to time an individual step — e.g. just
+"fold" — the way she can time an ordinary task. Needs a design call: a step is not a task and
+has no `id` to key a timer or `actualTimes` entry against. Options include giving the running
+cycle instance its own per-stage timer state (separate from `activeTimer`, which is keyed by
+task id) rather than resurrecting the four deleted step-tasks C-9 deliberately removed.
 
 ### C-11 — the task page, with a keyboard up
 Verified at 390px in both themes; **not** verified with a soft keyboard raised. The `--kb`
@@ -129,7 +144,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 
 | # | Audit | State | Needs from her |
 |---|-------|-------|----------------|
-| 1 | Flow | **Blocked again** (2026-08-17) — harness | A working input path, or her walking it |
+| 1 | Flow | **Run 2026-08-20** — 10 journeys walked, 2 bugs found and fixed same day | — |
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
 | 3 | State | **Re-run + fixed** (2026-08-17) — 2 found, 2 fixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
@@ -138,35 +153,69 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 7 | Opportunity | **Run 2026-08-18** — 10 live, 5 killed | Her ranking |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — **cannot be run from here.** Three input paths tried, all closed.
+### 1. Flow — **run 2026-08-20.** All ten journeys walked against `claude-in-chrome` (real
+Chrome via the extension) at the dev server. The in-app Browser pane still cannot click —
+`claude-in-chrome` is the only surface Flow can use; see the method note below.
 
-Not a finding about the app. Retried 2026-08-17 with the pane reopened and confirmed
-**displayed**, which disproves the earlier hidden-pane theory.
+| # | Journey | Taps | Result |
+|---|---|---|---|
+| 1 | The morning | 1 | **Pass.** Checkbox tap completed the task, moved out of Daily, counter updated, toast shown. |
+| 2 | The over-budget morning | 1 drag | **Pass.** Slider drag shrank the hand to the new budget on release; cycle-slot tasks correctly still showed (they bypass budget by design). "back to usual" restored it. |
+| 3 | The mis-tap | ~4 | **Pass.** Toast held ~10s (not the 5s the code elsewhere implies — worth a look, not filed as a bug on its own). Recovery via Completed → tap checkmark restored the task cleanly, counter correct. |
+| 4 | Logging Bob | 1 | **Pass — fixed same day, see below.** |
+| 5 | The return (vacation) | 2 | **Pass** for the reachable part — pause/resume both work, in-context banner on Hand tab, correct toast on resume. The actual 9-day due-date math needs real elapsed time and can't be walked live; that's `simulate.html`'s job. |
+| 6 | The half-done task | 1 | **Pass.** Starting a cycle shows the correct phase + ready time, survives a tab switch. "Come back tomorrow" is the same live-testing limit as Journey 5. |
+| 7 | The sprint | ~4 | **Pass.** Copy list toasted correctly; Hide done toggled and renumbered sections correctly; cycling tasks get their own dedicated block (e.g. "Laundry") and are never wrongly hidden mid-cycle. (This is also where C-12 was checked and did not reproduce — see below.) |
+| 8 | The unusual task | 2 | **Pass, with a minor friction — see F-3 below.** Confirmed via console that a completed one-off is fully gone from `getAllTasks()` — it does not haunt the pool. |
+| 9 | Curiosity ("why this task?") | 1 | **Pass — fixed same day, see below.** |
+| 10 | The escape | several | **Pass** on every surface tried: task page ✕, a sheet's grab-handle swipe-down, and a generated preset checklist's ✕ all worked. One design-consistency note below (not a Flow failure). |
 
-| Path | Result |
-|---|---|
-| `left_click`, by coordinate and by `ref` | 30s timeout; tap verified never to land |
-| `key` — **Tab** | **works.** Focus walks real controls in a sensible order |
-| `key` — Return / Enter / space on a focused `<button>` | dispatched, but **never activates** it |
-| `hover`, `screenshot`, `read_page`, `javascript_tool` | all work |
-| Real Chrome (`claude-in-chrome`) | **no browser connected** — extension not attached to the account |
+**Fixed same day, both mutation-checked (selftest cases 106, 111):**
+- Logging one of Bob's chores was inflating the "Today's time" total she reads, and the
+  default the `todayBudget` slider seeds, even though `dealHand()`'s real non-daily budget
+  math already excluded his work correctly. `handDailyMinutes()` — the separate function
+  that drives the display — summed `freq===1` tasks straight out of `getHandTasks()` with no
+  `dealtByMe` filter. Fixed by giving it the same filter `dealHand()`'s internal calc
+  already had.
+- "Why this task?" opened directly behind the task page and was completely unreachable —
+  both are `.modal-backdrop`s at the same `z-index: 200`, and the task page sits later in
+  the DOM, so it always won the stacking tie. Fixed with a dedicated `#whyModal { z-index:
+  210 }` rule.
 
-So focus can be moved but nothing can be *activated*, by pointer or by keyboard. The page is
-responsive throughout and the console is clean.
+**F-3 · S4 · The one-off task's time-estimate field shows "15" as a placeholder, not a
+real default, so a first "Add to today" tap can fail.** Typed a name, left time-estimate
+untouched (visually showing "15"), tapped Add — got "Enter a name and time" even though
+both fields looked filled. The "15" is grey placeholder text, not a committed value; a
+second tap after explicitly typing a number succeeds. One wasted tap, easy to miss why.
 
-**Do not retry these three.** Four attempts across two sessions. A fifth costs minutes and
-yields nothing new.
+**C-12, re-checked live: does not reproduce.** Tested "Hide done" against three different
+cycling tasks (`Run the dishwasher` at every stage of its 3-step cycle, `Wash whites` and
+`Clean cat water fountain` mid-cycle) — a task stays visible under Hide done for as long as
+its cycle is open, and is correctly hidden only once genuinely finished. The one apparent
+repro turned out to be the fountain's cycle being 2 stages, not more — a second tap was its
+real final step, not a skip. If this still happens for her, the reproduction needs more
+specific steps than "hide done hides a partly-done cycle task" — which stage, which cycle,
+whether it was reached via Sprint or the task page.
 
-**Two ways it becomes runnable:**
-1. **She connects the Chrome extension.** `claude-in-chrome` is separate tooling with its own
-   input implementation and is the most likely to work. `list_connected_browsers` returning
-   `[]` is the only thing stopping it.
-2. She walks the ten journeys herself and reports where she stalled. Journey 10 (the escape)
-   first.
+**Design-consistency note, not a Flow failure.** "Delete this task" opens a native browser
+`confirm()` (index.html `confirmDeleteTask`, ~6813), not the app's own sheet system. It
+still escapes fine by a real thumb (Cancel is a native OS/browser button), so it does not
+fail Journey 10 — but it bypasses every theming rule the rest of the app follows (no
+color/typography tokens, doesn't respect dark mode, can't be dismissed by the swipe gesture
+every other sheet uses) and is worth folding into Coherence next time that audit runs. It
+also fully blocks the page to any browser-automation input until the tab is reloaded —
+harmless to her, a trap for whoever tests this next.
 
-**One incidental positive.** Tab order was checked while testing and walks the header, the
-mode pills and the cards in visual order without traps. That is not a Flow pass — Flow is
-about thumbs — but it is worth knowing the app is keyboard-navigable.
+**Method note for whoever picks this up next.** The two browser surfaces are not
+interchangeable: `Claude_Browser__*` (the in-app pane) could not activate controls across
+four attempts over two sessions; `claude-in-chrome__*` (the real, extension-driven browser)
+could, and is what this run used throughout. Use the latter for Flow. Toast duration reads
+closer to ~10s than the 5s implied elsewhere — not filed as its own finding, just don't be
+surprised waiting for one to clear.
+
+**One incidental positive, from the earlier keyboard check.** Tab order walks the header,
+the mode pills and the cards in visual order without traps. Not a Flow pass on its own —
+Flow is about thumbs — but worth knowing the app is keyboard-navigable.
 
 ### 1b. Reachability — **new lens, run 2026-08-17.** 2 findings
 

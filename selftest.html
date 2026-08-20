@@ -2072,6 +2072,31 @@ test('completing a Bob-only task does not spend Alina\'s budget', () => {
   });
 });
 
+// dealHand's own dailyTime calc already excludes a Bob-only completion (the case
+// above pins that), but the "Today's time" DISPLAY is computed separately by
+// handDailyMinutes(), which used to sum every freq:1 task in state.hand with no
+// owner check at all. Logging one of Bob's dailies rode into state.hand (so the
+// Completed section can show it — that part is correct) and then leaked its
+// minutes into the number she reads, and into the default the slider seeds.
+test('a completed Bob-only daily does not inflate the displayed daily-minutes total', () => {
+  withState(st => {}, () => {
+    G('dealHand')();
+    const before = G('handDailyMinutes')();
+    G('completeTask')('c_scoop_ds');   // Bob-only, freq 1
+    // completeTask alone doesn't touch state.hand — dealHand() is a same-day no-op
+    // (state.handDate === today). The real bug only shows up on the NEXT deal,
+    // which is exactly what happens on close of the task page in the real app:
+    // dealHand's unconditional "anything completed today" carry-in (index.html
+    // ~2682) puts c_scoop_ds into state.hand regardless of owner.
+    G('state').hand = null; G('state').handDate = null;
+    G('dealHand')();
+    ok(G('state').hand.includes('c_scoop_ds'), 'test setup is wrong — c_scoop_ds never re-entered the hand');
+    const after = G('handDailyMinutes')();
+    eq(after, before, 'displayed daily minutes grew from ' + before + ' to ' + after +
+       ' after logging a Bob-only chore');
+  });
+});
+
 // ─── Checklist ticks ───────────────────────────────────────────────────────
 group('Checklist ticks');
 
@@ -2173,6 +2198,33 @@ test('no checkbox or radio renders at zero size on any tab', () => {
   switchTabQuiet('alina');
   ok(sized.length > 0, 'no checkbox or radio was measurable at all — the probe is broken, not the app');
   ok(offenders.length === 0, 'invisible control(s): ' + offenders.join(', '));
+});
+
+// showWhy() opens #whyModal FROM the task page (#taskModal), which is itself a
+// .modal-backdrop at the same base z-index. Both being "open" (class + display:
+// flex + opacity 1) proved nothing — DOM order broke the tie and the task page
+// painted on top, burying the why-modal completely. elementFromPoint at the
+// modal's own center is the only check that catches that: it returns whichever
+// element would actually receive a real tap there.
+test('the why-modal opens above the task page, not behind it', () => {
+  withState(st => {}, () => {
+    G('dealHand')();
+    const id = G('state').hand[0];
+    G('openModal')(id);
+    G('showWhy')(id);
+    const doc = G('document');
+    const why = doc.getElementById('whyModal');
+    const task = doc.getElementById('taskModal');
+    ok(why.classList.contains('open'), 'whyModal never opened');
+    ok(task.classList.contains('open'), 'taskModal was not open underneath it — test setup is wrong');
+    const whyZ = parseInt(G('window').getComputedStyle(why).zIndex, 10);
+    const taskZ = parseInt(G('window').getComputedStyle(task).zIndex, 10);
+    ok(whyZ > taskZ, 'whyModal z-index (' + whyZ + ') does not clear taskModal (' + taskZ + ')');
+    const r = why.getBoundingClientRect();
+    const top = doc.elementFromPoint(r.left + r.width / 2, r.top + Math.min(60, r.height / 2));
+    ok(why.contains(top), 'the element under the why-modal\'s own body is not inside it — something else is on top');
+    G('closeWhyModal')(); G('closeModal')();
+  });
 });
 
 // ─── Version hygiene ───────────────────────────────────────────────────────

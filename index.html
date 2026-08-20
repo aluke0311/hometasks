@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-19 v1">
+  <meta name="app-version" content="2026-08-20 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -467,6 +467,10 @@
        the bottom of the sheet, hiding the Save button with no way to scroll to it. */
     :root { --kb: 0px; }
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(35,33,28,0.42); z-index: 200; align-items: flex-end; justify-content: center; padding: 0; }
+    /* whyModal opens FROM the task page, which is itself a .modal-backdrop at the
+       same base z-index — without this it opens directly behind the page that
+       triggered it and is fully unreachable, mouse or thumb. */
+    #whyModal { z-index: 210; }
     .modal-backdrop.open { display: flex; animation: backdropIn 0.2s ease-out both; }
     .modal-backdrop.open > .modal { animation: sheetIn 0.28s cubic-bezier(.32,.72,0,1) both; }
     .modal-backdrop.closing { animation: backdropOut 0.22s ease-in both; }
@@ -1644,12 +1648,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-19 v1';
+  const APP_VERSION = '2026-08-20 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-20 v1', notes: [
+      '"Why this task?" was opening behind the task page instead of on top of it, so tapping it did nothing. Fixed — it now shows the score breakdown like it should.',
+      'Logging one of Bob\'s chores was quietly inflating the "Today\'s time" total, even though it never actually touched your budget. Fixed — the number now matches what the hand really costs.',
+    ]},
     { v: '2026-08-19 v1', notes: [
       'Room, on a new or edited task, is now a dropdown of the actual rooms in use — no more remembering whether it\'s "DS Bathroom" or "Downstairs Bathroom". Add or remove rooms from the new Rooms card in Settings; a room still in use by a task can\'t be removed.',
     ]},
@@ -3606,8 +3614,13 @@
   // Read off the dealt hand rather than recomputed, so the number under the
   // slider is the same daily load dealHand actually charged against the total.
   function handDailyMinutes() {
+    // Owner filter matters here too: a Bob-only daily rides into state.hand once
+    // she logs it (so the Completed section can show it), but it never competed
+    // for HER budget — dealHand's own dailyTime calc already excludes it via
+    // dealtByMe. Without the same filter here, logging his chore quietly inflated
+    // the "Today's time" total she reads, and the default it seeds for the slider.
     return getHandTasks()
-      .filter(t => t.freq === 1 && !t.oneOff)
+      .filter(t => t.freq === 1 && !t.oneOff && dealtByMe(t))
       .reduce((s, t) => s + taskTime(t), 0);
   }
 
