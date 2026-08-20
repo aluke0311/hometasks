@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-18 v1">
+  <meta name="app-version" content="2026-08-19 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -667,6 +667,18 @@
     .vac-details > summary::-webkit-details-marker { display: none; }
     .vac-details > summary::before { content: '▸ '; color: var(--text3); }
     .vac-details[open] > summary::before { content: '▾ '; }
+    /* Rooms card (Settings) — add/remove the rooms the task form's Room select offers. */
+    .room-add-row { display: flex; gap: var(--s-3); margin: var(--s-3) 0 var(--s-5); }
+    .room-add-row .field-input { flex: 1; min-height: 44px; }
+    .room-add-row .add-btn { min-width: 60px; min-height: 44px; padding: 0 var(--s-5); }
+    .room-chip-list { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+    .room-chip { display: inline-flex; align-items: center; gap: 6px; padding: var(--s-3) var(--s-4);
+                 font-size: var(--fs-meta); border-radius: var(--radius); border: 1px solid var(--border2);
+                 background: var(--bg2); color: var(--text2); }
+    .room-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+                   border-radius: 50%; color: var(--text3); background: transparent; border: none; padding: 0; }
+    .room-chip-x:active { background: var(--border2); }
+    .room-chip-lock { display: flex; align-items: center; color: var(--text3); }
     /* A whole card that collapses — the scoring explainer and the activity log are
        both reference material and both long enough to swallow the tab. */
     .ed-details > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); cursor: pointer; list-style: none; color: var(--text3); }
@@ -894,7 +906,7 @@
     .edit-btn, .date-save-btn, .date-input, .btn-choice, .add-btn, .btn-line,
     .modal-btn, .chip, .vac-chip, .preset-due-chip, .mode-btn, .section-label-btn,
     .more-btn, .overflow-toggle, .btn-dashed, .round-add, .tier-filter, .rp-row,
-    .field-check, .opt-label input[type="radio"] { position: relative; }
+    .field-check, .opt-label input[type="radio"], .room-chip-x { position: relative; }
 
     .icon-btn::before, .task-more-btn::before, .stepper-btn::before,
     .tier-pill-sm::before, .tier-pill::before, .header-action::before,
@@ -904,7 +916,8 @@
     .vac-chip::before, .mode-btn::before, .section-label-btn::before,
     .more-btn::before, .overflow-toggle::before, .btn-dashed::before,
     .round-add::before, .tier-filter::before, .rp-row::before,
-    .field-check::before, .opt-label input[type="radio"]::before {
+    .field-check::before, .opt-label input[type="radio"]::before,
+    .room-chip-x::before {
       content: ''; position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       width: 100%; height: 100%; min-width: 44px; min-height: 44px;
@@ -1163,7 +1176,9 @@
         </div>
         <div>
           <div class="field-label">Room</div>
-          <input class="field-input" id="f_room" oninput="autoSaveTask()" placeholder="e.g. Kitchen">
+          <select class="field-select" id="f_room" onchange="autoSaveTask()">
+            <option value="">Choose a room…</option>
+          </select>
         </div>
         <div class="field-row">
           <div>
@@ -1589,7 +1604,29 @@
     4: ['Bedroom','US Bathroom'],
     5: ['Living Room','Back Room']
   };
-  
+
+  // Every room used by a built-in task, plus the zone-less ones (Whole House,
+  // Robot, Downstairs, Upstairs, Cats). The task form's Room field is a select
+  // over this list (+ state.customRooms) so she never has to remember exact
+  // spelling — "Downstairs Bathroom" vs "DS Bathroom" used to be a guess.
+  const BASE_ROOMS = [...new Set(Object.values(ZONE_ROOMS).flat())]
+    .concat(['Whole House', 'Robot', 'Downstairs', 'Upstairs', 'Cats']).sort();
+
+  // Base rooms + whatever she's added, alphabetical. Rooms are managed on the
+  // Settings tab (add / remove), not free-typed on the task form.
+  function allRooms() {
+    return [...new Set([...BASE_ROOMS, ...(state.customRooms || [])])].sort();
+  }
+
+  function renderRoomOptions() {
+    const sel = document.getElementById('f_room');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Choose a room…</option>' +
+      allRooms().map(r => '<option value="' + r + '">' + r + '</option>').join('');
+    if (cur) sel.value = cur;
+  }
+
   // Frequency label
   // Short by design. This sits on a one-line meta strip that ellipsizes, next to
   // the room, the lateness and the real-cadence hint — "every 45 days" spent 13
@@ -1607,12 +1644,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-18 v1';
+  const APP_VERSION = '2026-08-19 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-19 v1', notes: [
+      'Room, on a new or edited task, is now a dropdown of the actual rooms in use — no more remembering whether it\'s "DS Bathroom" or "Downstairs Bathroom". Add or remove rooms from the new Rooms card in Settings; a room still in use by a task can\'t be removed.',
+    ]},
     { v: '2026-08-18 v1', notes: [
       'The dishwasher used to wait until the next day to start a new load after you finished one. Now it starts the next load right away, so it never goes idle waiting for tomorrow.',
     ]},
@@ -1824,7 +1864,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, cycleTimings: {}, cycleChoice: {}, cycleChoiceDate: null, bobAway: false, bobAwaySince: null };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, cycleTimings: {}, cycleChoice: {}, cycleChoiceDate: null, bobAway: false, bobAwaySince: null, customRooms: [] };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -6121,7 +6161,31 @@
           ZONE_TABLE.map(([z,r]) => '<tr><td>' + z + '</td><td>' + r + '</td></tr>').join('') +
         '</table>' +
       '</div>' +
-  
+
+      // Card: Rooms — the task form's Room field is a select over this list, so
+      // adding a room here is the only way to make a new one choosable there.
+      (function() {
+        const custom = (state.customRooms || []).slice().sort();
+        const usedRooms = new Set(getAllTasks().map(t => t.room));
+        return '<div class="settings-card">' +
+          '<div class="settings-card-title">Rooms</div>' +
+          '<div class="settings-card-desc">The list the Room field on a task offers. The ' + BASE_ROOMS.length + ' built-in rooms can\'t be removed. Add one here before a new task can use it.</div>' +
+          '<div class="room-add-row">' +
+            '<input class="field-input" id="newRoomName" placeholder="e.g. Garage" maxlength="40">' +
+            '<button class="add-btn" onclick="addCustomRoom()">Add</button>' +
+          '</div>' +
+          (custom.length
+            ? '<div class="room-chip-list">' + custom.map(r =>
+                '<span class="room-chip">' + r +
+                  (usedRooms.has(r)
+                    ? '<span class="room-chip-lock" title="In use — remove or reassign its tasks first">' + icon('info', 13, 1.8) + '</span>'
+                    : '<button class="room-chip-x" onclick="removeCustomRoom(\'' + r.replace(/'/g,"\\'") + '\')" aria-label="Remove ' + r + '">' + icon('close', 12, 2) + '</button>') +
+                '</span>').join('') +
+              '</div>'
+            : '<div class="settings-card-desc" style="margin-top:8px">No rooms added yet.</div>') +
+        '</div>';
+      })() +
+
       // Card 3: System Overview
       '<div class="settings-card">' +
         '<div class="settings-card-title">System Overview</div>' +
@@ -6428,7 +6492,36 @@
     state.hand = null;
     saveState();
   }
-  
+
+  function addCustomRoom() {
+    const el = document.getElementById('newRoomName');
+    const name = (el.value || '').trim();
+    if (!name) return;
+    if (!state.customRooms) state.customRooms = [];
+    if (allRooms().some(r => r.toLowerCase() === name.toLowerCase())) {
+      showToast('"' + name + '" is already a room');
+      return;
+    }
+    state.customRooms.push(name);
+    saveState();
+    el.value = '';
+    renderSettings();
+    showToast('Added "' + name + '"');
+  }
+
+  // Only a custom room with no task in it can be removed — otherwise a task's
+  // room silently pointed at a room the dropdown no longer offered.
+  function removeCustomRoom(room) {
+    if (getAllTasks().some(t => t.room === room)) {
+      showToast('"' + room + '" is still in use');
+      return;
+    }
+    state.customRooms = (state.customRooms || []).filter(r => r !== room);
+    saveState();
+    renderSettings();
+    showToast('Removed "' + room + '"');
+  }
+
   // ─── MANAGE TAB ────────────────────────────────────────────────────────────
   
   let manageOwnerFilter = 'all';
@@ -6749,6 +6842,7 @@
     editingVac = id ? vacMode(id) : 'freeze';
     renderVacChips();
 
+    renderRoomOptions();
     if (id) {
       const task = getAllTasks().find(t => t.id === id);
       if (!task) return;
