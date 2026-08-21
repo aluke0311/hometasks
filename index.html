@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-20 v1">
+  <meta name="app-version" content="2026-08-21 v2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -345,7 +345,6 @@
        instead of being spread across fourteen string literals. */
     .wide { width: 100%; }
     .add-btn.wide.gap-b { margin-bottom: var(--s-7); }
-    .add-btn.wide.gap-b-sm { margin-bottom: var(--s-5); }
     .add-btn.warn { background: var(--amber); }
     .add-btn.danger { background: var(--red); }
     .add-btn.quiet { background: transparent; color: var(--text2); border: 0.5px solid var(--border2); }
@@ -595,7 +594,7 @@
     /* Checklist row — quick-log results and every preset checklist still build
        these by hand (they aren't hand tasks, so they don't go through renderCard).
        Same hairline anatomy as a task row. */
-    .sprint-card { display: flex; align-items: center; padding: var(--s-6) 0; gap: 13px; cursor: pointer; border-bottom: 1px solid var(--hairline); }
+    .sprint-card { display: flex; align-items: center; padding: var(--s-6) 0; gap: var(--s-6); cursor: pointer; border-bottom: 1px solid var(--hairline); }
     .sprint-card.done .sprint-card-body { opacity: 0.5; }
     .sprint-card.done .sprint-card-name { text-decoration: line-through; }
     .sprint-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
@@ -609,7 +608,7 @@
     .sprint-pin { color: var(--amber); margin-left: var(--s-2); }
 
     /* Compact row (Sprint): tighter circle and name, no meta line. */
-    .task-card.compact .task-main { padding: var(--s-6) 0; gap: 13px; }
+    .task-card.compact .task-main { padding: var(--s-6) 0; gap: var(--s-6); }
     .task-card.compact .task-check { width: 20px; height: 20px; }
     .task-card.compact .task-name { font-size: var(--fs-sub); font-weight: 400; }
     .task-card.compact .task-time { font-size: var(--fs-sub); }
@@ -694,7 +693,7 @@
     .ed-details > summary svg { transition: transform 0.2s; flex-shrink: 0; }
     .ed-details[open] > summary svg { transform: rotate(180deg); }
     /* F-4: delight goes BELOW the hand. Things that ask for action go above. */
-    .onthisday { margin: var(--s-8) var(--s-10) 0; padding: 13px var(--s-8); border-radius: var(--radius); background: var(--bg2); }
+    .onthisday { margin: var(--s-8) var(--s-10) 0; padding: var(--s-6) var(--s-8); border-radius: var(--radius); background: var(--bg2); }
     .onthisday-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.14em; color: var(--eyebrow); font-weight: 600; margin-bottom: var(--s-2); }
     .onthisday-body { font-size: var(--fs-sub); color: var(--text2); line-height: 1.45; }
 
@@ -715,7 +714,7 @@
     .chip.on { background: var(--green); border-color: var(--green); color: var(--on-accent); font-weight: 600; }
 
     /* Search — a filled well, not a bordered input. */
-    .search-well { margin: 0 var(--s-10) var(--s-7); display: flex; align-items: center; gap: 9px; background: var(--bg2); border-radius: var(--radius); padding: 0 13px; }
+    .search-well { margin: 0 var(--s-10) var(--s-7); display: flex; align-items: center; gap: 9px; background: var(--bg2); border-radius: var(--radius); padding: 0 var(--s-6); }
     .search-well svg { flex-shrink: 0; color: var(--eyebrow); }
     .search-well .search-input { flex: 1; border: none; background: transparent; padding: var(--s-5) 0; border-radius: 0; min-width: 0; }
     .search-well .search-input:focus { outline: none; }
@@ -725,7 +724,7 @@
        { appearance: none }` up top strips the native one. */
     .select-well { margin: 0 var(--s-10) var(--s-7); background: var(--bg2); border-radius: var(--radius); }
     .room-select { width: 100%; border: none; background: transparent; color: var(--text);
-      font-size: 16px; padding: var(--s-5) 36px var(--s-5) 13px; border-radius: var(--radius); cursor: pointer;
+      font-size: 16px; padding: var(--s-5) 36px var(--s-5) var(--s-6); border-radius: var(--radius); cursor: pointer;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%237d6839' stroke-width='1.6'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 14px center; }
     .room-select:focus { outline: none; }
@@ -951,7 +950,7 @@
     .sheet-head { padding: var(--s-1) 24px var(--s-7); border-bottom: 1px solid var(--border); }
     .sheet-head-name { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; }
     .sheet-head-meta { font-size: var(--fs-meta); color: var(--text3); margin-top: var(--s-1); }
-    .sheet-row { display: flex; align-items: center; gap: 15px; padding: 13px var(--s-6); border-radius: var(--radius); width: 100%; background: none; border: none; text-align: left; cursor: pointer; font: inherit; color: var(--text); }
+    .sheet-row { display: flex; align-items: center; gap: 15px; padding: var(--s-6); border-radius: var(--radius); width: 100%; background: none; border: none; text-align: left; cursor: pointer; font: inherit; color: var(--text); }
     .sheet-row:active { background: var(--bg2); transform: none; }
     .sheet-row-icon { flex-shrink: 0; display: flex; align-items: center; color: var(--text2); }
     /* These are spans inside a button (a <div> would be invalid there), so each
@@ -1648,13 +1647,16 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-20 v1';
+  const APP_VERSION = '2026-08-21 v2';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
-    { v: '2026-08-20 v1', notes: [
+    { v: '2026-08-21 v2', notes: [
+      'A few small spacing tweaks — a little tighter here, a little more even there. Nothing you should need to notice.',
+    ]},
+    { v: '2026-08-21 v1', notes: [
       '"Why this task?" was opening behind the task page instead of on top of it, so tapping it did nothing. Fixed — it now shows the score breakdown like it should.',
       'Logging one of Bob\'s chores was quietly inflating the "Today\'s time" total, even though it never actually touched your budget. Fixed — the number now matches what the hand really costs.',
     ]},
@@ -5429,7 +5431,7 @@
       '<div class="settings-card">' +
         presetTitle('Full Reset') +
         '<div class="settings-card-desc">Complete whole-house clean. Expect 2–3 hours.</div>' +
-        '<button class="add-btn wide' + (ph.reset ? ' gap-b-sm' : '') + '" onclick="generateResetHand()">Generate Full Reset</button>';
+        '<button class="add-btn wide' + (ph.reset ? ' gap-b' : '') + '" onclick="generateResetHand()">Generate Full Reset</button>';
     if (ph.reset && ph.reset.length) {
       html += loadBtns("loadNewPreset('reset')", "loadNewPresetDueOnly('reset')", "clearNewPreset('reset')");
       FULL_RESET_SECTIONS.forEach(section => {
@@ -5483,7 +5485,7 @@
       '<div class="settings-card after-head">' +
         presetTitle('Going Out of Town') +
         '<div class="settings-card-desc">Leave the house in great shape before you go.</div>' +
-        '<button class="add-btn wide' + (goingOutActive ? ' gap-b-sm' : '') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
+        '<button class="add-btn wide' + (goingOutActive ? ' gap-b' : '') + '" onclick="generateGoingOutHand()">Generate Going Out of Town</button>';
     if (goingOutActive) {
       html += loadBtns("loadNewPreset('goingout')", "loadNewPresetDueOnly('goingout')", "clearNewPreset('goingout')");
       GOING_OUT_SECTIONS.forEach(section => {
@@ -6349,7 +6351,7 @@
         '<div style="font-size:var(--fs-meta);color:var(--red);margin-bottom:8px">Overwrites all current data.</div>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">From an auto-backup file in Downloads:</div>' +
         '<input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">' +
-        '<button class="add-btn wide gap-b-sm" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
+        '<button class="add-btn wide gap-b" onclick="document.getElementById(\'importFileInput\').click()">Restore from backup file…</button>' +
         '<div style="font-size:var(--fs-meta);color:var(--text2);margin-bottom:6px">Or paste exported data:</div>' +
         '<textarea id="importTextarea" placeholder="Paste exported data here…" style="width:100%;height:90px;font-size:16px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px;background:var(--card);color:var(--text);resize:none;margin-bottom:8px"></textarea>' +
         '<button class="add-btn wide danger" onclick="importData()">Import &amp; restore</button>' +

@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-20 · app at `2026-08-20 v1` · selftest 113/113 green.
+Last touched: 2026-08-21 · app at `2026-08-21 v2` · selftest 113/113 green.
 
 ---
 
@@ -57,14 +57,14 @@ them. What remains open:
 - **`dealMax` is 1 everywhere.** "Start another" covers the real case by hand.
 
 ### C-12 — Sprint's "hide done" hides a cycle task that is only partly done
-Reported 2026-08-20. **Checked live the same day and did not reproduce** — see the Flow
+Reported 2026-08-21. **Checked live the same day and did not reproduce** — see the Flow
 audit's C-12 note below. Tested three cycling tasks across every stage on the Sprint tab;
 Hide done only ever hid a genuinely finished one. Leaving this open in case she can pin down
 the exact steps (which task, which stage, Sprint vs task page) rather than closing it, since
 a live miss on my end doesn't rule out a real path she hit.
 
 ### C-13 — time a single cycle step, not just the whole load
-Reported 2026-08-20. Right now the per-task timer runs against the owning task end to end
+Reported 2026-08-21. Right now the per-task timer runs against the owning task end to end
 (see C-9's "stage times no longer learn"); she wants to time an individual step — e.g. just
 "fold" — the way she can time an ordinary task. Needs a design call: a step is not a task and
 has no `id` to key a timer or `actualTimes` entry against. Options include giving the running
@@ -106,14 +106,23 @@ shared component has been named. What is left does not want a class:
 The rule stands: **the count must not grow, and new UI uses classes.** Converting more is
 only worth it when a *second* site wants the same rule.
 
-### C-8 — the residual off-scale spacing · S4 · needs a decision, not a sweep
+### C-8 — the residual off-scale spacing · S4 · **both open decisions resolved 2026-08-21**
 The exact-match sweep is **finished**: every spacing declaration whose values sit on
-`--s-1..--s-10` now uses the token, including inside `calc()` and `env()`. **44
-declarations remain**, all genuinely off the scale:
+`--s-1..--s-10` now uses the token, including inside `calc()` and `env()`.
+
+**The 13px question is decided: snap to 12px (`var(--s-6)`).** All six sites converted —
+`.sprint-card` and `.task-card.compact .task-main` gaps, `.onthisday` and `.search-well`
+padding, `.room-select` left padding, `.sheet-row` padding. A small, real pixel change,
+her call.
+
+**The Generate button gap is decided: 14px everywhere.** The three `gap-b-sm` (10px)
+call sites — Full Reset, Going Out of Town, Restore from backup file — now use `gap-b`
+like the other eleven. The now-unused `.add-btn.wide.gap-b-sm` rule is deleted.
+
+Remaining off-scale values are unchanged and were never in question:
 
 | Value | Sites | Verdict |
 |---|---|---|
-| 13px | 6 | **The open question.** Six sites is a de-facto step between `--s-6` (12) and `--s-7` (14), not an accident. Either add a token or snap them — both are a real pixel change. |
 | 18px | 3 | Card padding (`.settings-card`, `.ed-card`, `.sprint-block`). Consistent with itself. |
 | 5, 9, 11, 15, 22, 24, 36, 40, 60px | 1–3 each | One-offs. |
 | −1, −6, −10px | 4 | Not spacing: a hairline overlap, two hit-area bleeds, and the slider thumb offset, which is derived from the thumb/track geometry. Leave as literals. |
@@ -121,11 +130,6 @@ declarations remain**, all genuinely off the scale:
 C-2's note sanctions snapping 3/7/11px to a neighbour. Two such sites survive
 (`.sheet-group-label` 7px, `.sheet-chips > button` 11px); they were left out of the
 sweep only to keep it a provable visual no-op.
-
-**A second open spacing question, same shape as the 13px one.** The Generate button's
-bottom gap is `14px` at eleven call sites and `10px` at three (`.add-btn.wide.gap-b` vs
-`.gap-b-sm`). It reads as drift, but both are preserved and named rather than resolved.
-Deciding it is one line.
 
 **Not drift, despite looking like it:** the Rooms preset cards sit on an 8px rhythm
 against the 4px of a card that opens a category group. That call site is inside
@@ -144,7 +148,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 
 | # | Audit | State | Needs from her |
 |---|-------|-------|----------------|
-| 1 | Flow | **Run 2026-08-20** — 10 journeys walked, 2 bugs found and fixed same day | — |
+| 1 | Flow | **Run 2026-08-21** — 10 journeys walked, 2 bugs found and fixed same day | — |
 | 2 | Behaviour | **Re-run 2026-08-16** — 3 findings, unfixed | Her call on B-1 (By Freq) |
 | 3 | State | **Re-run + fixed** (2026-08-17) — 2 found, 2 fixed | — |
 | 4 | Surface | **Done** (2026-08-16) — 7 found, 7 fixed | — |
@@ -153,7 +157,7 @@ Run order is roughly judgment-density. `AUDITS.md` holds the full spec for each.
 | 7 | Opportunity | **Run 2026-08-18** — 10 live, 5 killed | Her ranking |
 | 8 | Housekeeping | **Done** (2026-08-16) | — |
 
-### 1. Flow — **run 2026-08-20.** All ten journeys walked against `claude-in-chrome` (real
+### 1. Flow — **run 2026-08-21.** All ten journeys walked against `claude-in-chrome` (real
 Chrome via the extension) at the dev server. The in-app Browser pane still cannot click —
 `claude-in-chrome` is the only surface Flow can use; see the method note below.
 
@@ -281,17 +285,14 @@ Every aggregate below is draw 1 with draw 2 in brackets where it differs. Read t
 | maintenance | compliant | 90/120 | 0 (0) | 0 | −35 | 0% (0) |
 | maintenance | sporadic | 45/90 | 11 (10) | 59 | −1 | 76% (75) |
 
-**B-1 · S2 · By Freq services almost nothing over time, and this is in tension with a
-recorded decision.** At her real budget it deals 27% of the pool in 180 days and leaves
+**B-1 · S2 · By Freq services almost nothing over time — put to her, decided 2026-08-21:
+leave it as-is.** At her real budget it deals 27% of the pool in 180 days and leaves
 **123 tasks never dealt once**; its median task's starvation counter ends at 180, meaning
 the median task was never dealt at all. Repeat rate 74–78% — it re-offers the same short
 list. Worst service intervals, all against a 7-day target: *Tidy back porch* **12.0×**
 (~84 days), *Dust surfaces (living room)* 5.0×, *Sweep stairs* 3.9×. *Kitchen tidy* is a
-**daily** task running at 2.0×. The recorded decision "By Freq stays — 14 routine tasks
-against Keep Up's 6" is not wrong, but it measured **one morning's hand on her real state**;
-this measures **service over 180 days on the default pool**. Both can be true: By Freq fills
-today's hand best and starves everything outside its front rank. Worth putting to her as a
-trade-off rather than treating either number as the answer.
+**daily** task running at 2.0×. Her call: By Freq is a fast routine-pass mode by design,
+and coverage over time is Catch Up's job, not its own — the trade-off stands, no change.
 
 **The aggregate survives a second draw; the per-task ranking does not.** 27%, 123 never
 dealt and a median starvation of 180 came back identical. But *Tidy back porch* was 12.0× in
@@ -460,22 +461,33 @@ the utilisation figure.**
 Tier balance **A 42 / B 73 / C 67** (was 46/73/67 — the four deleted steps were tier A).
 Owners **26 alina / 138 either / 18 bob**. Eight tasks now own a cycle.
 
-#### C-5 · S3 · "Dishwasher" no longer distinguishes itself from "Clean dishwasher"
+#### C-6 · S4 · Robot deep-clean overlap — pending her review of the full robot task list
 
-Introduced 2026-08-17: `k_dishwasher` was renamed from *"Unload dishwasher"* to *"Dishwasher"*
-to serve as the cycle owner. The Kitchen now holds **Dishwasher** (1d), **Clean dishwasher**
-(90d), **Clean dishwasher filter** (30d) and **Wipe outside of dishwasher** (60d). In the hand
-the card shows its step ("Load it") so it reads fine; in All Tasks it is a bare "Dishwasher"
-next to "Clean dishwasher" and the two do not separate at a glance. A name like *"Run the
-dishwasher"* would.
+**Trash can merge: decided against, 2026-08-21.** Keeping "Clean trash can" and "Sweep under
+trash can" separate.
 
-#### C-6 · S4 · Two overlap candidates worth her eye
+**Robot deep-clean reset: she wants the full robot list before deciding**, not just the four
+candidate tasks. All eight, current freq/owner:
 
-- **"Clean trash can" and "Sweep under trash can"** — Kitchen, both **42d**, same object. Same
-  frequency and same trip; plausibly one task.
-- **"Deep clean robot"** (90d) against **"Clean robot filters"** (30d), **"Wipe robot sensors"**
-  (30d) and **"Clean dock water filter"** (60d), per unit. A deep clean plausibly contains the
-  other three; if it does, doing it should reset them.
+| Task | Freq | Owner |
+|---|---|---|
+| Run robot vacuum (downstairs) | 1d | either |
+| Run robot vacuum (upstairs) | 4d | either |
+| Run robot mop (downstairs) | 4d | either |
+| Run robot mop (upstairs) | 14d | either |
+| Refill robot water & empty dirty tank (downstairs dock) | 14d | alina |
+| Clean robot filters (downstairs) | 30d | alina |
+| Clean robot filters (upstairs) | 30d | alina |
+| Wipe robot sensors (downstairs) | 30d | alina |
+| Wipe robot sensors (upstairs) | 30d | alina |
+| Clean dock water filter (downstairs) | 60d | alina |
+| Deep clean robot (downstairs) | 90d | alina |
+| Deep clean robot (upstairs) | 90d | alina |
+
+The original question: does "Deep clean robot" (90d) plausibly contain "Clean robot filters"
+and "Wipe robot sensors" (30d, per unit) and "Clean dock water filter" (60d)? If so, doing the
+deep clean should reset those tasks' due dates too, the way a cycle's last step resets the
+whole load.
 
 **Method note: automated overlap detection does not work on this pool.** Name-similarity
 scoring returned 65 then 47 candidates, almost all false — the naming convention puts the room
@@ -542,20 +554,6 @@ Nothing to raise here except a single stray `9px` font-size. Corners are still t
 two but token use has more than doubled.
 
 **(b) Behaviours that forked.**
-
-**CO-2 · S3 · `load` and `cycle` are two controls for one meaning, and they can contradict.**
-Created 2026-08-17. `load: true` was the wash-slot flag; the cycle work made it a legacy alias
-—`cycleDefFor` reads `task.cycle || (task.load ? 'laundry' : null)`. Both are now saved by
-`writeTaskForm`, and **both appear on the task page as separate controls**: a Cycle picker
-offering "Laundry (4 steps)" and a checkbox reading "Laundry load (competes for the one wash
-slot)". Reproduced — a task with `cycle:'dishwasher'` **and** `load:true` resolves to
-dishwasher, so the ticked checkbox is simply a lie on screen.
-
-Decided or accumulated? **Decided at the time** — `load` was kept so existing data and the
-existing checkbox kept working. But the reason has since evaporated: `cycle` is in the field
-list and the picker exists. Converging means a one-line migration (`load → cycle:'laundry'`),
-deleting the checkbox, and pointing `SPRINT_LOAD_IDS` at `cycleDefFor`. Cheap, and it removes
-a user-visible contradiction.
 
 **CO-3 · WITHDRAWN — the fork does not exist.** I reported it from a grep that counted a
 pattern including function names that are already gone. Checked properly:
@@ -720,6 +718,8 @@ not zero. To measure it, the write path would have to record its source.
 | **Cycle stages are never scheduled alone** | "Move to dryer" is not due every day; it is due 55 minutes after the wash started. The four freq-1 dailies were a bad approximation of that, and `dealHand` needed a special case to hide them. Stages are excluded from `getDailies`, starvation, `getNotDueTasks` and the completed-today carry-in. | 2026-08-17 |
 | **Bob's away is a toggle, not a dated pause** | Vacation mode shifts due dates on resume because the house genuinely stops. Bob's tasks still need doing while he is gone, so they age normally and arrive with their real dates. Nothing to shift back. | 2026-08-17 |
 | **Flagging one of Bob's tasks delivers it** | He has no hand, so the flag set a badge and changed nothing — the button was lying. "Bring me this one" is the only thing it could usefully mean. | 2026-08-17 |
+| **By Freq stays exactly as-is, coverage gaps included** | It's a fast routine-pass mode by design; 180-day coverage is Catch Up's job, not its. Confirmed against the Behaviour audit's B-1 finding (27% pool coverage, 123 tasks never dealt) rather than overturning it blind. | 2026-08-21 |
+| **"Clean trash can" and "Sweep under trash can" stay separate** | Read as distinct enough in practice despite matching room and frequency. | 2026-08-21 |
 
 ---
 
