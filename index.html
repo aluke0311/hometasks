@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-21 v2">
+  <meta name="app-version" content="2026-08-21 v3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1335,26 +1335,41 @@
     { id:'bed_make',         name:'Make bed',                            room:'Bedroom',       freq:1,   time:3,  owner:'either' },
   
     // ── ROBOT VACUUMS ──
+    // Two separate physical units — an upstairs robot (S4 Max, vacuum only) and a
+    // downstairs robot (S8 MaxV Ultra, vacuum + mop, docked). The downstairs one
+    // sometimes gets carried up to mop upstairs too — same unit, not a second mop.
+    // Maintenance is per-unit and per-manufacturer-schedule below; only the
+    // downstairs one has a dock, so dock upkeep has no upstairs counterpart.
     { id:'rob_run_ds',       name:'Run robot vacuum (downstairs)',        room:'Downstairs',    freq:1,   time:2,  owner:'either' },
     { id:'rob_run_us',       name:'Run robot vacuum (upstairs)',          room:'Upstairs',      freq:4,   time:2,  owner:'either' },
-    // Two separate physical units — an upstairs robot (vacuum only) and a
-    // downstairs robot (vacuum + mop, docked). Maintenance is per-unit; only the
-    // downstairs one has a dock, so dock upkeep has no upstairs counterpart.
-    { id:'rob_water',        name:'Refill robot water & empty dirty tank (downstairs dock)', room:'Robot', freq:14,  time:5,  owner:'alina' },
-    // Distinct from the reservoir refill above: the dock's own water FILTER,
-    // changed much less often than the reservoirs are emptied/refilled.
-    { id:'rob_dock_filter',  name:'Clean dock water filter (downstairs)', room:'Robot',         freq:60,  time:5,  owner:'alina' },
     { id:'rob_mop',          name:'Run robot mop (downstairs)',           room:'Downstairs',    freq:4,   time:2,  owner:'either' },
-    // The mop lives downstairs, so upstairs means carrying it up first — less
-    // frequent than the downstairs mop, and a bit more time than a one-tap "run".
     { id:'rob_mop_us',       name:'Run robot mop (upstairs)',             room:'Upstairs',      freq:14,  time:5,  owner:'either' },
-    { id:'rob_filters_ds',   name:'Clean robot filters (downstairs)',     room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_filters_us',   name:'Clean robot filters (upstairs)',       room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_sensors_ds',   name:'Wipe robot sensors (downstairs)',      room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_sensors_us',   name:'Wipe robot sensors (upstairs)',        room:'Robot',         freq:30,  time:5,  owner:'alina' },
-    { id:'rob_deep_ds',      name:'Deep clean robot (downstairs)',        room:'Robot',         freq:90,  time:20, owner:'alina' },
-    { id:'rob_deep_us',      name:'Deep clean robot (upstairs)',          room:'Robot',         freq:90,  time:20, owner:'alina' },
-  
+
+    // Downstairs (S8 MaxV Ultra) robot unit
+    { id:'rob_filters_ds',   name:'Clean washable filter (downstairs)',   room:'Robot',         freq:14,  time:5,  owner:'alina' },
+    { id:'rob_sensors_ds',   name:'Wipe robot sensors & charging contacts (downstairs)', room:'Robot', freq:30, time:5, owner:'alina' },
+    { id:'rob_brush_ds',     name:'Clean DuoRoller riser brushes (downstairs)', room:'Robot',    freq:14,  time:8,  owner:'alina' },
+    { id:'rob_side_brush_ds',name:'Clean FlexiArm side brush (downstairs)', room:'Robot',        freq:30,  time:5,  owner:'alina' },
+    { id:'rob_mop_check_ds', name:'Check mop cloth & edge mop (downstairs)', room:'Robot',       freq:30,  time:3,  owner:'alina' },
+    { id:'rob_wheel_ds',     name:'Clean front wheel & drive wheels (downstairs)', room:'Robot', freq:30,  time:5,  owner:'alina' },
+
+    // Downstairs (RockDock Ultra) base station
+    // Distinct from the reservoir refill below: the dock's own water FILTER,
+    // changed much less often than the reservoirs are emptied/refilled.
+    { id:'rob_water',        name:'Refill clean water tank & empty dirty tank (downstairs dock)', room:'Robot', freq:14, time:5, owner:'alina' },
+    { id:'rob_dock_filter',  name:'Clean dock water filter (downstairs)', room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_wash_tray_ds', name:'Clean dock wash tray & brush (downstairs)', room:'Robot',     freq:21,  time:5,  owner:'alina' },
+    { id:'rob_vent_ds',      name:'Wipe dock air-dry vent (downstairs)',  room:'Robot',         freq:30,  time:3,  owner:'alina' },
+    { id:'rob_dustbag_ds',   name:'Replace robot dustbag (downstairs)',   room:'Robot',         freq:60,  time:2,  owner:'alina' },
+
+    // Upstairs (S4 Max) robot unit
+    { id:'rob_filters_us',   name:'Clean washable filter (upstairs)',     room:'Robot',         freq:14,  time:5,  owner:'alina' },
+    { id:'rob_sensors_us',   name:'Wipe robot sensors & laser (upstairs)', room:'Robot',        freq:30,  time:5,  owner:'alina' },
+    { id:'rob_brush_us',     name:'Clean main roller brush (upstairs)',   room:'Robot',         freq:7,   time:5,  owner:'alina' },
+    { id:'rob_side_brush_us',name:'Clean side brush (upstairs)',          room:'Robot',         freq:30,  time:5,  owner:'alina' },
+    { id:'rob_wheel_us',     name:'Clean front wheel (upstairs)',         room:'Robot',         freq:30,  time:3,  owner:'alina' },
+    { id:'rob_charge_base_us', name:'Wipe charging base (upstairs)',      room:'Robot',         freq:30,  time:2,  owner:'alina' },
+
     // ── KITCHEN ──
     { id:'k_recycling_out',  name:'Take out recycling',                  room:'Kitchen',       freq:3,   time:2,  owner:'either' },
     { id:'k_compost',        name:'Take out compost',                    room:'Kitchen',       freq:4,   time:2,  owner:'bob' },
@@ -1647,12 +1662,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-21 v2';
+  const APP_VERSION = '2026-08-21 v3';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-21 v3', notes: [
+      'The robot vacuum maintenance tasks were reworked against the actual manufacturer schedule for both units. "Deep clean robot" is gone — in its place are specific tasks for the brushes, wheels, filters, and (downstairs) the dock\'s wash tray, water filter, dustbag, and vent, each on its own realistic interval instead of one vague quarterly catch-all.',
+    ]},
     { v: '2026-08-21 v2', notes: [
       'A few small spacing tweaks — a little tighter here, a little more even there. Nothing you should need to notice.',
     ]},

@@ -3,7 +3,7 @@
 Living document. Not a plan and not a record — it holds only what is **still open**.
 Delete a line when it is done; do not tick it. Git history is the record.
 
-Last touched: 2026-08-21 · app at `2026-08-21 v2` · selftest 113/113 green.
+Last touched: 2026-08-21 · app at `2026-08-21 v3` · selftest 113/113 green · pool now 191 tasks.
 
 ---
 
@@ -461,33 +461,15 @@ the utilisation figure.**
 Tier balance **A 42 / B 73 / C 67** (was 46/73/67 — the four deleted steps were tier A).
 Owners **26 alina / 138 either / 18 bob**. Eight tasks now own a cycle.
 
-#### C-6 · S4 · Robot deep-clean overlap — pending her review of the full robot task list
-
-**Trash can merge: decided against, 2026-08-21.** Keeping "Clean trash can" and "Sweep under
-trash can" separate.
-
-**Robot deep-clean reset: she wants the full robot list before deciding**, not just the four
-candidate tasks. All eight, current freq/owner:
-
-| Task | Freq | Owner |
-|---|---|---|
-| Run robot vacuum (downstairs) | 1d | either |
-| Run robot vacuum (upstairs) | 4d | either |
-| Run robot mop (downstairs) | 4d | either |
-| Run robot mop (upstairs) | 14d | either |
-| Refill robot water & empty dirty tank (downstairs dock) | 14d | alina |
-| Clean robot filters (downstairs) | 30d | alina |
-| Clean robot filters (upstairs) | 30d | alina |
-| Wipe robot sensors (downstairs) | 30d | alina |
-| Wipe robot sensors (upstairs) | 30d | alina |
-| Clean dock water filter (downstairs) | 60d | alina |
-| Deep clean robot (downstairs) | 90d | alina |
-| Deep clean robot (upstairs) | 90d | alina |
-
-The original question: does "Deep clean robot" (90d) plausibly contain "Clean robot filters"
-and "Wipe robot sensors" (30d, per unit) and "Clean dock water filter" (60d)? If so, doing the
-deep clean should reset those tasks' due dates too, the way a cycle's last step resets the
-whole load.
+**C-6 resolved 2026-08-21.** Trash-can tasks stay separate (decided against merging). The
+robot question turned into something bigger once she supplied the actual manufacturer
+maintenance schedules for both units (S8 MaxV Ultra downstairs, S4 Max upstairs): rather than
+having "Deep clean robot" (90d) reset a handful of other tasks, the two vague 90d catch-alls
+are retired outright, replaced by 15 tasks each on its own manufacturer-grounded interval —
+brushes, wheels, filters, and (downstairs) the dock's wash tray, water filter, dustbag, and
+vent. Robot task count: 12 → 21 (11 new, 2 retired, 4 revised, 5 unchanged). Two names
+tightened while in there: "Clean robot filters" → "Clean washable filter" (there's one, not
+several), and "Refill robot water…" → "Refill clean water tank…" (names which reservoir).
 
 **Method note: automated overlap detection does not work on this pool.** Name-similarity
 scoring returned 65 then 47 candidates, almost all false — the naming convention puts the room
