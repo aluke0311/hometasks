@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-22 v3">
+  <meta name="app-version" content="2026-08-22 v4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -250,15 +250,8 @@
        opens the sheet) also triggers the OS text-selection / callout, so the sheet
        opens over half-highlighted task names. Nothing inside a row is selectable
        text worth keeping. */
-    .task-card { position: relative; border-bottom: 1px solid var(--hairline);
+    .task-card { position: relative; overflow: hidden; border-bottom: 1px solid var(--hairline);
                  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-    /* The swipe rail and the row it slides over, on their own positioning
-       context. Cycling cards add a face-actions row below (2026-08-22) as a
-       THIRD sibling inside .task-card — if overflow:hidden and the rail's
-       top:0;bottom:0 stayed on .task-card itself, the rail would stretch to
-       cover the taller card and show through beside the face buttons instead
-       of staying clipped behind .task-main where the swipe gesture expects it. */
-    .task-row { position: relative; overflow: hidden; }
     /* touch-action:pan-y is load-bearing: it hands vertical scrolling to the
        browser and horizontal panning to the swipe handler. Without it the
        handler's preventDefault fights native scrolling and the list feels stuck. */
@@ -304,16 +297,6 @@
        completion box. The lighter ring says the tap will not finish anything. */
     .task-card.cycling .task-check { border-color: var(--green); }
     .task-card.cycling .cyc-step { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
-    /* Real buttons on the card face, not the swipe rail (2026-08-22 audit C-5):
-       the rail is only ever revealed by a sideways drag, so anything living
-       there is invisible until you already know it's there. A running cycle's
-       controls are common enough — every load, every day — to earn a visible
-       spot, and the rail goes back to just More / Pin / Remove everywhere. */
-    .cyc-face-actions { display: flex; gap: var(--s-4); padding: 0 0 var(--s-6); }
-    .cyc-face-btn { flex: 1; min-height: 44px; border-radius: var(--radius); border: 1px solid var(--border2);
-      background: var(--bg2); color: var(--text); font-size: var(--fs-meta); font-weight: 600; cursor: pointer; }
-    .cyc-face-btn.go { border-color: var(--green); color: var(--green); }
-    .cyc-face-btn.danger { border-color: var(--red); color: var(--red); }
 
     /* Swipe rail — revealed under the row, mockup 3b. */
     .task-swipe { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
@@ -1717,12 +1700,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-22 v3';
+  const APP_VERSION = '2026-08-22 v4';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-22 v4', notes: [
+      'Undid part of the last update: a running cycle\'s Back / Drop it / Finished it are off the card again — she didn\'t want them sitting there for every load, every day. They\'re back where they always were, on the task page (tap the card\'s ⋯ or swipe to More). The card itself still says "still going?" after a few days of neglect; that\'s the only nudge it gives.',
+    ]},
     { v: '2026-08-22 v3', notes: [
       'Cycle fixes: the cat fountain no longer counts down before the dishwasher is actually running — it now says "waiting on the dishwasher" until it is. A running load\'s Back / Drop it / Finished it moved off the swipe rail onto the card itself, where you can see them. The task page\'s main button now advances one step at a time on a cycling task, with "Mark whole cycle done" as its own row for finishing the whole load in one go. Advancing a step now has an Undo, and stepping back out of the very first tap drops the cycle instead of leaving it half-started. "Start another" load now lands in today\'s hand right away, and "+ Give me more" no longer offers you a second load of laundry when today\'s is already spoken for. Wash times can now be set per load (whites vs towels) instead of one shared washer time for all six.',
     ]},
@@ -4063,9 +4049,13 @@
 
     // Her rule: nothing new goes on the swipe rail. It's revealed by a sideways
     // drag, so anything living only there is invisible until you already know
-    // it's there — More / Pin / Remove are the three she knows, every card, and
-    // that no longer changes for a running cycle (its own controls are on the
-    // card face now, below).
+    // it's there — More / Pin / Remove are the three she knows, every card. A
+    // running cycle's Back / Drop it / Finished it live on the task page only
+    // (opened via More or the ⋯ button) — not on the card in any form. An
+    // earlier version of this put them on the card face; she didn't want that
+    // for every running cycle, only wanted the "still going?" nudge to surface
+    // them after a few days of neglect, which is what cycleIsStale already does
+    // via the meta line's badge.
     const inHand = !!(state.hand && state.hand.includes(task.id));
     const q = "'" + task.id + "'";
     let rail =
@@ -4080,23 +4070,7 @@
         icon('trash', 17) + '<span>Remove</span></button>';
     }
 
-    // Real buttons on the face for a running cycle: Back (only once there's
-    // somewhere to go back to), Drop it, Finished it. Not in a compact row
-    // (Sprint) — three buttons plus the name/step/timer already fills that
-    // width, so Drop it stays reachable from the task page there instead of
-    // wrapping silently.
-    const cycFaceActions = (cyc && !compact)
-      ? '<div class="cyc-face-actions">' +
-          (cyc.stage > 0
-            ? '<button class="cyc-face-btn" onclick="event.stopPropagation();cycleBack(\'' + cyc.cid + '\')">' + icon('checkBack', 15) + ' Back</button>'
-            : '') +
-          '<button class="cyc-face-btn danger" onclick="event.stopPropagation();dropCycle(\'' + cyc.cid + '\')">' + icon('trash', 15) + ' Drop it</button>' +
-          '<button class="cyc-face-btn go" onclick="event.stopPropagation();finishCycle(\'' + cyc.cid + '\')">' + icon('check', 15) + ' Finished it</button>' +
-        '</div>'
-      : '';
-
     return '<div class="task-card' + (isDone ? ' done' : '') + (compact ? ' compact' : '') + (cyc ? ' cycling' : '') + '" id="card_' + task.id + '" data-task-id="' + task.id + '" data-can-swap="' + (canSwap ? '1' : '0') + '">' +
-      '<div class="task-row">' +
       '<div class="task-swipe">' + rail + '</div>' +
       '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
@@ -4115,8 +4089,6 @@
         // revealed on hover, so the sheet isn't swipe-only.
         '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',' + (canSwap ? 'true' : 'false') + ')" title="More actions" aria-label="More actions for ' + task.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
       '</div>' +
-      '</div>' +
-      cycFaceActions +
     '</div>';
   }
   

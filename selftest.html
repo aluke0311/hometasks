@@ -954,7 +954,10 @@ test('a cycle owner added back by hand is the one dealt', () => {
   });
 });
 
-test('a stale cycle says so on its card, with a way out', () => {
+test('a stale cycle says so on its card, with a way out via the task page', () => {
+  // The card itself only ever nudges ("still going?") — it doesn't carry its own
+  // Drop it / Finished it, fresh or stale. The way out is the task page (More /
+  // the ⋯ button), which offers both regardless of staleness.
   const owner = aCycleOwner('laundry');
   withState(st => {
     st.hand = null; st.handDate = null;
@@ -966,7 +969,10 @@ test('a stale cycle says so on its card, with a way out', () => {
     G('state').cycles[cid].stageAt = Date.now() - 5 * DAY;
     const html = G('renderCard')(owner, false);
     ok(html.indexOf('still going?') !== -1, 'a five-day-old cycle does not prompt on its card');
-    ok(html.indexOf('Drop it') !== -1, 'no way out of the stale cycle from the card');
+    G('openTaskActions')(owner.id, false);
+    const doc = document.querySelector('iframe').contentDocument;
+    const box = doc.getElementById('taskPageActions');
+    ok(box.innerHTML.indexOf('Drop it') !== -1, 'no way out of the stale cycle from the task page');
   });
 });
 
@@ -2486,22 +2492,26 @@ test('a per-load wash time beats the shared one, and the old key still works', (
   });
 });
 
-test('a cycling card renders its own Back / Drop it / Finished it, not on the swipe rail', () => {
+test('a cycling card has no Back / Drop it / Finished it of its own — those live on the task page', () => {
+  // An earlier version put these on the card face. She didn't want that for
+  // every running cycle, only wanted the "still going?" nudge after a few days
+  // of neglect (cycleIsStale's own badge) — the card itself stays plain, and
+  // Back / Drop it / Finished it are reachable only via More / the task page.
   withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
     G('dealHand')();
     const id = G('state').cycleChoice.laundry;
-    G('startCycle')(id);   // stage 1, so "Back" should show too
+    G('startCycle')(id);   // stage 1
     const html = G('renderCard')(G('getAllTasks')().find(t => t.id === id), false);
     const doc = document.querySelector('iframe').contentDocument;
     const wrap = doc.createElement('div');
     wrap.innerHTML = html;
-    const face = wrap.querySelector('.cyc-face-actions');
-    ok(!!face, 'no card-face container for the cycle controls');
-    ['Back', 'Drop it', 'Finished it'].forEach(label =>
-      ok(face.textContent.indexOf(label) !== -1, 'card face is missing "' + label + '"'));
+    eq(wrap.querySelector('.cyc-face-actions'), null, 'the card still renders its own face-actions row');
     const rail = wrap.querySelector('.task-swipe');
-    ok(rail.textContent.indexOf('Back') === -1 && rail.textContent.indexOf('Drop') === -1,
-       'the cycle controls are still on the swipe rail');
+    ['More', 'Pin'].forEach(label =>
+      ok(rail.textContent.indexOf(label) !== -1, 'rail is missing "' + label + '"'));
+    ok(rail.textContent.indexOf('Back') === -1 && rail.textContent.indexOf('Drop') === -1 &&
+       rail.textContent.indexOf('Finished') === -1,
+       'the cycle controls leaked onto the swipe rail');
   });
 });
 
