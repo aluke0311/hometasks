@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-22 v1">
+  <meta name="app-version" content="2026-08-22 v2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -892,6 +892,32 @@
     /* A whole room-pressure row is tappable — it opens that room's Deep checklist. */
     .rp-row { cursor: pointer; }
 
+    /* All Tasks room list (2026-08-22): one row per room, tap to drill in. */
+    .room-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-7);
+      width: 100%; text-align: left; background: var(--bg); border: none; border-bottom: 1px solid var(--hairline);
+      padding: var(--s-7) var(--s-10); cursor: pointer; min-height: 44px; }
+    .room-row-name { font-size: var(--fs-sub); color: var(--text); font-weight: 600; }
+    .room-row-count { font-size: var(--fs-meta); color: var(--text2); margin-top: 2px; }
+    .room-row-right { display: flex; align-items: center; gap: var(--s-4); flex-shrink: 0; }
+    .room-row-pressure { font-size: var(--fs-meta); font-weight: 600; white-space: nowrap; }
+    .room-row-chev { display: flex; color: var(--text3); flex-shrink: 0; }
+    /* The header for a single room's task list: name, count, back control. Sticky
+       so the back control stays reachable from the bottom of a 40-task room. */
+    .manage-room-head { position: sticky; top: 0; z-index: 5; background: var(--bg);
+      padding: var(--s-6) var(--s-10); border-bottom: 1px solid var(--hairline); }
+    .manage-back { display: inline-flex; align-items: center; gap: var(--s-2); background: none; border: none;
+      color: var(--green); font-size: var(--fs-meta); font-weight: 600; padding: var(--s-3) 0; cursor: pointer;
+      min-height: 44px; }
+    .manage-back svg { transform: scaleX(-1); }
+    .manage-room-title { font-family: var(--serif); font-size: var(--fs-title); font-weight: 600; margin-top: var(--s-2); }
+    .manage-room-count { font-size: var(--fs-meta); color: var(--text2); margin-top: 2px; }
+    /* The escape hatch out of a room-scoped search — never a dead end. */
+    .search-everywhere { display: block; margin: 0 var(--s-10) var(--s-7);
+      background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius);
+      color: var(--text); font-size: var(--fs-sub); padding: var(--s-6); text-align: left; cursor: pointer;
+      min-height: 44px; }
+    .search-everywhere b { color: var(--green); }
+
     /* ── Tap targets (Surface audit 2026-08-16) ────────────────────────────
        539 interactive boxes computed below 44×44, across 76 distinct shapes, and
        height was almost always the failing dimension — plenty are 100–300px wide
@@ -1662,12 +1688,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-22 v1';
+  const APP_VERSION = '2026-08-22 v2';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-22 v2', notes: [
+      'All Tasks now lands on the rooms themselves — tap a room to see its tasks, sorted by how overdue the room is or A–Z. It\'s an experiment: flip it back to one long list any time from Settings → All Tasks opens on.',
+    ]},
     { v: '2026-08-22 v1', notes: [
       '"Last done" could read one day too recent — a task ticked yesterday evening and checked this morning said "today" instead of "yesterday", and the same fault shifted overdue badges, so two tasks last done on the same date could show different lateness. Both now count in calendar days. The task page also gained "Add to today" for a task that isn\'t in your hand yet — before, it could only remove a task from today, never add one.',
     ]},
@@ -1895,7 +1924,7 @@
     TASKS.forEach(t => {
       completions[t.id] = now - (t.freq * 86400000);
     });
-    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, cycleTimings: {}, cycleChoice: {}, cycleChoiceDate: null, bobAway: false, bobAwaySince: null, customRooms: [] };
+    return { completions, budgetWeekday: 45, budgetWeekend: 90, zone: 0, hand: null, handDate: null, starvationDate: null, customTasks: {}, deletedIds: [], pinnedIds: [], starvation: {}, guestHand: null, resetHand: null, goingOutHand: null, snoozed: {}, flaggedIds: [], completionHistory: {}, mode: 'maintenance', tierCLastDate: null, presetHands: {}, lastBackupDate: null, zoneMode: 'auto', paused: false, pausedAt: null, taskMonths: {}, seasonalDefaultsApplied: false, taskVac: {}, vacDefaultsApplied: false, actualTimes: {}, inProgress: {}, removedToday: [], removedTodayDate: null, yearStats: {}, derivedSince: Date.now(), milestones: {}, bestStreak: 0, seenVersion: null, todayBudget: null, todayBudgetDate: null, prevCompletions: {}, activeTimer: null, cycles: {}, cycleTimings: {}, cycleChoice: {}, cycleChoiceDate: null, bobAway: false, bobAwaySince: null, customRooms: [], tasksView: 'rooms', tasksRoomSort: 'pressure' };
   }
   
   // Fields whose default is null, so their type can't be inferred from
@@ -4451,6 +4480,9 @@
   
   function switchTab(tab) {
     const wasAlreadyOnTab = currentTab === tab;
+    // View position, not a preference — a room drilled into on All Tasks should
+    // not still be open if she leaves the tab and comes back.
+    if (tab !== 'manage') manageRoom = null;
     currentTab = tab;
     sessionStorage.setItem('activeTab', tab);
     const views = ['alina', 'manage', 'sprint', 'presets', 'stats', 'settings'];
@@ -5800,6 +5832,32 @@
     return { real, ratio, color };
   }
 
+  // Median of (days since done ÷ target) per room. 1.0 = exactly due.
+  // One definition, used by the Stats card and by the All Tasks room list — two
+  // screens answering "which room is worst" must never answer it differently.
+  // Deliberately excludes dailies, Bob's tasks and out-of-season tasks, because it
+  // mirrors what dealing sees — it will not always agree with a room's raw task count.
+  function roomPressure() {
+    const allTasks = getAllTasks();
+    const byRoom = {};
+    allTasks.forEach(t => {
+      if (t.oneOff || t.freq <= 1 || t.owner === 'bob' || !inSeason(t)) return;
+      const p = Math.max(0, 1 + daysOverdue(t) / t.freq);
+      if (!byRoom[t.room]) byRoom[t.room] = { pressures: [], overdue: 0 };
+      byRoom[t.room].pressures.push(p);
+      if (p >= 1) byRoom[t.room].overdue++;
+    });
+    const presetByLabel = {};
+    ROOM_PRESETS.forEach(r => presetByLabel[r.label] = r.id);
+    return Object.entries(byRoom).map(([room, d]) => {
+      const s = d.pressures.sort((a,b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      const median = s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+      const zone = Object.keys(ZONE_ROOMS).find(z => ZONE_ROOMS[z].includes(room)) || null;
+      return { room, median, overdue: d.overdue, total: d.pressures.length, zone, presetId: presetByLabel[room] || null };
+    }).sort((a,b) => b.median - a.median);
+  }
+
   // Adopt the real cadence as the new target frequency (same override path as the editor)
   function setTaskFreq(id, freq) {
     const t = getAllTasks().find(x => x.id === id);
@@ -6048,25 +6106,10 @@
 
     // ── Room Pressure: median (days since done ÷ target) per room, worst first ──
     // 1.0 = exactly due; matches what dealing sees (non-daily, in-season, alina/either)
-    const roomPressure = (function() {
-      const byRoom = {};
-      allTasks.forEach(t => {
-        if (t.oneOff || t.freq <= 1 || t.owner === 'bob' || !inSeason(t)) return;
-        const p = Math.max(0, 1 + daysOverdue(t) / t.freq);
-        if (!byRoom[t.room]) byRoom[t.room] = { pressures: [], overdue: 0 };
-        byRoom[t.room].pressures.push(p);
-        if (p >= 1) byRoom[t.room].overdue++;
-      });
-      const presetByLabel = {};
-      ROOM_PRESETS.forEach(r => presetByLabel[r.label] = r.id);
-      const rows = Object.entries(byRoom).map(([room, d]) => {
-        const s = d.pressures.sort((a,b) => a - b);
-        const mid = Math.floor(s.length / 2);
-        const median = s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
-        const zone = Object.keys(ZONE_ROOMS).find(z => ZONE_ROOMS[z].includes(room)) || null;
-        return { room, median, overdue: d.overdue, total: d.pressures.length, zone, presetId: presetByLabel[room] || null };
-      }).sort((a,b) => b.median - a.median);
-      return rows.map(r => {
+    // Computation lives in the top-level roomPressure(), shared with the All Tasks
+    // room list — only the rendering into cards stays local to this screen.
+    const roomPressureHtml = (function() {
+      return roomPressure().map(r => {
         const color = r.median >= 1.5 ? 'var(--red)' : r.median >= 1 ? 'var(--amber)' : 'var(--green)';
         const width = Math.round(Math.min(r.median / 2, 1) * 100);
         const zoneChip = r.zone ? '<span class="rp-zone">Z' + r.zone + '</span>' : '';
@@ -6156,7 +6199,7 @@
       '<div class="settings-card">' +
         '<div class="settings-card-title">Room Pressure</div>' +
         '<div class="settings-card-desc">How overdue each room is overall &mdash; median of (days since done &divide; target) across its non-daily tasks. <b>1.0&times;</b> = exactly due. Tap a room to open its Deep checklist.</div>' +
-        roomPressure +
+        roomPressureHtml +
       '</div>' +
       '<div class="settings-card">' +
         '<div class="settings-card-title">What you actually do</div>' +
@@ -6249,6 +6292,17 @@
             : '<div class="settings-card-desc" style="margin-top:8px">No rooms added yet.</div>') +
         '</div>';
       })() +
+
+      // Card: All Tasks view — an experiment (2026-08-22), reversible in one tap.
+      // Keep both render paths alive; this toggle is the only thing between them.
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">All Tasks opens on</div>' +
+        '<div class="settings-card-desc">Rooms is a two-tap drill-down: tap a room, then its tasks. One long list is the classic scroll of everything at once.</div>' +
+        '<div class="chip-row">' +
+          '<button class="chip' + ((state.tasksView || 'rooms') === 'rooms' ? ' on' : '') + '" onclick="setTasksView(\'rooms\')">Rooms</button>' +
+          '<button class="chip' + (state.tasksView === 'flat' ? ' on' : '') + '" onclick="setTasksView(\'flat\')">One long list</button>' +
+        '</div>' +
+      '</div>' +
 
       // Card 3: System Overview
       '<div class="settings-card">' +
@@ -6587,24 +6641,163 @@
   }
 
   // ─── MANAGE TAB ────────────────────────────────────────────────────────────
-  
+
   let manageOwnerFilter = 'all';
   let manageRoomFilter = 'all';
   let manageDueFilter = 'all';
   let manageSearch = '';
   let editingId = null;
-  
+  // View position, not a preference — resets when she leaves the tab, exactly
+  // like the search box. Which room (if any) is drilled into, in 'rooms' view.
+  let manageRoom = null;
+
+  // 3d draws rooms as a chip strip, but there are 18 of them: all but three
+  // scroll off-screen, so picking a room meant swiping blind through a rail.
+  // Rooms are a select; status and owner stay as chips, where the whole set
+  // is visible at once and the strip earns its place.
+  const manageChip = (label, on, onclick) =>
+    '<button class="chip' + (on ? ' on' : '') + '" onclick="' + onclick + '">' + label + '</button>';
+
+  // One task row. Both the flat list and the room drill-down render exactly this
+  // markup — same swipe rail, same tap-to-open-task-page — so the drill-down is
+  // never a second, drifting copy of the row.
+  function taskRowHtml(t) {
+    const isCustom = !!(state.customTasks && state.customTasks[t.id]);
+    const overdue = daysOverdue(t);
+    const isDoneToday = wasCompletedToday(t);
+    const last = state.completions[t.id] || 0;
+    const inHand = !!(state.hand && state.hand.includes(t.id));
+    const isFlagged = (state.flaggedIds || []).includes(t.id);
+    const isPinned = (state.pinnedIds || []).includes(t.id);
+    const q = "'" + t.id + "'";
+
+    // One quiet line: cadence, then the single most useful fact about state.
+    const bits = [freqLabel(t.freq).replace(/^./, c => c.toUpperCase())];
+    if (!inSeason(t)) bits.push('<span class="task-notdue">off-season</span>');
+    else if (isDoneToday) bits.push('done today');
+    else if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>');
+    else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
+    // Nothing for "due now": with a due filter right above the list, saying it
+    // on most of 186 rows is noise, and "last done" already implies it.
+    bits.push('last done ' + (last ? relativeDay(last) : 'never'));
+    if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
+    if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
+    if (t.owner === 'bob') bits.push('Bob');
+    if (isCustom) bits.push('<span class="tag-custom">custom</span>');
+    const cad = cadenceInfo(t);
+    if (cad !== null) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + t.freq + 'd">~' + cad.real + 'd real</span>');
+    const samples = (state.actualTimes || {})[t.id] || [];
+    const learned = taskTime(t);
+    if (samples.length >= 3 && learned !== t.time) {
+      bits.push('<span class="tag-learned" title="learned from ' + samples.length + ' timed runs">~' + learned + 'm real (est ' + t.time + 'm)</span>');
+    }
+
+    return (
+      '<div class="task-card manage-row" data-task-id="' + t.id + '" data-can-swap="0">' +
+        '<div class="task-swipe">' +
+          '<button class="sw-more" onclick="openTaskActions(' + q + ',false)" aria-label="More actions">' + icon('dots', 19) + '<span>More</span></button>' +
+          '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' + icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>' +
+          '<button class="' + (inHand ? 'sw-remove' : 'sw-today') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(' + q + ')" aria-label="' + (inHand ? 'Remove from today' : 'Add to today') + '">' +
+            icon(inHand ? 'trash' : 'plus', 17) + '<span>' + (inHand ? 'Remove' : 'Today') + '</span></button>' +
+        '</div>' +
+        // Tap opens the editor: this is the library, and editing is what it's for.
+        '<div class="task-main" onclick="openModal(' + q + ')">' +
+          '<div class="task-body">' +
+            '<div class="task-name">' +
+              (isPinned ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '') +
+              '<span class="task-name-text">' + t.name + '</span>' +
+              (inHand ? '<span class="in-hand-dot" title="In today\'s hand"></span>' : '') +
+            '</div>' +
+            '<div class="task-meta"><span class="task-meta-main">' + bits.join(' · ') + '</span></div>' +
+          '</div>' +
+          '<span class="task-time">' + fmtMinutes(learned) + '</span>' +
+          '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',false)" title="More actions" aria-label="More actions for ' + t.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  // Shared filter: owner + due + search + (optionally) a single room. Both the
+  // flat list and the room drill-down go through this, so "which tasks match"
+  // is answered once. `room: null` means whole-house.
+  function manageFilteredTasks(room, searchTerm) {
+    const s = (searchTerm != null ? searchTerm : manageSearch).toLowerCase();
+    return getAllTasks().filter(t => {
+      if (t.oneOff) return false;
+      if (manageOwnerFilter !== 'all' && t.owner !== manageOwnerFilter) return false;
+      if (room && t.room !== room) return false;
+      if (manageDueFilter !== 'all') {
+        const isDueNow = inSeason(t) && daysOverdue(t) >= 0;
+        if (manageDueFilter === 'due' && !isDueNow) return false;
+        if (manageDueFilter === 'notdue' && isDueNow) return false;
+      }
+      if (s && !t.name.toLowerCase().includes(s)) return false;
+      return true;
+    }).sort((a,b) => a.freq - b.freq || a.name.localeCompare(b.name));
+  }
+
+  // Router: the toggle in Settings picks between the two render paths. Neither
+  // is deleted — if the experiment fails she flips it back in one tap.
   function renderManage() {
+    if ((state.tasksView || 'rooms') === 'flat') { renderManageFlat(); return; }
+    renderManageRoomsView();
+  }
+
+  function switchManageRoomSort(v) {
+    state.tasksRoomSort = v;
+    saveState();
+    renderManage();
+  }
+
+  // The Settings toggle: flips which of the two render paths All Tasks uses.
+  // Both paths stay in the codebase — this is the only thing between them.
+  function setTasksView(v) {
+    state.tasksView = v;
+    manageRoom = null;
+    saveState();
+    if (currentTab === 'manage') renderManage();
+    renderSettings();
+  }
+
+  function openManageRoom(room) {
+    manageRoom = room;
+    renderManage();
+  }
+
+  // The back control: leaves the room AND drops its search term, so a Kitchen
+  // search never leaks out to the house.
+  function backToRoomList() {
+    manageRoom = null;
+    manageSearch = '';
+    // The render syncs manageSearch from the live DOM box (see
+    // syncManageSearchFromDom), so the box itself has to be cleared too, or the
+    // old room's search term would read straight back out of the stale input.
+    const el = document.getElementById('manageSearch');
+    if (el) el.value = '';
+    renderManage();
+  }
+
+  // The escape hatch: leaves the room but KEEPS the search term, so the same
+  // query re-runs across the house instead of being lost.
+  function searchEverywhere() {
+    manageRoom = null;
+    renderManage();
+  }
+
+  // Reads the search box's live DOM value back into the module variable before a
+  // render. Normal typing already keeps the two in step via the input's oninput,
+  // but this makes a render triggered any other way (a filter chip, a room tap)
+  // honour whatever is actually sitting in the box rather than a stale mirror.
+  function syncManageSearchFromDom() {
+    const el = document.getElementById('manageSearch');
+    if (el) manageSearch = el.value;
+  }
+
+  function renderManageFlat() {
+    syncManageSearchFromDom();
     const searchWasFocused = document.activeElement && document.activeElement.classList.contains('search-input');
     const allTasks = getAllTasks();
     const rooms = [...new Set(allTasks.map(t => t.room))].sort();
-
-    // 3d draws rooms as a chip strip, but there are 18 of them: all but three
-    // scroll off-screen, so picking a room meant swiping blind through a rail.
-    // Rooms are a select; status and owner stay as chips, where the whole set
-    // is visible at once and the strip earns its place.
-    const chip = (label, on, onclick) =>
-      '<button class="chip' + (on ? ' on' : '') + '" onclick="' + onclick + '">' + label + '</button>';
 
     const esc = v => String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     const roomCounts = {};
@@ -6625,7 +6818,7 @@
         '</div>' +
       '</div>' +
       '<div class="search-well">' + icon('search', 16, 1.8) +
-        '<input class="search-input" placeholder="Search tasks" value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
+        '<input class="search-input" id="manageSearch" placeholder="Search tasks" value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
       '</div>' +
       '<div class="select-well">' +
         '<select class="room-select" aria-label="Filter by room" onchange="manageRoomFilter=this.value;renderManage()">' +
@@ -6633,30 +6826,18 @@
         '</select>' +
       '</div>' +
       '<div class="chip-row">' +
-        chip('All', manageDueFilter === 'all' && manageOwnerFilter === 'all', "manageDueFilter='all';manageOwnerFilter='all';renderManage()") +
-        chip('Due now', manageDueFilter === 'due', "manageDueFilter='due';renderManage()") +
-        chip('Not due', manageDueFilter === 'notdue', "manageDueFilter='notdue';renderManage()") +
+        manageChip('All', manageDueFilter === 'all' && manageOwnerFilter === 'all', "manageDueFilter='all';manageOwnerFilter='all';renderManage()") +
+        manageChip('Due now', manageDueFilter === 'due', "manageDueFilter='due';renderManage()") +
+        manageChip('Not due', manageDueFilter === 'notdue', "manageDueFilter='notdue';renderManage()") +
         '<span class="chip-sep"></span>' +
-        chip('Alina', manageOwnerFilter === 'alina', "manageOwnerFilter='alina';renderManage()") +
-        chip('Bob', manageOwnerFilter === 'bob', "manageOwnerFilter='bob';renderManage()") +
-        chip('Either', manageOwnerFilter === 'either', "manageOwnerFilter='either';renderManage()") +
+        manageChip('Alina', manageOwnerFilter === 'alina', "manageOwnerFilter='alina';renderManage()") +
+        manageChip('Bob', manageOwnerFilter === 'bob', "manageOwnerFilter='bob';renderManage()") +
+        manageChip('Either', manageOwnerFilter === 'either', "manageOwnerFilter='either';renderManage()") +
       '</div>' +
       '';
-  
-    const search = manageSearch.toLowerCase();
-    const filtered = allTasks.filter(t => {
-      if (t.oneOff) return false;
-      if (manageOwnerFilter !== 'all' && t.owner !== manageOwnerFilter) return false;
-      if (manageRoomFilter !== 'all' && t.room !== manageRoomFilter) return false;
-      if (manageDueFilter !== 'all') {
-        const isDueNow = inSeason(t) && daysOverdue(t) >= 0;
-        if (manageDueFilter === 'due' && !isDueNow) return false;
-        if (manageDueFilter === 'notdue' && isDueNow) return false;
-      }
-      if (search && !t.name.toLowerCase().includes(search)) return false;
-      return true;
-    }).sort((a,b) => a.freq - b.freq || a.name.localeCompare(b.name));
-  
+
+    const filtered = manageFilteredTasks(manageRoomFilter === 'all' ? null : manageRoomFilter);
+
     // 3d groups by room. Within a room the frequency sort still applies.
     const byRoom = new Map();
     filtered.forEach(t => {
@@ -6671,63 +6852,7 @@
       html += '<div class="section-label gutter">' +
         '<span>' + room + '</span>' +
         '<span class="section-label-time">' + list.length + ' task' + (list.length === 1 ? '' : 's') + '</span>' +
-      '</div><div class="rowlist">';
-
-      list.forEach(t => {
-        const isCustom = !!(state.customTasks && state.customTasks[t.id]);
-        const overdue = daysOverdue(t);
-        const isDoneToday = wasCompletedToday(t);
-        const last = state.completions[t.id] || 0;
-        const inHand = !!(state.hand && state.hand.includes(t.id));
-        const isFlagged = (state.flaggedIds || []).includes(t.id);
-        const isPinned = (state.pinnedIds || []).includes(t.id);
-        const q = "'" + t.id + "'";
-
-        // One quiet line: cadence, then the single most useful fact about state.
-        const bits = [freqLabel(t.freq).replace(/^./, c => c.toUpperCase())];
-        if (!inSeason(t)) bits.push('<span class="task-notdue">off-season</span>');
-        else if (isDoneToday) bits.push('done today');
-        else if (overdue >= 1) bits.push('<span class="task-overdue">' + Math.floor(overdue) + 'd overdue</span>');
-        else if (overdue < 0) bits.push('<span class="task-notdue">in ' + Math.ceil(-overdue) + 'd</span>');
-        // Nothing for "due now": with a due filter right above the list, saying it
-        // on most of 186 rows is noise, and "last done" already implies it.
-        bits.push('last done ' + (last ? relativeDay(last) : 'never'));
-        if (isPinned) bits.push('<span class="task-pinned-word">pinned</span>');
-        if (isFlagged) bits.push('<span class="task-overdue">flagged</span>');
-        if (t.owner === 'bob') bits.push('Bob');
-        if (isCustom) bits.push('<span class="tag-custom">custom</span>');
-        const cad = cadenceInfo(t);
-        if (cad !== null) bits.push('<span style="color:' + cad.color + '" title="real cadence vs target ' + t.freq + 'd">~' + cad.real + 'd real</span>');
-        const samples = (state.actualTimes || {})[t.id] || [];
-        const learned = taskTime(t);
-        if (samples.length >= 3 && learned !== t.time) {
-          bits.push('<span class="tag-learned" title="learned from ' + samples.length + ' timed runs">~' + learned + 'm real (est ' + t.time + 'm)</span>');
-        }
-
-        html +=
-          '<div class="task-card manage-row" data-task-id="' + t.id + '" data-can-swap="0">' +
-            '<div class="task-swipe">' +
-              '<button class="sw-more" onclick="openTaskActions(' + q + ',false)" aria-label="More actions">' + icon('dots', 19) + '<span>More</span></button>' +
-              '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' + icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>' +
-              '<button class="' + (inHand ? 'sw-remove' : 'sw-today') + '" onclick="' + (inHand ? 'removeFromHand' : 'addToHand') + '(' + q + ')" aria-label="' + (inHand ? 'Remove from today' : 'Add to today') + '">' +
-                icon(inHand ? 'trash' : 'plus', 17) + '<span>' + (inHand ? 'Remove' : 'Today') + '</span></button>' +
-            '</div>' +
-            // Tap opens the editor: this is the library, and editing is what it's for.
-            '<div class="task-main" onclick="openModal(' + q + ')">' +
-              '<div class="task-body">' +
-                '<div class="task-name">' +
-                  (isPinned ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '') +
-                  '<span class="task-name-text">' + t.name + '</span>' +
-                  (inHand ? '<span class="in-hand-dot" title="In today\'s hand"></span>' : '') +
-                '</div>' +
-                '<div class="task-meta"><span class="task-meta-main">' + bits.join(' · ') + '</span></div>' +
-              '</div>' +
-              '<span class="task-time">' + fmtMinutes(learned) + '</span>' +
-              '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',false)" title="More actions" aria-label="More actions for ' + t.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
-            '</div>' +
-          '</div>';
-      });
-      html += '</div>';
+      '</div><div class="rowlist">' + list.map(taskRowHtml).join('') + '</div>';
     });
 
     html += '</div><div class="bottom-pad"></div>';
@@ -6737,7 +6862,167 @@
       if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
     }
   }
-  
+
+  // The room-list / room-drilldown pair (2026-08-22). Level 1 lists rooms — or,
+  // while searching, the matches flat across the house, exactly like the old
+  // screen, because there is no room scope to respect until she picks one.
+  // Level 2 is one room's tasks, search scoped to that room, with an escape
+  // hatch back out. Neither level forks the row markup — see taskRowHtml.
+  function renderManageRoomsView() {
+    syncManageSearchFromDom();
+    const searchWasFocused = document.activeElement && document.activeElement.classList.contains('search-input');
+    const allTasks = getAllTasks();
+    const roomsCount = new Set(allTasks.map(t => t.room)).size;
+
+    const head =
+      '<div class="screen-head">' +
+        '<div class="screen-head-row">' +
+          '<div>' +
+            '<div class="eyebrow">' + allTasks.length + ' tasks · ' + roomsCount + ' rooms</div>' +
+            '<div class="screen-title">All Tasks</div>' +
+          '</div>' +
+          '<button class="round-add" onclick="openModal(null)" title="Add a task" aria-label="Add a task">' + icon('plus', 17, 2) + '</button>' +
+        '</div>' +
+      '</div>';
+
+    const searchWell =
+      '<div class="search-well">' + icon('search', 16, 1.8) +
+        '<input class="search-input" id="manageSearch" placeholder="' + (manageRoom ? 'Search in ' + manageRoom : 'Search tasks') + '" value="' + manageSearch.replace(/"/g,'&quot;') + '" oninput="manageSearch=this.value;renderManage()">' +
+      '</div>';
+
+    const filterRow =
+      '<div class="chip-row">' +
+        manageChip('All', manageDueFilter === 'all' && manageOwnerFilter === 'all', "manageDueFilter='all';manageOwnerFilter='all';renderManage()") +
+        manageChip('Due now', manageDueFilter === 'due', "manageDueFilter='due';renderManage()") +
+        manageChip('Not due', manageDueFilter === 'notdue', "manageDueFilter='notdue';renderManage()") +
+        '<span class="chip-sep"></span>' +
+        manageChip('Alina', manageOwnerFilter === 'alina', "manageOwnerFilter='alina';renderManage()") +
+        manageChip('Bob', manageOwnerFilter === 'bob', "manageOwnerFilter='bob';renderManage()") +
+        manageChip('Either', manageOwnerFilter === 'either', "manageOwnerFilter='either';renderManage()") +
+      '</div>';
+
+    let html = head + searchWell + filterRow;
+
+    if (manageRoom) {
+      // ── Level 2: one room's tasks ──
+      const roomTasks = manageFilteredTasks(manageRoom);
+      const roomTotal = getAllTasks().filter(t => !t.oneOff && t.room === manageRoom).length;
+
+      html +=
+        '<div class="manage-room-head">' +
+          '<button class="manage-back" onclick="backToRoomList()">' + icon('chevron', 18, 2) + 'All Rooms</button>' +
+          '<div class="manage-room-title">' + manageRoom + '</div>' +
+          '<div class="manage-room-count">' + roomTotal + ' task' + (roomTotal === 1 ? '' : 's') + '</div>' +
+        '</div>';
+
+      if (manageSearch) {
+        const wholeHouse = manageFilteredTasks(null);
+        const outside = wholeHouse.filter(t => t.room !== manageRoom).length;
+        if (outside > 0) {
+          html += '<button class="search-everywhere" onclick="searchEverywhere()">Search everywhere' +
+            (roomTasks.length === 0
+              ? ' <b>· ' + outside + ' match' + (outside === 1 ? '' : 'es') + ' in other rooms</b>'
+              : ' <span class="muted">· ' + outside + ' more</span>') +
+            '</button>';
+        }
+      }
+
+      if (!roomTasks.length) {
+        html += '<div class="empty">' +
+          (manageSearch ? 'Nothing in ' + manageRoom + ' matches.' : 'Nothing matches those filters.') +
+          '</div>';
+      } else {
+        html += '<div class="rowlist">' + roomTasks.map(taskRowHtml).join('') + '</div>';
+      }
+    } else if (manageSearch) {
+      // ── Level 1 while searching: whole house, flat, grouped by room ──
+      // No room is chosen yet, so there is no scope to respect.
+      const filtered = manageFilteredTasks(null);
+      const byRoom = new Map();
+      filtered.forEach(t => {
+        if (!byRoom.has(t.room)) byRoom.set(t.room, []);
+        byRoom.get(t.room).push(t);
+      });
+      if (!filtered.length) html += '<div class="empty">Nothing matches that search or those filters.</div>';
+      [...byRoom.keys()].sort().forEach(room => {
+        const list = byRoom.get(room);
+        html += '<div class="section-label gutter">' +
+          '<span>' + room + '</span>' +
+          '<span class="section-label-time">' + list.length + ' task' + (list.length === 1 ? '' : 's') + '</span>' +
+        '</div><div class="rowlist">' + list.map(taskRowHtml).join('') + '</div>';
+      });
+    } else {
+      // ── Level 1: the room list itself ──
+      const sort = state.tasksRoomSort || 'pressure';
+      html +=
+        '<div class="chip-row">' +
+          manageChip('Most overdue', sort === 'pressure', "switchManageRoomSort('pressure')") +
+          manageChip('A–Z', sort === 'az', "switchManageRoomSort('az')") +
+        '</div>';
+
+      const pressureByRoom = {};
+      roomPressure().forEach(r => { pressureByRoom[r.room] = r; });
+
+      const filtered = manageFilteredTasks(null, '');
+      const byRoom = new Map();
+      filtered.forEach(t => {
+        if (!byRoom.has(t.room)) byRoom.set(t.room, []);
+        byRoom.get(t.room).push(t);
+      });
+      let rows = [...byRoom.keys()].map(room => {
+        const list = byRoom.get(room);
+        const dueCount = list.filter(t => inSeason(t) && daysOverdue(t) >= 0).length;
+        return { room, count: list.length, due: dueCount, pressure: pressureByRoom[room] || null };
+      });
+
+      if (sort === 'az') {
+        rows.sort((a,b) => a.room.localeCompare(b.room));
+      } else {
+        rows.sort((a,b) => {
+          const pa = a.pressure ? a.pressure.median : -Infinity;
+          const pb = b.pressure ? b.pressure.median : -Infinity;
+          if (pa === pb) return a.room.localeCompare(b.room);
+          return pb - pa;
+        });
+      }
+
+      if (!rows.length) {
+        html += '<div class="empty">Nothing matches those filters.</div>';
+      } else {
+        html += '<div class="rowlist">' + rows.map(r => {
+          const p = r.pressure;
+          const color = !p ? 'var(--text3)' : p.median >= 1.5 ? 'var(--red)' : p.median >= 1 ? 'var(--amber)' : 'var(--green)';
+          const pLabel = p ? p.median.toFixed(1) + '×' : '—';
+          return '<button class="room-row" onclick="openManageRoom(\'' + r.room.replace(/'/g,"\\'") + '\')">' +
+            '<div>' +
+              '<div class="room-row-name">' + r.room + '</div>' +
+              '<div class="room-row-count">' + r.count + ' task' + (r.count === 1 ? '' : 's') +
+                (r.due > 0 ? ' · ' + r.due + ' due' : '') + '</div>' +
+            '</div>' +
+            '<div class="room-row-right">' +
+              '<span class="room-row-pressure" style="color:' + color + '">' + pLabel + '</span>' +
+              '<span class="room-row-chev">' + icon('chevron', 18, 1.8) + '</span>' +
+            '</div>' +
+          '</button>';
+        }).join('') + '</div>';
+      }
+    }
+
+    html += '<div class="bottom-pad"></div>';
+    document.getElementById('manageTaskList').innerHTML = html;
+    if (manageSearch && searchWasFocused) {
+      const inp = document.getElementById('manageTaskList').querySelector('.search-input');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+    // The app's own header is sticky at top:0 too, so a room head stuck at the
+    // same offset renders half-covered underneath it. Sit just below its real
+    // rendered height, which includes env(safe-area-inset-top) and so isn't a
+    // fixed number.
+    const roomHead = document.querySelector('.manage-room-head');
+    const appHeader = document.querySelector('.header');
+    if (roomHead && appHeader) roomHead.style.top = appHeader.offsetHeight + 'px';
+  }
+
   function getAllTasks() {
     const deleted = state.deletedIds || [];
     const custom = state.customTasks || {};

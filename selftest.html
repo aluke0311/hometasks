@@ -2292,6 +2292,104 @@ test('the why-modal opens above the task page, not behind it', () => {
   });
 });
 
+// ─── All Tasks room view ───────────────────────────────────────────────────
+group('All Tasks room view');
+
+test('every room holding a visible task appears in the room list', () => {
+  // The drill-down hides most tasks behind a tap. A room missing from the list is
+  // a set of tasks with no route to them at all.
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'rooms'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    const rows = doc.querySelectorAll('#manageView .room-row');
+    const rooms = new Set(G('getAllTasks')().filter(t => !t.oneOff).map(t => t.room));
+    ok(rows.length > 0, 'the room list did not render');
+    eq(rows.length, rooms.size, 'rooms rendered: ' + rows.length + ', rooms with tasks: ' + rooms.size);
+  });
+});
+
+test('the flat list is still reachable, so the experiment can be switched off', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'flat'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    ok(doc.querySelectorAll('#manageView .manage-row').length > 50,
+       'the old one-long-list path no longer renders');
+  });
+});
+
+test('a search inside a room stays inside that room', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'rooms'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openManageRoom')('Kitchen');
+    doc.getElementById('manageSearch').value = 'towel';
+    G('renderManage')();
+    const box = doc.getElementById('manageView');
+    const shown = [...box.querySelectorAll('.manage-row')].map(r => r.dataset.taskId);
+    const rooms = new Set(shown.map(id => G('getAllTasks')().find(t => t.id === id).room));
+    ok(shown.length > 0, 'a scoped search returned nothing at all');
+    eq([...rooms].join(','), 'Kitchen', 'the search escaped the room, showing: ' + [...rooms].join(','));
+    ok(box.innerHTML.indexOf('Search everywhere') !== -1, 'no escape hatch out of the scoped search');
+  });
+});
+
+test('search everywhere leaves the room and widens the search', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'rooms'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openManageRoom')('Kitchen');
+    doc.getElementById('manageSearch').value = 'towel';
+    G('renderManage')();
+    G('searchEverywhere')();
+    const box = doc.getElementById('manageView');
+    const rooms = new Set([...box.querySelectorAll('.manage-row')]
+      .map(r => G('getAllTasks')().find(t => t.id === r.dataset.taskId).room));
+    ok(rooms.size > 1, 'widening the search stayed inside one room');
+    eq(doc.getElementById('manageSearch').value, 'towel', 'the search term was lost on the way out');
+  });
+});
+
+test('a level-2 search with no local match still offers the whole-house count', () => {
+  // Never a dead end: a search that returns "no results" while the task exists
+  // two rooms away is exactly the failure the escape hatch exists to prevent.
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'rooms'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    const outside = G('getAllTasks')().find(t => !t.oneOff && t.room !== 'Kitchen' &&
+      t.name.toLowerCase().indexOf('whites') !== -1);
+    ok(!!outside, 'fixture needs a non-Kitchen task named "whites" to search for');
+    G('openManageRoom')('Kitchen');
+    doc.getElementById('manageSearch').value = 'whites';
+    G('renderManage')();
+    const box = doc.getElementById('manageView');
+    eq(box.querySelectorAll('.manage-row').length, 0, 'precondition: no match inside Kitchen');
+    ok(box.innerHTML.indexOf('Search everywhere') !== -1, 'no escape hatch on a zero-result scoped search');
+    ok(/other room/i.test(box.innerHTML), 'the empty state did not say matches exist elsewhere');
+  });
+});
+
+test('leaving a room by the back control drops its search term', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.tasksView = 'rooms'; }, () => {
+    G('switchTab')('manage');
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openManageRoom')('Kitchen');
+    doc.getElementById('manageSearch').value = 'towel';
+    G('renderManage')();
+    G('backToRoomList')();
+    const box = doc.getElementById('manageView');
+    eq(doc.getElementById('manageSearch').value, '', 'the room search term followed her back out to the house');
+    ok(box.querySelectorAll('.room-row').length > 0, 'back did not return to the room list');
+  });
+});
+
+test('room pressure has one definition, shared by Stats and All Tasks', () => {
+  // Two screens answering "which room is worst" must not answer it differently.
+  const rp = G('roomPressure')();
+  ok(Array.isArray(rp) && rp.length > 0, 'roomPressure() returned nothing');
+  ok(rp.every(r => typeof r.median === 'number' && typeof r.overdue === 'number'),
+     'roomPressure() rows are missing median/overdue');
+});
+
 // ─── Version hygiene ───────────────────────────────────────────────────────
 group('Version hygiene');
 
