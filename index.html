@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-21 v3">
+  <meta name="app-version" content="2026-08-22 v1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -1662,12 +1662,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-21 v3';
+  const APP_VERSION = '2026-08-22 v1';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-22 v1', notes: [
+      '"Last done" could read one day too recent — a task ticked yesterday evening and checked this morning said "today" instead of "yesterday", and the same fault shifted overdue badges, so two tasks last done on the same date could show different lateness. Both now count in calendar days. The task page also gained "Add to today" for a task that isn\'t in your hand yet — before, it could only remove a task from today, never add one.',
+    ]},
     { v: '2026-08-21 v3', notes: [
       'The robot vacuum maintenance tasks were reworked against the actual manufacturer schedule for both units. "Deep clean robot" is gone — in its place are specific tasks for the brushes, wheels, filters, and (downstairs) the dock\'s wash tray, water filter, dustbag, and vent, each on its own realistic interval instead of one vague quarterly catch-all.',
     ]},
@@ -2060,10 +2063,26 @@
     return d === 0 || d === 6;
   }
 
+  // Calendar days from the day `ts` fell on to today. Positive for the past.
+  //
+  // Elapsed milliseconds are NOT calendar days. A task finished yesterday at 21:00
+  // and read at 09:00 is 12 hours old; that floors to 0 and prints "today". Every
+  // day-count the user reads has to compare local midnights instead.
+  //
+  // Math.round, not Math.floor: a day that crosses a daylight-saving change is 23
+  // or 25 hours long, so the quotient is 0.958 or 1.042 rather than exactly 1.
+  function calDaysAgo(ts) {
+    const a = new Date(ts);
+    const b = new Date();
+    const aMid = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+    const bMid = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+    return Math.round((bMid - aMid) / 86400000);
+  }
+
   // "last done 5 days ago" reads better than a date in a list you scan (3d).
   // Falls back to a date past a fortnight, where "23 days ago" stops meaning much.
   function relativeDay(ts) {
-    const days = Math.floor((Date.now() - ts) / 86400000);
+    const days = calDaysAgo(ts);
     if (days <= 0) return 'today';
     if (days === 1) return 'yesterday';
     if (days <= 14) return days + ' days ago';
@@ -2093,8 +2112,12 @@
       const lastMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       return (todayMidnight - lastMidnight) / 86400000 - 1; // 0 if done yesterday, 1 if 2 days ago, etc.
     }
-    const nextDue = last + task.freq * 86400000;
-    return (Date.now() - nextDue) / 86400000;
+    // Measure from the calendar DAY of the last completion, not from the instant.
+    // Two tasks last done on the same date must read the same, whether one was
+    // ticked at breakfast and the other at bedtime. This matches the freq === 1
+    // branch above, and it makes a task fall due at midnight rather than partway
+    // through its due day.
+    return calDaysAgo(last) - task.freq;
   }
   
   function isDue(task) {
@@ -4178,9 +4201,9 @@
     let m = null;
     // First match wins, most-special first.
     if (n === 1) m = fire('first:' + task.id, 'First time you\'ve logged ' + task.name + '.');
-    if (!m && prevCompletion && (Date.now() - prevCompletion) / 86400000 >= 180) {
+    if (!m && prevCompletion && calDaysAgo(prevCompletion) >= 180) {
       m = fire('rescued:' + task.id + ':' + new Date().getFullYear(),
-               'Rescued — ' + task.name + ' hadn\'t been done in ' + Math.floor((Date.now() - prevCompletion) / 86400000) + ' days.');
+               'Rescued — ' + task.name + ' hadn\'t been done in ' + calDaysAgo(prevCompletion) + ' days.');
     }
     if (!m && MILESTONE_COUNTS.includes(n)) m = fire('count:' + task.id + ':' + n, '' + n + 'th time you\'ve done ' + task.name + '.');
     if (!m) {
@@ -4227,6 +4250,7 @@
     const isInProgress = !!(state.inProgress && state.inProgress[id]);
     const timerRunning = getTimer() && getTimer().id === id;
     const snoozed = isSnoozed(id);
+    const inHand = !!(state.hand && state.hand.includes(id));
     const q = "'" + id + "'";
     const last = state.completions[id] || 0;
     const lastLabel = last ? new Date(last).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'never';
@@ -4258,6 +4282,12 @@
       html += row('plus', 'Start another',
         actionCycles.length ? 'Run a second one alongside the first' : 'Start one now, before it is due',
         'taskAction(function(){startExtraCycle(' + q + ')},' + q + ')');
+    }
+    if (!isDone && !inHand) {
+      html += row('plus', 'Add to today',
+        isDue(task) ? 'Puts it in today\'s hand now'
+                    : 'Not due yet — a redeal will drop it again',
+        'taskAction(addToHand,' + q + ')', 'go');
     }
     if (!isDone && !task.oneOff) {
       html += row('pin', isPinned ? 'Unpin from every day' : 'Pin to every day',
@@ -4328,7 +4358,7 @@
       html += row('info', 'Why this task?', 'The score that put it in your hand',
         'showWhy(' + q + ')');
     }
-    if (!isDone) {
+    if (!isDone && inHand) {
       html += row('trash', 'Remove from today', 'Back tomorrow when you redeal',
         'taskAction(removeFromHand,' + q + ')', 'danger');
     }
@@ -6060,7 +6090,8 @@
       const counts = [];
       for (let i = 6; i >= 0; i--) {
         const d = days[keyDaysAgo(i)];
-        counts.push({ n: (d && d.count) || 0, label: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', { weekday: 'narrow' }), today: i === 0 });
+        counts.push({ n: (d && d.count) || 0, label: new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)
+                 .toLocaleDateString('en-US', { weekday: 'narrow' }), today: i === 0 });
       }
       const max = Math.max(1, ...counts.map(c => c.n));
       // A fixed-height row of 3px stubs is a lot of empty paper to spend on "no

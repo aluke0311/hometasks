@@ -645,6 +645,31 @@ test('one page carries both the actions and the settings', () => {
   });
 });
 
+test('the task page offers Add to today, and only when the task is out of the hand', () => {
+  // The page could remove a task from today but never add one, and it offered
+  // "Remove from today" for a task that was never in the hand.
+  withState(st => { st.hand = null; st.handDate = null; }, () => {
+    G('dealHand')();
+    const doc = document.querySelector('iframe').contentDocument;
+    const all = G('getAllTasks')();
+    const outside = all.find(t => !G('state').hand.includes(t.id) &&
+                                  !t.oneOff && !G('wasCompletedToday')(t));
+    ok(!!outside, 'fixture needs a task outside the hand');
+
+    G('openTaskActions')(outside.id, false);
+    let box = doc.getElementById('taskPageActions');
+    ok(box.innerHTML.indexOf('Add to today') !== -1, 'no way to add the task to today');
+    eq(box.innerHTML.indexOf('Remove from today'), -1, 'offered to remove a task that is not in the hand');
+
+    G('taskAction')(G('addToHand'), outside.id);
+    ok(G('state').hand.includes(outside.id), 'the row did not add the task');
+    box = doc.getElementById('taskPageActions');
+    ok(box.innerHTML.length > 0, 'the page closed instead of staying open');
+    ok(box.innerHTML.indexOf('Remove from today') !== -1, 'the row did not flip after adding');
+    eq(box.innerHTML.indexOf('Add to today'), -1, 'both rows are showing at once');
+  });
+});
+
 test('editing saves as you type, with no Save button', () => {
   // The editor was the only surface in the app with Save/Cancel; everything else
   // commits on touch. Merging it with the actions made that inconsistency visible,
@@ -1233,6 +1258,46 @@ test('out-of-season tasks are excluded from the pool and accrue no starvation', 
   });
   ok(r.hand.indexOf(id) === -1, 'out-of-season task was dealt');
   eq(r.starv, 0, 'out-of-season task accrued starvation');
+});
+
+// ─── Day counting ──────────────────────────────────────────────────────────
+group('Day counting');
+
+test('last done is counted in calendar days, not elapsed hours', () => {
+  // A task ticked yesterday evening and read this morning is 12 hours old. Floor
+  // that duration and it prints "today", which is how every completion in the app
+  // read one day too recent.
+  const at = (daysAgo, hour) => {
+    const d = new Date(); d.setDate(d.getDate() - daysAgo); d.setHours(hour, 0, 0, 0);
+    return d.getTime();
+  };
+  eq(G('relativeDay')(at(0, 0)), 'today', 'a completion earlier today');
+  eq(G('relativeDay')(at(1, 23)), 'yesterday', 'yesterday late evening read as today');
+  eq(G('relativeDay')(at(1, 1)), 'yesterday', 'yesterday early morning');
+  eq(G('relativeDay')(at(2, 23)), '2 days ago', 'two days ago read as yesterday');
+  eq(G('relativeDay')(at(14, 23)), '14 days ago', 'the last relative day');
+  ok(/[A-Z][a-z]{2} \d/.test(G('relativeDay')(at(15, 23))), 'day 15 did not fall through to a date');
+});
+
+test('two tasks last done on the same date read the same lateness', () => {
+  // The time of day a task was ticked must not change its overdue badge.
+  withState(st => {
+    st.snoozed = {};
+    st.completions = { __probe_a: 0, __probe_b: 0 };
+  }, () => {
+    const at = (daysAgo, hour) => {
+      const d = new Date(); d.setDate(d.getDate() - daysAgo); d.setHours(hour, 0, 0, 0);
+      return d.getTime();
+    };
+    const task = id => ({ id, name: id, room: 'Kitchen', freq: 7, time: 5, owner: 'either' });
+    G('state').completions.__probe_a = at(8, 23);
+    G('state').completions.__probe_b = at(8, 1);
+    eq(G('daysOverdue')(task('__probe_a')), G('daysOverdue')(task('__probe_b')),
+       'the same last-done date gave two different overdue figures');
+    eq(G('daysOverdue')(task('__probe_a')), 1, 'a weekly task done 8 days ago is 1 day overdue');
+    G('state').completions.__probe_a = at(7, 23);
+    eq(G('daysOverdue')(task('__probe_a')), 0, 'a weekly task done 7 days ago is due, not early');
+  });
 });
 
 // ─── State and time ────────────────────────────────────────────────────────
