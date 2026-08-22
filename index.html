@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <!-- Must stay above the stylesheet: checkForNewVersion() reads only the first few KB. -->
-  <meta name="app-version" content="2026-08-22 v2">
+  <meta name="app-version" content="2026-08-22 v3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Home Tasks</title>
@@ -250,8 +250,15 @@
        opens the sheet) also triggers the OS text-selection / callout, so the sheet
        opens over half-highlighted task names. Nothing inside a row is selectable
        text worth keeping. */
-    .task-card { position: relative; overflow: hidden; border-bottom: 1px solid var(--hairline);
+    .task-card { position: relative; border-bottom: 1px solid var(--hairline);
                  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    /* The swipe rail and the row it slides over, on their own positioning
+       context. Cycling cards add a face-actions row below (2026-08-22) as a
+       THIRD sibling inside .task-card — if overflow:hidden and the rail's
+       top:0;bottom:0 stayed on .task-card itself, the rail would stretch to
+       cover the taller card and show through beside the face buttons instead
+       of staying clipped behind .task-main where the swipe gesture expects it. */
+    .task-row { position: relative; overflow: hidden; }
     /* touch-action:pan-y is load-bearing: it hands vertical scrolling to the
        browser and horizontal panning to the swipe handler. Without it the
        handler's preventDefault fights native scrolling and the list feels stuck. */
@@ -297,6 +304,16 @@
        completion box. The lighter ring says the tap will not finish anything. */
     .task-card.cycling .task-check { border-color: var(--green); }
     .task-card.cycling .cyc-step { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+    /* Real buttons on the card face, not the swipe rail (2026-08-22 audit C-5):
+       the rail is only ever revealed by a sideways drag, so anything living
+       there is invisible until you already know it's there. A running cycle's
+       controls are common enough — every load, every day — to earn a visible
+       spot, and the rail goes back to just More / Pin / Remove everywhere. */
+    .cyc-face-actions { display: flex; gap: var(--s-4); padding: 0 0 var(--s-6); }
+    .cyc-face-btn { flex: 1; min-height: 44px; border-radius: var(--radius); border: 1px solid var(--border2);
+      background: var(--bg2); color: var(--text); font-size: var(--fs-meta); font-weight: 600; cursor: pointer; }
+    .cyc-face-btn.go { border-color: var(--green); color: var(--green); }
+    .cyc-face-btn.danger { border-color: var(--red); color: var(--red); }
 
     /* Swipe rail — revealed under the row, mockup 3b. */
     .task-swipe { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
@@ -951,6 +968,18 @@
       transform: translate(-50%, -50%);
       width: 100%; height: 100%; min-width: 44px; min-height: 44px;
     }
+    /* Surface audit S3 (2026-08-22): the shared rule above centres the box on the
+       button correctly by the numbers — but this particular button sits at the
+       row's right edge with margin-right:-6px, which already pokes it 6px past
+       `.task-card`'s own `overflow: hidden` boundary, so a centred 44×44 box gets
+       its right half clipped. Hit-tested with elementFromPoint on a 5px grid, the
+       real target came out 30 wide × 45 tall (dx -20…5, dy -20…20) — first fixing
+       just the centring math with `top/left/transform` left the measured area
+       IDENTICAL, which is what proved the clip, not the centring, was the cause.
+       So: pin the box's right edge to the card's own clip boundary instead of the
+       button's centre, and let the extra width needed for 44px reach left instead,
+       where the row has room. Declared after the shared rule so it wins. */
+    .task-more-btn::before { top: 50%; right: 6px; left: auto; bottom: auto; width: 44px; height: 44px; transform: translateY(-50%); }
     /* The cadence row's task name is a 15px text link stacked directly above and
        below other rows' links. A full 44px box would reach into its neighbours and
        open the wrong task, so it gets 36 — contained inside its own row, and still
@@ -1688,12 +1717,15 @@
   
   // ─── PERSISTENT STORAGE LAYER ──────────────────────────────────────────────
   // Bump on each deploy so you can confirm a Reload actually picked up the new version.
-  const APP_VERSION = '2026-08-22 v2';
+  const APP_VERSION = '2026-08-22 v3';
 
   // What changed, newest first. Add an entry with every deploy that Alina or Bob
   // would notice — they never see the commits, so this is the only place a change
   // is visible from inside the app. Keep each line one plain sentence.
   const CHANGELOG = [
+    { v: '2026-08-22 v3', notes: [
+      'Cycle fixes: the cat fountain no longer counts down before the dishwasher is actually running — it now says "waiting on the dishwasher" until it is. A running load\'s Back / Drop it / Finished it moved off the swipe rail onto the card itself, where you can see them. The task page\'s main button now advances one step at a time on a cycling task, with "Mark whole cycle done" as its own row for finishing the whole load in one go. Advancing a step now has an Undo, and stepping back out of the very first tap drops the cycle instead of leaving it half-started. "Start another" load now lands in today\'s hand right away, and "+ Give me more" no longer offers you a second load of laundry when today\'s is already spoken for. Wash times can now be set per load (whites vs towels) instead of one shared washer time for all six.',
+    ]},
     { v: '2026-08-22 v2', notes: [
       'All Tasks now lands on the rooms themselves — tap a room to see its tasks, sorted by how overdue the room is or A–Z. It\'s an experiment: flip it back to one long list any time from Settings → All Tasks opens on.',
     ]},
@@ -2475,7 +2507,11 @@
       alwaysAssign: true,
       stages: [
         { key: 'strip',      action: 'Into the dishwasher',       phase: 'Needs cleaning',    mins: 5, readyIn: 0   },
-        { key: 'reassemble', action: 'Reassemble and refill it',     phase: 'In the dishwasher', mins: 5, readyIn: 129 },
+        { key: 'reassemble', action: 'Reassemble and refill it',  phase: 'In the dishwasher', mins: 5, readyIn: 129,
+          // The fountain is cleaned IN the dishwasher, so its wait is really the
+          // dishwasher's — see cycleWaitState. fromStage names the dishwasher
+          // stage that means "the machine is actually running."
+          waitsOn: { cycle: 'dishwasher', fromStage: 'unload' } },
       ],
     },
   };
@@ -2500,6 +2536,24 @@
     const c = state.cycles || {};
     return Object.keys(c).map(cid => Object.assign({ cid }, c[cid]));
   }
+  // A cycle's slot for the day is filled — dealt (running up to dealMax),
+  // pinned, in progress, or already completed today by one of its owners. This
+  // is the exact rule dealHand's own cycle slots use to decide whether to open
+  // one; "+ Give me more" reuses it so it can't offer a second load of laundry
+  // when the dealer has already decided today's is spoken for.
+  function cycleHasHadItsTurn(defKey) {
+    const def = CYCLES[defKey];
+    if (!def) return false;
+    const openCount = openCycles().filter(c => c.def === defKey).length;
+    if (openCount >= (def.dealMax || 1)) return true;
+    const owners = getAllTasks().filter(t => cycleDefFor(t) === defKey);
+    const pinnedSet = new Set(state.pinnedIds || []);
+    if (owners.some(t => wasCompletedToday(t) || pinnedSet.has(t.id) || (state.inProgress || {})[t.id])) return true;
+    // Dealt but not yet tapped: today's slot is already occupied by whichever
+    // owner the dealer picked, even before she has started it.
+    const todaysPick = (state.cycleChoiceDate === todayStr()) ? (state.cycleChoice || {})[defKey] : null;
+    return !!(todaysPick && state.hand && state.hand.includes(todaysPick));
+  }
   function cyclesForTask(taskId) {
     const c = state.cycles || {};
     return Object.keys(c).filter(k => c[k].taskId === taskId).map(cid => Object.assign({ cid }, c[cid]));
@@ -2515,14 +2569,21 @@
     return def ? def.stages[c.stage] : null;
   }
   // Her override wins over the built-in wait, so she can tell the app how long
-  // her own machines actually take.
-  function stageReadyIn(defKey, stageIdx) {
+  // her own machines actually take. Per-task first: she runs a different washer
+  // programme for whites than for towels, so "each cycle type" means each LOAD —
+  // whites, cools, warms, towels, microfibre — not each of the three definitions,
+  // which are already separate. The definition-level key stays as the fallback,
+  // so every override saved before per-task timings existed keeps working untouched.
+  function stageReadyIn(defKey, stageIdx, taskId) {
     const def = CYCLES[defKey];
     const stage = def && def.stages[stageIdx];
     if (!stage) return 0;
-    const key = defKey + '.' + stage.key;
-    const override = (state.cycleTimings || {})[key];
-    return (typeof override === 'number' && override >= 0) ? override : (stage.readyIn || 0);
+    const timings = state.cycleTimings || {};
+    const perTask = taskId && timings[taskId + '.' + stage.key];
+    if (typeof perTask === 'number' && perTask >= 0) return perTask;
+    const perDef = timings[defKey + '.' + stage.key];
+    if (typeof perDef === 'number' && perDef >= 0) return perDef;
+    return stage.readyIn || 0;
   }
   function cycleStageMins(c) {
     const s = cycleStageDef(c);
@@ -2531,7 +2592,39 @@
   function cycleIsStale(c) {
     return Date.now() - (c.stageAt || c.startedAt || 0) > CYCLE_STALE_DAYS * 86400000;
   }
-  function cycleIsReady(c) { return !c || !c.readyAt || Date.now() >= c.readyAt; }
+
+  // A stage whose wait is really another machine's. The fountain is cleaned IN the
+  // dishwasher, so its 129 minutes only start when the dishwasher does — before
+  // this, the app quoted a ready time for a machine nobody had switched on:
+  // starting the fountain 11 hours before ever running the dishwasher still
+  // counted down to "ready", telling her to unload a clean fountain that never
+  // ran. Returns { blocked, readyAt } — blocked means there is no time to show at
+  // all, because the machine it depends on isn't actually running.
+  function cycleWaitState(c) {
+    const s = c && cycleStageDef(c);
+    const waitsOn = s && s.waitsOn;
+    const hostDef = waitsOn && CYCLES[waitsOn.cycle];
+    // An unknown definition (a stored waitsOn surviving a renamed/removed cycle)
+    // must degrade to the plain readyIn, never throw.
+    if (!hostDef) return { blocked: false, readyAt: c ? c.readyAt : null };
+    const fromIdx = hostDef.stages.findIndex(st => st.key === waitsOn.fromStage);
+    if (fromIdx < 0) return { blocked: true, readyAt: null };
+    // More than one host cycle can be running; the earliest by startedAt is the
+    // one whose finish time actually governs — matches cycleForTask's own rule.
+    const hosts = openCycles()
+      .filter(o => o.def === waitsOn.cycle && o.stage >= fromIdx)
+      .sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+    // No host cycle running (or it was dropped mid-wait): blocked, not a stale time.
+    if (!hosts.length) return { blocked: true, readyAt: null };
+    return { blocked: false, readyAt: hosts[0].readyAt };
+  }
+
+  function cycleIsReady(c) {
+    if (!c) return true;
+    const w = cycleWaitState(c);
+    if (w.blocked) return false;
+    return !w.readyAt || Date.now() >= w.readyAt;
+  }
 
   // Before the machine is finished the card shows WHERE THE LOAD IS and when it
   // will be free; after that it shows what to do. She would not tap "move it to
@@ -2542,7 +2635,13 @@
     return cycleIsReady(c) ? s.action : (s.phase || s.action);
   }
   function cycleReadyLabel(c) {
-    const at = c && c.readyAt;
+    const w = cycleWaitState(c);
+    if (w.blocked) {
+      const s = cycleStageDef(c);
+      const hostDef = s && s.waitsOn && CYCLES[s.waitsOn.cycle];
+      return 'waiting on the ' + (hostDef ? hostDef.label.toLowerCase() : 'machine');
+    }
+    const at = w.readyAt;
     if (!at || at - Date.now() <= 60000) return '';
     return 'ready ~' + new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
@@ -2590,21 +2689,17 @@
     // hardcoded wash-slot logic and the ALWAYS_ASSIGN_IDS list, which existed only
     // because the fountain is a two-stage job the old model could not express.
     const cyclingTaskIds = new Set(openCycles().map(c => c.taskId));
-    const openByDef = {};
-    openCycles().forEach(c => { openByDef[c.def] = (openByDef[c.def] || 0) + 1; });
     const dealFlagged = new Set(state.flaggedIds || []);
 
     const todaysChoice = (state.cycleChoiceDate === today) ? (state.cycleChoice || {}) : {};
     const cycleChoiceNext = {};
     const cycleStarts = [];
     Object.keys(CYCLES).forEach(defKey => {
-      if ((openByDef[defKey] || 0) >= (CYCLES[defKey].dealMax || 1)) return;
+      // Done today, pinned, in progress, or already at dealMax running — one
+      // definition of "this cycle has had its turn," shared with the overflow
+      // list via cycleHasHadItsTurn.
+      if (cycleHasHadItsTurn(defKey)) return;
       const owners = allTasks.filter(t => cycleDefFor(t) === defKey);
-      // Done today, pinned, or marked in progress all mean this cycle has had its
-      // turn — the rule the wash slot always had, now applied per definition.
-      const spokenFor = owners.some(t =>
-        wasCompletedToday(t) || pinnedSet.has(t.id) || (state.inProgress || {})[t.id]);
-      if (spokenFor) return;
       const due = owners
         .filter(t => !cyclingTaskIds.has(t.id) && (isDue(t) || dealFlagged.has(t.id)) && inSeason(t) && dealtByMe(t))
         .sort((a, b) => scoreTask(a, effectiveZone()) - scoreTask(b, effectiveZone()));
@@ -2835,7 +2930,16 @@
         dealtByMe(t)
       );
     const removedSet = new Set(state.removedToday || []);
-    const result = [...flaggedNotDue, ...due].filter(t => t.freq > 1 && !state.hand.includes(t.id) && !removedSet.has(t.id));
+    // A cycle owner not dealt today is not a suggestion, it's the five loads that
+    // lost to today's pick — the cycle gets one slot a day, and offering the
+    // others here is offering a second load of laundry she didn't ask for.
+    // "Start another" stays possible, as an explicit choice on the task page.
+    const result = [...flaggedNotDue, ...due].filter(t => {
+      if (t.freq <= 1 || state.hand.includes(t.id) || removedSet.has(t.id)) return false;
+      const defKey = cycleDefFor(t);
+      if (defKey && cycleHasHadItsTurn(defKey)) return false;
+      return true;
+    });
     // By Freq mode: surface overflow in raw-frequency order (flagged still first), matching the deal.
     // Otherwise the score-sorted due list would let overdue long-interval tasks jump ahead of frequent ones.
     if (state.mode === 'byfreq') {
@@ -3282,6 +3386,11 @@
     while (state.cycles[cid]) cid = 'cy_' + now + '_' + (n++);
     state.cycles[cid] = { def: defKey, taskId, stage: 0, startedAt: now, stageAt: now, readyAt: now };
     unremoveToday(taskId);
+    // A cycle she just opened has to be on TODAY's list, not tomorrow's — same
+    // shape as the bug toggleInProgress had. Put it here, not in startExtraCycle,
+    // so every route that opens a cycle behaves the same.
+    if (!state.hand) state.hand = [];
+    if (!state.hand.includes(taskId)) state.hand.push(taskId);
     // Tapping the card IS doing the first step — she taps "Wash whites" once the
     // machine is running, not before — so the new cycle banks step 0 straight away
     // and settles on whatever comes next.
@@ -3305,11 +3414,13 @@
     if (next >= def.stages.length) { finishCycle(cid); return; }
     c.stage = next;
     c.stageAt = Date.now();
-    c.readyAt = Date.now() + stageReadyIn(c.def, next) * 60000;
+    c.readyAt = Date.now() + stageReadyIn(c.def, next, c.taskId) * 60000;
     saveState();
     render();
     const label = cycleStatusLabel(c), ready = cycleReadyLabel(c);
-    showToast(label + (ready ? ' · ' + ready : ''));
+    // She logs a load late and the machine really is finished, so a tap during
+    // the wait keeps working — this is the way back if that tap was a mistake.
+    showToast(label + (ready ? ' · ' + ready : ''), () => cycleBack(cid), 'Undo');
   }
 
   // The undo for a mis-tapped step. Stepping back restores the previous step's
@@ -3317,9 +3428,19 @@
   function cycleBack(cid) {
     const c = state.cycles && state.cycles[cid];
     if (!c || c.stage === 0) return;
+    if (c.stage === 1) {
+      // Stepping back from the first real step means nothing has happened yet.
+      // A stage-0 cycle is exactly the state that stranded a load in the Sprint's
+      // Laundry block while its own card had already gone back to "Into the washer".
+      delete state.cycles[cid];
+      saveState();
+      render();
+      showToast('Load not started.');
+      return;
+    }
     c.stage -= 1;
     c.stageAt = Date.now();
-    c.readyAt = Date.now() + stageReadyIn(c.def, c.stage) * 60000;
+    c.readyAt = Date.now() + stageReadyIn(c.def, c.stage, c.taskId) * 60000;
     saveState();
     render();
     showToast('Back to: ' + cycleStatusLabel(c));
@@ -3940,7 +4061,11 @@
     const pinGlyph = isPinned && !isDone
       ? '<span class="pin-mark">' + icon('pinFill', 12) + '</span>' : '';
 
-    // The rail only offers Remove where removing means something.
+    // Her rule: nothing new goes on the swipe rail. It's revealed by a sideways
+    // drag, so anything living only there is invisible until you already know
+    // it's there — More / Pin / Remove are the three she knows, every card, and
+    // that no longer changes for a running cycle (its own controls are on the
+    // card face now, below).
     const inHand = !!(state.hand && state.hand.includes(task.id));
     const q = "'" + task.id + "'";
     let rail =
@@ -3950,21 +4075,28 @@
       rail += '<button class="sw-pin" onclick="togglePin(' + q + ')" aria-label="' + (isPinned ? 'Unpin' : 'Pin') + '">' +
         icon('pinFill', 17) + '<span>' + (isPinned ? 'Unpin' : 'Pin') + '</span></button>';
     }
-    // A running cycle swaps Remove for its own two ways out. Remove would hide the
-    // card for a day and leave the washer full with nothing on screen saying so.
-    if (cyc) {
-      if (cyc.stage > 0) {
-        rail += '<button class="sw-pin" onclick="cycleBack(\'' + cyc.cid + '\')" aria-label="Back a step">' +
-          icon('checkBack', 17) + '<span>Back</span></button>';
-      }
-      rail += '<button class="sw-remove" onclick="dropCycle(\'' + cyc.cid + '\')" aria-label="Drop this load">' +
-        icon('trash', 17) + '<span>Drop it</span></button>';
-    } else if (inHand && !isDone) {
+    if (!cyc && inHand && !isDone) {
       rail += '<button class="sw-remove" onclick="removeFromHand(' + q + ')" aria-label="Remove from today">' +
         icon('trash', 17) + '<span>Remove</span></button>';
     }
 
+    // Real buttons on the face for a running cycle: Back (only once there's
+    // somewhere to go back to), Drop it, Finished it. Not in a compact row
+    // (Sprint) — three buttons plus the name/step/timer already fills that
+    // width, so Drop it stays reachable from the task page there instead of
+    // wrapping silently.
+    const cycFaceActions = (cyc && !compact)
+      ? '<div class="cyc-face-actions">' +
+          (cyc.stage > 0
+            ? '<button class="cyc-face-btn" onclick="event.stopPropagation();cycleBack(\'' + cyc.cid + '\')">' + icon('checkBack', 15) + ' Back</button>'
+            : '') +
+          '<button class="cyc-face-btn danger" onclick="event.stopPropagation();dropCycle(\'' + cyc.cid + '\')">' + icon('trash', 15) + ' Drop it</button>' +
+          '<button class="cyc-face-btn go" onclick="event.stopPropagation();finishCycle(\'' + cyc.cid + '\')">' + icon('check', 15) + ' Finished it</button>' +
+        '</div>'
+      : '';
+
     return '<div class="task-card' + (isDone ? ' done' : '') + (compact ? ' compact' : '') + (cyc ? ' cycling' : '') + '" id="card_' + task.id + '" data-task-id="' + task.id + '" data-can-swap="' + (canSwap ? '1' : '0') + '">' +
+      '<div class="task-row">' +
       '<div class="task-swipe">' + rail + '</div>' +
       '<div class="task-main" onclick="toggleComplete(\'' + task.id + '\')">' +
         '<div class="task-check"><div class="task-check-inner"></div></div>' +
@@ -3983,6 +4115,8 @@
         // revealed on hover, so the sheet isn't swipe-only.
         '<button class="task-more-btn" onclick="event.stopPropagation();openTaskActions(' + q + ',' + (canSwap ? 'true' : 'false') + ')" title="More actions" aria-label="More actions for ' + task.name.replace(/"/g,'&quot;') + '">' + icon('dots', 16) + '</button>' +
       '</div>' +
+      '</div>' +
+      cycFaceActions +
     '</div>';
   }
   
@@ -4302,7 +4436,7 @@
         html += row('checkBack', 'Back a step', 'Now on: ' + cycleStatusLabel(c),
           'taskAction(function(){cycleBack(\'' + c.cid + '\')},' + q + ')');
       }
-      html += row('check', 'Finished it', 'Marks the whole ' + def.label.toLowerCase() + ' done',
+      html += row('check', 'Mark whole cycle done', 'The whole load, in one go — skips the remaining steps',
         'taskAction(function(){finishCycle(\'' + c.cid + '\')},' + q + ')', 'go');
       html += row('trash', 'Drop it', 'That one never happened — the task stays due',
         'taskAction(function(){dropCycle(\'' + c.cid + '\')},' + q + ')');
@@ -4392,9 +4526,26 @@
         'taskAction(removeFromHand,' + q + ')', 'danger');
     }
 
-    const foot = isDone
-      ? '<button class="sheet-primary" style="background:var(--bg2);color:var(--text)" onclick="taskAction(uncompleteTask,' + q + ')">' + icon('refresh', 17, 2.2) + 'Undo completion</button>'
-      : '<button class="sheet-primary" onclick="taskAction(completeTask,' + q + ')">' + icon('check', 17, 2.2) + 'Mark done</button>';
+    // A cycle owner's primary button advances ONE step — the same as tapping the
+    // card — never the whole load; "Mark whole cycle done" above is the explicit
+    // shortcut for that. The label always names the ACTION the tap performs, even
+    // mid-wait (Part 4 lets the tap still work then), never the current phase —
+    // the phase is what the status line above already says.
+    const cycKeyForFoot = !isDone ? cycleDefFor(task) : null;
+    let foot;
+    if (isDone) {
+      foot = '<button class="sheet-primary" style="background:var(--bg2);color:var(--text)" onclick="taskAction(uncompleteTask,' + q + ')">' + icon('refresh', 17, 2.2) + 'Undo completion</button>';
+    } else if (cycKeyForFoot) {
+      const running = cycleForTask(id);
+      const stageDef = running ? cycleStageDef(running) : CYCLES[cycKeyForFoot].stages[0];
+      const stepLabel = stageDef ? stageDef.action : 'Mark done';
+      const advanceFn = running
+        ? "function(){advanceCycle('" + running.cid + "')}"
+        : 'function(){startCycle(' + q + ')}';
+      foot = '<button class="sheet-primary" onclick="taskAction(' + advanceFn + ',' + q + ')">' + icon('check', 17, 2.2) + stepLabel + '</button>';
+    } else {
+      foot = '<button class="sheet-primary" onclick="taskAction(completeTask,' + q + ')">' + icon('check', 17, 2.2) + 'Mark done</button>';
+    }
 
     const box = document.getElementById('taskPageActions');
     if (box) box.innerHTML = '<div class="page-foot">' + foot + '</div>' + html;
@@ -4566,7 +4717,16 @@
     // Only a load that still has to be STARTED belongs in Launch. Once its cycle
     // is past stage 0 the card says "Fold laundry", which is not a set-it-going
     // job — it falls through to the Laundry Room block where the folding happens.
-    const SPRINT_LOAD_IDS = hand.filter(t => cycleDefFor(t) === 'laundry' && !cycleForTask(t.id)).map(t => t.id);
+    // "Still has to be started" — no cycle, OR a cycle stepped back to stage 0.
+    // Backing out of a mis-tap used to leave the load stranded in the Laundry
+    // block while its own card read "Into the washer". Part 4 stops a stage-0
+    // cycle being created at all now, but this stays belt-and-braces for one
+    // that arrives some other way (an older export).
+    const SPRINT_LOAD_IDS = hand.filter(t => {
+      if (cycleDefFor(t) !== 'laundry') return false;
+      const c = cycleForTask(t.id);
+      return !c || c.stage === 0;
+    }).map(t => t.id);
     // Every robot RUN belongs here — they are the passive jobs you set going and
     // walk away from. rob_mop_us was added in the per-unit split and missed, so it
     // fell through to a one-task block at the very end of the sprint.
@@ -7125,14 +7285,27 @@
     const defKey = sel.value;
     const def = CYCLES[defKey];
     if (!def) { box.innerHTML = ''; return; }
+    const timings = state.cycleTimings || {};
     box.innerHTML =
-      '<div class="cyc-timing-note">How long each step waits on the machine before you can do it. Leave a step at 0 if there is nothing to wait for.</div>' +
-      def.stages.map((st, i) =>
-        '<div class="cyc-timing-row">' +
-          '<span class="cyc-timing-name">' + st.action + '</span>' +
-          '<input class="field-input" type="number" min="0" step="1" value="' + stageReadyIn(defKey, i) + '" ' +
+      '<div class="cyc-timing-note">How long each step waits on the machine before you can do it. Leave a step at 0 if there is nothing to wait for.' +
+        (editingId ? ' Blank uses the shared default shown as the placeholder.' : '') + '</div>' +
+      def.stages.map((st, i) => {
+        // The name is what the wait MEASURES, not the stage it precedes — the
+        // wash time sits under "Into the dryer" because that's the action it
+        // unlocks, and labeling it that way is how a dryer time ends up typed
+        // into the washer field.
+        const perDefRaw = timings[defKey + '.' + st.key];
+        const perDef = typeof perDefRaw === 'number' ? perDefRaw : (st.readyIn || 0);
+        const value = editingId
+          ? (typeof timings[editingId + '.' + st.key] === 'number' ? timings[editingId + '.' + st.key] : '')
+          : perDef;
+        const label = st.phase ? st.phase + ' &mdash; before &ldquo;' + st.action + '&rdquo;' : st.action;
+        return '<div class="cyc-timing-row">' +
+          '<span class="cyc-timing-name">' + label + '</span>' +
+          '<input class="field-input" type="number" min="0" step="1" placeholder="' + perDef + '" value="' + value + '" ' +
             'onchange="setStageReadyIn(\'' + defKey + '\',' + i + ',this.value)"> min' +
-        '</div>').join('');
+        '</div>';
+      }).join('');
   }
 
   function setStageReadyIn(defKey, stageIdx, value) {
@@ -7140,13 +7313,25 @@
     const stage = def && def.stages[stageIdx];
     if (!stage) return;
     if (!state.cycleTimings) state.cycleTimings = {};
-    const key = defKey + '.' + stage.key;
-    const n = parseInt(value, 10);
-    if (isNaN(n) || n < 0) return;
-    if (n === (stage.readyIn || 0)) delete state.cycleTimings[key];   // back to the default
-    else state.cycleTimings[key] = n;
+    const n = value === '' ? null : parseInt(value, 10);
+    if (n !== null && (isNaN(n) || n < 0)) return;
+
+    if (editingId) {
+      // Per-task: she runs a different washer programme for whites than towels.
+      // Clearing the field falls back to the shared default — one level deeper
+      // than the plain "back to the default" case below.
+      const key = editingId + '.' + stage.key;
+      if (n === null) delete state.cycleTimings[key];
+      else state.cycleTimings[key] = n;
+    } else {
+      // No task id yet while creating — the only thing to set is the shared,
+      // definition-level default.
+      const key = defKey + '.' + stage.key;
+      if (n === null || n === (stage.readyIn || 0)) delete state.cycleTimings[key];
+      else state.cycleTimings[key] = n;
+    }
     saveState();
-    showToast(CYCLES[defKey].label + ' · ' + stage.action + ': ' + n + ' min');
+    showToast(CYCLES[defKey].label + ' · ' + stage.action + ': ' + (n === null ? 'back to default' : n + ' min'));
   }
 
   // Debounced so a name typed at speed is one write, not thirty.

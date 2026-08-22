@@ -2390,6 +2390,136 @@ test('room pressure has one definition, shared by Stats and All Tasks', () => {
      'roomPressure() rows are missing median/overdue');
 });
 
+// ─── Cycles ─────────────────────────────────────────────────────────────────
+group('Cycles');
+
+test('backing out of a mis-tapped load puts it back in Launch', () => {
+  // She tapped the load by accident, tapped Back, and the card read "Into the
+  // washer" while the Sprint kept it in the Laundry block all day.
+  withState(st => {
+    st.hand = null; st.handDate = null; st.cycles = {};
+    st.cycleChoice = { laundry: 'lroom_whites' }; st.cycleChoiceDate = G('todayStr')();
+  }, () => {
+    G('dealHand')();
+    const blockOf = id => {
+      const b = G('getSprintBlocks')().find(b => b.tasks.some(t => t.id === id));
+      return b ? b.label : 'not in sprint';
+    };
+    eq(blockOf('lroom_whites'), 'Launch', 'precondition: an unstarted load launches');
+    const cid = G('startCycle')('lroom_whites');
+    eq(blockOf('lroom_whites'), 'Laundry', 'a running load should leave Launch');
+    G('cycleBack')(cid);
+    eq(G('cycleForTask')('lroom_whites'), null, 'stepping back from step 1 left a stage-0 cycle');
+    eq(blockOf('lroom_whites'), 'Launch', 'the load did not return to Launch');
+  });
+});
+
+test('the fountain shows no ready time until the dishwasher is running', () => {
+  // The fountain is cleaned IN the dishwasher. Its 129 minutes were counted from
+  // the moment she put it in, so the card promised a clean fountain out of a
+  // machine nobody had switched on.
+  withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
+    G('dealHand')();
+    G('startCycle')('c_fountain');
+    const f = G('cycleForTask')('c_fountain');
+    eq(G('cycleIsReady')(f), false, 'the fountain was ready with no dishwasher running');
+    ok(/waiting on the dishwasher/i.test(G('cycleReadyLabel')(f)),
+       'the card quoted a time instead of naming what it is waiting for, got: ' + G('cycleReadyLabel')(f));
+    // 11 hours later, still no dishwasher: still not ready.
+    G('state').cycles[f.cid].stageAt = Date.now() - 11 * 3600000;
+    G('state').cycles[f.cid].readyAt = Date.now() - 9 * 3600000;
+    eq(G('cycleIsReady')(G('cycleForTask')('c_fountain')), false, 'a stale clock made it ready anyway');
+    // start the dishwasher through to its running stage
+    const dcid = G('startCycle')('k_dishwasher');
+    G('advanceCycle')(dcid);
+    const f2 = G('cycleForTask')('c_fountain');
+    const d = G('state').cycles[dcid];
+    eq(G('cycleWaitState')(f2).readyAt, d.readyAt, 'the fountain is not borrowing the dishwasher clock');
+  });
+});
+
+test('starting a second load puts it in TODAY\'s hand', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
+    G('dealHand')();
+    const slot = G('state').cycleChoice.laundry;
+    const second = ['lroom_whites','lroom_cools','lroom_warms'].find(i => i !== slot);
+    G('startCycle')(slot);
+    G('startExtraCycle')(second);
+    ok(G('state').hand.includes(second), 'the second load is not in today\'s hand');
+  });
+});
+
+test('give me more never offers a second load of laundry', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
+    G('dealHand')();
+    const owners = G('getOverflowTasks')().filter(t => G('cycleDefFor')(t) === 'laundry');
+    eq(owners.length, 0, 'overflow offered: ' + owners.map(t => t.id).join(', '));
+  });
+});
+
+test('the task page advances one step, and completes only on request', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
+    G('dealHand')();
+    const id = G('state').cycleChoice.laundry;
+    G('startCycle')(id);                                  // stage 1
+    const doc = document.querySelector('iframe').contentDocument;
+    G('openTaskActions')(id, false);
+    const box = doc.getElementById('taskPageActions');
+    eq(box.querySelector('.sheet-primary').textContent.indexOf('Mark done'), -1,
+       'the primary button still says Mark done on a cycling task');
+    ok(box.innerHTML.indexOf('Mark whole cycle done') !== -1, 'no route to completing the whole load');
+    box.querySelector('.sheet-primary').click();
+    eq(G('cycleForTask')(id).stage, 2, 'the primary button did not advance exactly one step');
+    eq(G('wasCompletedToday')(G('getAllTasks')().find(t => t.id === id)), false,
+       'one step completed the whole task');
+  });
+});
+
+test('a per-load wash time beats the shared one, and the old key still works', () => {
+  withState(st => { st.cycleTimings = {}; }, () => {
+    eq(G('stageReadyIn')('laundry', 1, 'lroom_whites'), 55, 'precondition: the built-in wash time');
+    G('state').cycleTimings['laundry.dry'] = 40;
+    eq(G('stageReadyIn')('laundry', 1, 'lroom_whites'), 40, 'an override saved before this change stopped working');
+    G('state').cycleTimings['lroom_whites.dry'] = 90;
+    eq(G('stageReadyIn')('laundry', 1, 'lroom_whites'), 90, 'the per-load time did not win');
+    eq(G('stageReadyIn')('laundry', 1, 'lroom_cools'), 40, 'the per-load time leaked onto another load');
+  });
+});
+
+test('a cycling card renders its own Back / Drop it / Finished it, not on the swipe rail', () => {
+  withState(st => { st.hand = null; st.handDate = null; st.cycles = {}; }, () => {
+    G('dealHand')();
+    const id = G('state').cycleChoice.laundry;
+    G('startCycle')(id);   // stage 1, so "Back" should show too
+    const html = G('renderCard')(G('getAllTasks')().find(t => t.id === id), false);
+    const doc = document.querySelector('iframe').contentDocument;
+    const wrap = doc.createElement('div');
+    wrap.innerHTML = html;
+    const face = wrap.querySelector('.cyc-face-actions');
+    ok(!!face, 'no card-face container for the cycle controls');
+    ['Back', 'Drop it', 'Finished it'].forEach(label =>
+      ok(face.textContent.indexOf(label) !== -1, 'card face is missing "' + label + '"'));
+    const rail = wrap.querySelector('.task-swipe');
+    ok(rail.textContent.indexOf('Back') === -1 && rail.textContent.indexOf('Drop') === -1,
+       'the cycle controls are still on the swipe rail');
+  });
+});
+
+test('a non-cycling card\'s rail holds exactly More / Pin / Remove', () => {
+  withState(st => { st.hand = null; st.handDate = null; }, () => {
+    G('dealHand')();
+    const id = G('state').hand.find(hid => !G('cycleDefFor')(G('getAllTasks')().find(t => t.id === hid)));
+    ok(!!id, 'fixture needs a non-cycling task in the hand');
+    const html = G('renderCard')(G('getAllTasks')().find(t => t.id === id), false);
+    const doc = document.querySelector('iframe').contentDocument;
+    const wrap = doc.createElement('div');
+    wrap.innerHTML = html;
+    const rail = wrap.querySelector('.task-swipe');
+    ['More', 'Pin', 'Remove'].forEach(label =>
+      ok(rail.textContent.indexOf(label) !== -1, 'rail is missing "' + label + '"'));
+  });
+});
+
 // ─── Version hygiene ───────────────────────────────────────────────────────
 group('Version hygiene');
 
